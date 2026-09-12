@@ -1,5 +1,6 @@
 ﻿@using SRNSMudApp.Components.Pages
-<Router AppAssembly="typeof(Program).Assembly" AdditionalAssemblies="[typeof(Client._Imports).Assembly]"
+@using SRNSMudApp.Client
+<Router AppAssembly="typeof(Program).Assembly" AdditionalAssemblies="[typeof(RedirectToLogin).Assembly]"
         NotFoundPage="typeof(NotFound)">
     <Found Context="routeData">
         <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(MainLayout)">

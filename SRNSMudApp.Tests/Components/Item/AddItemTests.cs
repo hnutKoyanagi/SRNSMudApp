@@ -70,6 +70,28 @@ public sealed class AddItemTests : IAsyncLifetime
     }
 
     [Fact]
+    public void CommandEnter_SavesItem()
+    {
+        _ = _itemCardDataMock
+            .Setup(d => d.CreateItemAsync(It.IsAny<SRNSMudApp.Data.Item>(), It.IsAny<IReadOnlyCollection<int>?>()))
+            .Returns(Task.CompletedTask);
+
+        IRenderedComponent<AddItem> cut = _ctx.Render<AddItem>();
+
+        cut.WaitForState(() => cut.FindAll("form").Count > 0);
+        cut.Find("textarea").Input(TestContent);
+        cut.Find("textarea").KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs
+        {
+            Key = "Enter",
+            MetaKey = true
+        });
+
+        _itemCardDataMock.Verify(d => d.CreateItemAsync(
+            It.Is<SRNSMudApp.Data.Item>(i => i.Content == TestContent && i.OwnerId == ExistingUserId),
+            It.IsAny<IReadOnlyCollection<int>?>()), Times.Once);
+    }
+
+    [Fact]
     public void Input_UrlInContent_RendersUrlPreviewCardWithLoadPreview()
     {
         const string inputContent = "Check this out https://example.com";

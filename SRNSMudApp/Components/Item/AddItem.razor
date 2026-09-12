@@ -29,7 +29,8 @@
                     <MudStack Class="flex-grow-1" Style="min-width: 0;">
                         <MudTextField @bind-Value="_newItem.Content" For="@(() => _newItem.Content)" name="_newItem.Content"
                                       Placeholder="新しいアイテムのコンテンツを入力..." Variant="Variant.Outlined" Lines="3" MaxLength="1000"
-                                      Counter="1000" Required="true" RequiredError="コンテンツは必須です。" Immediate="true" />
+                                      Counter="1000" Required="true" RequiredError="コンテンツは必須です。" Immediate="true"
+                                      OnKeyDown="@HandleKeyDown" />
 
                         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="4" Class="mt-1">
                             <MudSwitch @bind-Value="_isPrivate" Color="Color.Primary" Label="プライベートモード" Size="Size.Small" />
@@ -165,6 +166,14 @@
         catch (Exception ex)
         {
             Snackbar.Add($"エラー: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && e.MetaKey)
+        {
+            await HandleValidSubmit();
         }
     }
 
