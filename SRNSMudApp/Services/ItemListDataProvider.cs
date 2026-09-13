@@ -390,7 +390,10 @@ public class ItemListDataProvider(
     public async Task<ItemListExportData> LoadExportDataAsync(IReadOnlyList<int> itemIds)
     {
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
-        Dictionary<int, Tag> allTags = await context.Tags.ToDictionaryAsync(t => t.Id);
+        Dictionary<int, Tag> allTags = await context.Tags
+            .AsNoTracking()
+            .Include(t => t.Owner)
+            .ToDictionaryAsync(t => t.Id);
 
         List<TagRelation> itemTags = await context.TagRelations
             .Where(tr => itemIds.Contains(tr.ItemId))

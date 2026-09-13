@@ -9,6 +9,11 @@ using SRNSMudApp.Models.Unions;
 
 namespace SRNSMudApp.Services;
 
+/// <summary>
+/// タグ間エッジと、エッジに付与されたタグの永続化を担当します。
+/// </summary>
+/// <param name="dbFactory">データベースコンテキストを生成するファクトリ。</param>
+/// <param name="timeProvider">消費日時を取得する時刻プロバイダー。</param>
 public class TagEdgeService(
     IDbContextFactory<ApplicationDbContext> dbFactory,
     TimeProvider? timeProvider = null) : ITagEdgeService
@@ -20,6 +25,11 @@ public class TagEdgeService(
     private const string LedgerSourceTypeInsert = "TagEdgeTagAttachmentInsert";
     private const string LedgerSourceTypeDelete = "TagEdgeTagAttachmentDelete";
 
+    /// <summary>タグ間に新しいエッジを作成します。</summary>
+    /// <param name="sourceTagId">始点タグの ID。</param>
+    /// <param name="targetTagId">終点タグの ID。</param>
+    /// <param name="ownerId">エッジの所有者 ID。</param>
+    /// <returns>作成結果。</returns>
     public async Task<Result<TagEdge>> CreateEdgeAsync(int sourceTagId, int targetTagId, string ownerId)
     {
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
@@ -50,6 +60,10 @@ public class TagEdgeService(
         return new Success<TagEdge>(edge);
     }
 
+    /// <summary>所有者が作成したエッジを削除します。</summary>
+    /// <param name="edgeId">削除対象エッジの ID。</param>
+    /// <param name="ownerId">削除を要求する所有者 ID。</param>
+    /// <returns>削除結果。</returns>
     public async Task<Result<bool>> DeleteEdgeAsync(int edgeId, string ownerId)
     {
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
@@ -70,6 +84,13 @@ public class TagEdgeService(
         return new Success<bool>(true);
     }
 
+    /// <summary>RightAsset を消費してタグをエッジに付与します。</summary>
+    /// <param name="edgeId">対象エッジの ID。</param>
+    /// <param name="tagId">付与するタグの ID。</param>
+    /// <param name="rightAssetId">消費する RightAsset の ID。</param>
+    /// <param name="currentUserId">操作を行うユーザーの ID。</param>
+    /// <param name="weight">付与する重み。</param>
+    /// <returns>付与結果。</returns>
     public async Task<Result<TagEdgeTagAttachment>> AttachTagToEdgeAsync(
         int edgeId, int tagId, int rightAssetId, string currentUserId, int weight = 1)
     {
@@ -177,6 +198,10 @@ public class TagEdgeService(
         }
     }
 
+    /// <summary>エッジに付与されたタグを解除します。</summary>
+    /// <param name="attachmentId">解除対象付与情報の ID。</param>
+    /// <param name="currentUserId">操作を行うユーザーの ID。</param>
+    /// <returns>解除結果。</returns>
     public async Task<Result<bool>> DetachTagFromEdgeAsync(int attachmentId, string currentUserId)
     {
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
@@ -222,6 +247,9 @@ public class TagEdgeService(
         return new Success<bool>(true);
     }
 
+    /// <summary>指定タグに接続されたエッジを取得します。</summary>
+    /// <param name="tagId">検索対象タグの ID。</param>
+    /// <returns>接続されたエッジの一覧。</returns>
     public async Task<IReadOnlyList<TagEdge>> GetEdgesForTagAsync(int tagId)
     {
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
@@ -233,6 +261,9 @@ public class TagEdgeService(
             .ToListAsync();
     }
 
+    /// <summary>指定エッジに付与されたタグを取得します。</summary>
+    /// <param name="edgeId">検索対象エッジの ID。</param>
+    /// <returns>タグ付与情報の一覧。</returns>
     public async Task<IReadOnlyList<TagEdgeTagAttachment>> GetAttachmentsForEdgeAsync(int edgeId)
     {
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
@@ -243,6 +274,8 @@ public class TagEdgeService(
             .ToListAsync();
     }
 
+    /// <summary>すべてのエッジと関連タグを取得します。</summary>
+    /// <returns>エッジの一覧。</returns>
     public async Task<IReadOnlyList<TagEdge>> GetAllEdgesAsync()
     {
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
@@ -255,11 +288,14 @@ public class TagEdgeService(
             .ToListAsync();
     }
 
-    /// <inheritdoc />
+    /// <summary>ユーザーが利用可能な RightAsset を取得します。</summary>
+    /// <param name="userId">所有者のユーザー ID。</param>
+    /// <param name="targetTagId">権利対象タグの ID。</param>
+    /// <returns>利用可能な RightAsset の一覧。</returns>
     public async Task<List<RightAsset>> GetAvailableRightAssetsAsync(string userId, int targetTagId)
     {
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
-        var assets = await context.RightAssets
+        List<RightAsset> assets = await context.RightAssets
             .Where(r => r.OwnerId == userId && r.TargetTagId == targetTagId && !r.IsBurned && r.Amount > 0)
             .OrderByDescending(r => r.Amount)
             .AsNoTracking()
@@ -267,11 +303,11 @@ public class TagEdgeService(
 
         if (assets.Count == 0 && !string.IsNullOrWhiteSpace(userId))
         {
-            var tag = await context.Tags.FindAsync(targetTagId);
+            Tag? tag = await context.Tags.FindAsync(targetTagId);
             if (tag != null && tag.OwnerId == userId)
             {
                 // タグオーナー自身で未消費 RightAsset が存在しない場合、自動的に新規 RightAsset を発行して付与
-                var newAsset = new RightAsset
+                RightAsset newAsset = new()
                 {
                     OwnerId = userId,
                     TargetTagId = targetTagId,

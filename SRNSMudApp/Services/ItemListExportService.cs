@@ -9,10 +9,17 @@ using SRNSMudApp.Models;
 
 namespace SRNSMudApp.Services;
 
+/// <summary>JSON エクスポート用の所有者 DTO。</summary>
+public sealed record ExportOwnerDto
+{
+    public string Name { get; init; } = string.Empty;
+}
+
 /// <summary>JSON エクスポート 1 アイテム分の DTO。</summary>
 public sealed record ExportItemDto
 {
     public string Content { get; init; } = string.Empty;
+    public ExportOwnerDto Owner { get; init; } = new();
     public IReadOnlyList<ExportTagDto> Tags { get; init; } = [];
     public IReadOnlyList<ExportLinkPreviewDto> LinkPreviews { get; init; } = [];
 }
@@ -22,6 +29,7 @@ public sealed record ExportTagDto
 {
     public string Name { get; init; } = string.Empty;
     public string Content { get; init; } = string.Empty;
+    public ExportOwnerDto Owner { get; init; } = new();
     public IReadOnlyList<ExportTagSimpleDto> ParentTags { get; init; } = [];
     public IReadOnlyList<ExportTagSimpleDto> RelatedTags { get; init; } = [];
 }
@@ -31,6 +39,7 @@ public sealed record ExportTagSimpleDto
 {
     public string Name { get; init; } = string.Empty;
     public string Content { get; init; } = string.Empty;
+    public ExportOwnerDto Owner { get; init; } = new();
 }
 
 /// <summary>JSON エクスポート用のリンクプレビュー DTO。</summary>
@@ -98,6 +107,7 @@ public sealed class ItemListExportService(LinkPreviewService linkPreviewService)
             exportList.Add(new ExportItemDto
             {
                 Content = item.Content,
+                Owner = new ExportOwnerDto { Name = item.Owner?.UserName ?? string.Empty },
                 Tags = tags,
                 LinkPreviews = await BuildLinkPreviewsAsync(item.Content)
             });
@@ -118,6 +128,7 @@ public sealed class ItemListExportService(LinkPreviewService linkPreviewService)
             {
                 Name = tag.Name,
                 Content = tag.Content,
+                Owner = new ExportOwnerDto { Name = tag.Owner?.UserName ?? string.Empty },
                 ParentTags = [.. CollectParentTags(tag, allTags)],
                 RelatedTags = [.. CollectRelatedTags(tag.Id, allTags, tagToTags)]
             };
@@ -128,7 +139,12 @@ public sealed class ItemListExportService(LinkPreviewService linkPreviewService)
         Tag current = tag;
         while (current.ParentTagId is int parentId && allTags.TryGetValue(parentId, out Tag? parent))
         {
-            yield return new ExportTagSimpleDto { Name = parent.Name, Content = parent.Content };
+            yield return new ExportTagSimpleDto
+            {
+                Name = parent.Name,
+                Content = parent.Content,
+                Owner = new ExportOwnerDto { Name = parent.Owner?.UserName ?? string.Empty }
+            };
             current = parent;
         }
     }
@@ -146,7 +162,12 @@ public sealed class ItemListExportService(LinkPreviewService linkPreviewService)
     }
 
     private static ExportTagSimpleDto ToSimpleDto(Tag tag) =>
-        new() { Name = tag.Name, Content = tag.Content };
+        new()
+        {
+            Name = tag.Name,
+            Content = tag.Content,
+            Owner = new ExportOwnerDto { Name = tag.Owner?.UserName ?? string.Empty }
+        };
 
     private async Task<List<ExportLinkPreviewDto>> BuildLinkPreviewsAsync(string? content)
     {

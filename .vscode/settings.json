@@ -34,6 +34,8 @@
     "git fsck": true,
     "dotnet build": true,
     "git add": true,
-    "git commit": true
+    "git commit": true,
+    "dotnet restore": true,
+    "printf": true
   }
 }
