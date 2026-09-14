@@ -154,7 +154,7 @@ public static partial class ItemCardViewModel
     public static bool CanModifyRelation(string? relationOwnerId, string? currentUserId)
         => !string.IsNullOrEmpty(currentUserId) && relationOwnerId == currentUserId;
 
-    [GeneratedRegex(@"\/(?:ItemDetail|TagDetail)\/\d+", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\/(?:ItemDetail|TagDetail)\/\d+|\/User\/UserDetail\/[a-zA-Z0-9\-]+", RegexOptions.IgnoreCase)]
     public static partial Regex InternalLinkRegex();
 
     /// <summary>
