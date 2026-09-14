@@ -6,12 +6,15 @@
 
 @using SRNSMudApp.Components.UI
 @using SRNSMudApp.Services
+@implements IAsyncDisposable
 @inject IItemCardDataProvider ItemCardData
 @inject IUserGroupDataProvider UserGroupData
 @inject NavigationManager NavigationManager
 @inject ISnackbar Snackbar
 @inject UserManager<ApplicationUser> UserManager
 @inject LinkPreviewService PreviewService
+@inject ITagSearchQueryService TagSearchQueryService
+@inject IJSRuntime JS
 
 <MudStack Class="w-100 pb-2">
     @switch (_newItem)
@@ -28,6 +31,7 @@
                 <MudStack Row="true" Spacing="4" AlignItems="AlignItems.Start">
                     <MudStack Class="flex-grow-1" Style="min-width: 0;">
                         <MudTextField @bind-Value="_newItem.Content" For="@(() => _newItem.Content)" name="_newItem.Content"
+                                      id="add-item-textarea"
                                       Placeholder="新しいアイテムのコンテンツを入力..." Variant="Variant.Outlined" Lines="3" MaxLength="1000"
                                       Counter="1000" Required="true" RequiredError="コンテンツは必須です。" Immediate="true"
                                       OnKeyDown="@HandleKeyDown" />
@@ -180,5 +184,44 @@
     private void HandleInvalidSubmit(EditContext context)
     {
         Snackbar.Add("入力内容を確認してください。", Severity.Warning);
+    }
+
+    // --- JS Interop Mentions Logic ---
+
+    private DotNetObjectReference<AddItem>? _objRef;
+    private bool _tributeInitialized = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_tributeInitialized && _newItem != null)
+        {
+            _tributeInitialized = true;
+            _objRef = DotNetObjectReference.Create(this);
+            try
+            {
+                await JS.InvokeVoidAsync("tributeInterop.init", "add-item-textarea", _objRef);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("JS Interop Error: " + ex.Message);
+            }
+        }
+    }
+
+    [JSInvokable]
+    public async Task<IEnumerable<object>> SearchTags(string query)
+    {
+        
+        var tags = await TagSearchQueryService.SearchTagsWithFallbackAsync(query);
+        return tags.Select(t => new { name = "#" + t.Name, replacement = $"/TagDetail/{t.Id}" });
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_objRef != null)
+        {
+            try { await JS.InvokeVoidAsync("tributeInterop.destroy", "add-item-textarea"); } catch { }
+            _objRef.Dispose();
+        }
     }
 }
