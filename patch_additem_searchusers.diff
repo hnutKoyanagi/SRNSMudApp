@@ -1,0 +1,16 @@
+--- SRNSMudApp/Components/Item/AddItem.razor
++++ SRNSMudApp/Components/Item/AddItem.razor
+@@ -216,6 +216,13 @@
+         return tags.Select(t => new MentionItem("#" + t.Name, $"/TagDetail/{t.Id}"));
+     }
+ 
++    [JSInvokable]
++    public async Task<IEnumerable<MentionItem>> SearchUsers(string query)
++    {
++        var users = await UserDataProvider.SearchUsersAsync(query);
++        return users.Select(u => new MentionItem("@" + u.UserName, $"/User/UserDetail/{u.Id}"));
++    }
++
+     public async ValueTask DisposeAsync()
+     {
+         if (_objRef != null)
