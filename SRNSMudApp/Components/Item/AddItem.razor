@@ -16,6 +16,8 @@
 @inject ITagSearchQueryService TagSearchQueryService
 @inject IJSRuntime JS
 @inject ILogger<AddItem> Logger
+@using SRNSMudApp.Models
+@inject IItemReplyService ItemReplyService
 
 <MudStack Class="w-100 pb-2">
     @switch (_newItem)
@@ -31,7 +33,7 @@
 
                 <MudStack Row="true" Spacing="4" AlignItems="AlignItems.Start">
                     <MudStack Class="flex-grow-1" Style="min-width: 0;">
-                        <MudTextField @bind-Value="_newItem.Content" For="@(() => _newItem.Content)" name="_newItem.Content"
+                        <MudTextField Value="@_newItem.Content" ValueChanged="@(async (string v) => await HandleContentChanged(v))" For="@(() => _newItem.Content)" name="_newItem.Content"
                                       id="add-item-textarea" Placeholder="新しいアイテムのコンテンツを入力..." Variant="Variant.Outlined" Lines="3" MaxLength="1000"
                                       Counter="1000" Required="true" RequiredError="コンテンツは必須です。" Immediate="true"
                                       OnKeyDown="@HandleKeyDown" />
@@ -51,6 +53,27 @@
                                 </MudSelect>
                             }
                         </MudStack>
+
+                        @if (_targetCandidates.Count > 0)
+                        {
+                            <MudExpansionPanels Class="mt-2" Elevation="0" Outlined="true">
+                                <MudExpansionPanel Text="@($"通知先 ({_selectedTargetUserIds.Count})")" Dense="true">
+                                    <div class="d-flex flex-wrap align-center gap-2 px-1">
+                                        @foreach (var candidate in _targetCandidates)
+                                        {
+                                            var isChecked = _selectedTargetUserIds.Contains(candidate.Id);
+                                            <div class="d-inline-flex align-center">
+                                                <MudCheckBox T="bool" Value="@isChecked"
+                                                             ValueChanged="@((bool val) => HandleTargetToggled(candidate.Id, val))" Dense="true"
+                                                             Size="Size.Small" Color="Color.Primary">
+                                                    <MudText Typo="Typo.caption">@candidate.UserName</MudText>
+                                                </MudCheckBox>
+                                            </div>
+                                        }
+                                    </div>
+                                </MudExpansionPanel>
+                            </MudExpansionPanels>
+                        }
 
                         @* 抽出したURLのプレビューを表示 *@
                         @{
@@ -91,6 +114,10 @@
     [SupplyParameterFromForm] private Data.Item? _newItem { get; set; }
 
     private bool _isPrivate;
+    private List<ReplyTargetCandidate> _targetCandidates = [];
+    private HashSet<string> _selectedTargetUserIds = [];
+    private bool _hasManuallyModifiedTargets = false;
+    private HashSet<string> _unselectedTargetUserIds = [];
     private int? _selectedGroupId;
     private IReadOnlyList<Data.UserGroup> _userGroups = [];
 
@@ -144,6 +171,15 @@
         {
             _newItem.IsPrivate = _isPrivate;
             _newItem.TargetUserGroupId = _isPrivate ? _selectedGroupId : null;
+            
+            if (_selectedTargetUserIds.Count > 0)
+            {
+                _newItem.NotificationRecipients = _selectedTargetUserIds.Select(id => new Data.ItemReplyNotificationRecipient
+                {
+                    RecipientUserId = id,
+                    CreatedDate = DateTimeOffset.UtcNow
+                }).ToList();
+            }
 
             await ItemCardData.CreateItemAsync(
                 _newItem, InitialTags?.Select(t => t.Id).ToList());
@@ -184,6 +220,85 @@
     private void HandleInvalidSubmit(EditContext context)
     {
         Snackbar.Add("入力内容を確認してください。", Severity.Warning);
+    }
+    
+    private async Task HandleContentChanged(string value)
+    {
+        _newItem!.Content = value;
+        await UpdateTargetCandidatesAsync();
+    }
+    
+    private void HandleTargetToggled(string userId, bool isSelected)
+    {
+        _hasManuallyModifiedTargets = true;
+        if (isSelected)
+        {
+            _selectedTargetUserIds.Add(userId);
+            _unselectedTargetUserIds.Remove(userId);
+        }
+        else
+        {
+            _selectedTargetUserIds.Remove(userId);
+            _unselectedTargetUserIds.Add(userId);
+        }
+    }
+    
+    private async Task UpdateTargetCandidatesAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newItem?.Content))
+        {
+            _targetCandidates.Clear();
+            _selectedTargetUserIds.Clear();
+            return;
+        }
+        
+        var urls = ItemCardViewModel.ExtractUrls(_newItem.Content);
+        var userIdsInText = urls
+            .Where(u => u.StartsWith("/User/UserDetail/"))
+            .Select(u => u.Substring("/User/UserDetail/".Length))
+            .Distinct()
+            .ToList();
+            
+        var authState = await AuthenticationStateTask;
+        var currentUserId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        
+        // Remove current user
+        if (!string.IsNullOrEmpty(currentUserId))
+        {
+            userIdsInText.Remove(currentUserId);
+        }
+        
+        if (userIdsInText.Count == 0)
+        {
+            _targetCandidates.Clear();
+            _selectedTargetUserIds.Clear();
+            return;
+        }
+        
+        var users = await UserDataProvider.GetUsersByIdsAsync(userIdsInText);
+        
+        _targetCandidates = users.Select(u => new ReplyTargetCandidate(u.Id, u.UserName!)).ToList();
+        
+        // Update selected states
+        foreach (var candidate in _targetCandidates)
+        {
+            if (_hasManuallyModifiedTargets)
+            {
+                if (_unselectedTargetUserIds.Contains(candidate.Id))
+                {
+                    _selectedTargetUserIds.Remove(candidate.Id);
+                }
+                else
+                {
+                    _selectedTargetUserIds.Add(candidate.Id);
+                }
+            }
+            else
+            {
+                // Default: selected
+                _selectedTargetUserIds.Add(candidate.Id);
+            }
+        }
     }
 
     // --- JS Interop Mentions Logic ---

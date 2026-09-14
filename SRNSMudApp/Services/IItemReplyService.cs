@@ -14,4 +14,8 @@ public interface IItemReplyService
     /// </summary>
     Task<int> GetItemReplyCountAsync(int parentItemId);
     Task<Item?> AddItemReplyAsync(int parentItemId, string content, string userId, IEnumerable<string>? targetUserIds = null);
+
+    Task<bool> ToggleConversationOptOutAsync(int rootItemId, string userId);
+    Task<bool> IsUserOptedOutAsync(int rootItemId, string userId);
+    Task<HashSet<string>> GetOptedOutUsersAsync(int rootItemId);
 }

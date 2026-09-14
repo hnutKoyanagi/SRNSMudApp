@@ -65,11 +65,17 @@ public class ItemReplyService(IDbContextFactory<ApplicationDbContext> dbFactory)
             .Where(tr => tr.ItemId == parentItemId)
             .ToListAsync();
 
+        var parentRootId = await context.Items
+            .Where(i => i.Id == parentItemId)
+            .Select(i => i.RootItemId)
+            .FirstOrDefaultAsync();
+
         var replyItem = new Item
         {
             Content = content,
             OwnerId = userId,
             ParentItemId = parentItemId,
+            RootItemId = parentRootId ?? parentItemId,
             CreatedDate = DateTime.UtcNow,
             UpdatedDate = DateTime.UtcNow
         };
@@ -137,5 +143,47 @@ public class ItemReplyService(IDbContextFactory<ApplicationDbContext> dbFactory)
             .ThenInclude(tr => tr.Tag)
             .Include(i => i.NotificationRecipients)
             .FirstOrDefaultAsync(i => i.Id == replyItem.Id);
+    }
+
+    public async Task<bool> ToggleConversationOptOutAsync(int rootItemId, string userId)
+    {
+        await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
+        var existing = await context.ConversationOptOuts
+            .FirstOrDefaultAsync(o => o.RootItemId == rootItemId && o.UserId == userId);
+
+        if (existing is not null)
+        {
+            context.ConversationOptOuts.Remove(existing);
+        }
+        else
+        {
+            context.ConversationOptOuts.Add(new ConversationOptOut
+            {
+                RootItemId = rootItemId,
+                UserId = userId,
+                CreatedDate = DateTimeOffset.UtcNow
+            });
+        }
+
+        await context.SaveChangesAsync();
+        return existing is null; // Returns true if opted out, false if opted in
+    }
+
+    public async Task<bool> IsUserOptedOutAsync(int rootItemId, string userId)
+    {
+        await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
+        return await context.ConversationOptOuts
+            .AnyAsync(o => o.RootItemId == rootItemId && o.UserId == userId);
+    }
+
+    public async Task<HashSet<string>> GetOptedOutUsersAsync(int rootItemId)
+    {
+        await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
+        var userIds = await context.ConversationOptOuts
+            .Where(o => o.RootItemId == rootItemId)
+            .Select(o => o.UserId)
+            .ToListAsync();
+
+        return new HashSet<string>(userIds);
     }
 }

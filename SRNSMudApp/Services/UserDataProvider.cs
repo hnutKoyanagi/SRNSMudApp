@@ -65,6 +65,7 @@ public interface IUserDataProvider
     Task<List<ApplicationUser>> GetAllUsersAsync();
 
     Task<ApplicationUser?> FindUserByIdAsync(string userId);
+    Task<List<ApplicationUser>> GetUsersByIdsAsync(IEnumerable<string> userIds);
 }
 
 public class UserDataProvider(IDbContextFactory<ApplicationDbContext> dbFactory) : IUserDataProvider
@@ -272,5 +273,12 @@ public class UserDataProvider(IDbContextFactory<ApplicationDbContext> dbFactory)
     {
         await using ApplicationDbContext dbContext = await _dbFactory.CreateDbContextAsync();
         return await dbContext.Users.FindAsync(userId);
+    }
+
+    public async Task<List<ApplicationUser>> GetUsersByIdsAsync(IEnumerable<string> userIds)
+    {
+        await using ApplicationDbContext dbContext = await _dbFactory.CreateDbContextAsync();
+        var idList = userIds.ToList();
+        return await dbContext.Users.AsNoTracking().Where(u => idList.Contains(u.Id)).ToListAsync();
     }
 }

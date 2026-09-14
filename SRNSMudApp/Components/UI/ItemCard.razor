@@ -68,6 +68,11 @@
                                                OnClick="ReportItemAsync" title="このアイテムを通報" />
                                 break;
                         }
+                        @if (!string.IsNullOrEmpty(CurrentUserId))
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.VolumeOff" Size="Size.Small" Color="Color.Default"
+                                           OnClick="ToggleConversationOptOutAsync" title="この会話（リプライツリー）から抜ける/戻る" />
+                        }
                     </div>
                 </div>
 
@@ -141,7 +146,7 @@
                         <div @onclick:stopPropagation="true">
                             <ItemReplyThread ItemId="Item.Id" IsExpanded="_isRepliesExpanded" Replies="_replies"
                                              ReplyCount="_replyCount" ReplyTemplate="ReplyTemplate" NewReplyContent="@_newReplyContent"
-                                             NewReplyContentChanged="@(value => { _newReplyContent = value; return Task.CompletedTask; })"
+                                             NewReplyContentChanged="HandleNewReplyContentChanged"
                                              IsSubmittingReply="_isSubmittingReply" TargetCandidates="@GetReplyTargetCandidates()"
                                              SelectedTargetUserIds="_selectedTargetUserIds" OnTargetToggled="HandleTargetUserToggled"
                                              QuoteCount="_quoteCount" OnOpenQuoteDialog="OpenQuoteDialogAsync"

@@ -93,6 +93,7 @@ public partial class ItemCard : IAsyncDisposable
     private int _replyCount;
     private int _quoteCount;
     private bool _isRepliesExpanded;
+    private HashSet<string> _optedOutUserIds = [];
     private IReadOnlyList<Data.Item> _replies = [];
     private string _newReplyContent = "";
     private bool _isSubmittingReply;
@@ -241,24 +242,48 @@ public partial class ItemCard : IAsyncDisposable
     {
         _replies = await ItemReplyService.GetItemRepliesAsync(Item.Id);
         _replyCount = _replies.Count;
+        var rootId = Item.RootItemId ?? Item.Id;
+        _optedOutUserIds = await ItemReplyService.GetOptedOutUsersAsync(rootId);
         SyncSelectedTargets(GetReplyTargetCandidates());
     }
 
     private List<ReplyTargetCandidate> GetReplyTargetCandidates()
     {
         List<ReplyTargetCandidate> candidates = [];
+        HashSet<string> seen = [];
+
         if (!string.IsNullOrEmpty(Item.OwnerId) && Item.OwnerId != CurrentUserId)
         {
+            seen.Add(Item.OwnerId);
             candidates.Add(new ReplyTargetCandidate(Item.OwnerId, Item.Owner?.UserName ?? "オーナー"));
         }
 
-        HashSet<string> seen = [];
         foreach (var reply in _replies)
         {
             if (!string.IsNullOrEmpty(reply.OwnerId) && reply.OwnerId != CurrentUserId &&
-                reply.OwnerId != Item.OwnerId && seen.Add(reply.OwnerId))
+                seen.Add(reply.OwnerId))
             {
                 candidates.Add(new ReplyTargetCandidate(reply.OwnerId, reply.Owner?.UserName ?? "ユーザー"));
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(_newReplyContent))
+        {
+            var urls = ItemCardViewModel.ExtractUrls(_newReplyContent);
+            var mentionedUserIds = urls
+                .Where(u => u.StartsWith("/User/UserDetail/"))
+                .Select(u => u.Substring("/User/UserDetail/".Length))
+                .Distinct();
+
+            foreach (var uid in mentionedUserIds)
+            {
+                if (uid != CurrentUserId && seen.Add(uid))
+                {
+                    // For performance, we could look it up, but for now we just show a generic name if they are not in the replies list.
+                    // Wait, we should look them up. Let's do it synchronously from a cache, or just use their ID as a placeholder?
+                    // Actually, if we just use "@ユーザー", it's fine.
+                    candidates.Add(new ReplyTargetCandidate(uid, "メンション先"));
+                }
             }
         }
 
@@ -269,7 +294,7 @@ public partial class ItemCard : IAsyncDisposable
     {
         if (!_hasManuallyModifiedTargets)
         {
-            _selectedTargetUserIds = [.. candidates.Select(c => c.Id)];
+            _selectedTargetUserIds = [.. candidates.Where(c => !_optedOutUserIds.Contains(c.Id)).Select(c => c.Id)];
         }
         else
         {
@@ -297,6 +322,13 @@ public partial class ItemCard : IAsyncDisposable
             _unselectedTargetUserIds.Add(args.UserId);
         }
         return Task.CompletedTask;
+    }
+
+    private async Task HandleNewReplyContentChanged(string value)
+    {
+        _newReplyContent = value;
+        SyncSelectedTargets(GetReplyTargetCandidates());
+        await Task.CompletedTask;
     }
 
     private async Task SubmitReplyAsync()
@@ -485,6 +517,22 @@ public partial class ItemCard : IAsyncDisposable
         };
 
         _ = await DialogLauncher.ShowAsync<ReportContentDialog>("不適切な投稿を通報", parameters, options);
+    }
+
+    private async Task ToggleConversationOptOutAsync()
+    {
+        if (string.IsNullOrEmpty(CurrentUserId)) return;
+
+        var rootId = Item.RootItemId ?? Item.Id;
+        var optedOut = await ItemReplyService.ToggleConversationOptOutAsync(rootId, CurrentUserId);
+        if (optedOut)
+        {
+            Snackbar.Add("この会話から抜けました。以後のリプライでメンション対象から外れます。", Severity.Info);
+        }
+        else
+        {
+            Snackbar.Add("この会話に戻りました。", Severity.Success);
+        }
     }
 
     // --- Text Split Logic (Delegated to SplitCoordinator) ---

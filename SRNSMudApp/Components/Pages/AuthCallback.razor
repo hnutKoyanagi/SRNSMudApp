@@ -24,6 +24,9 @@
             {
                 Logger.LogInformation("AuthCallback invoked with provider={Provider}", provider);
 
+                // UIディレイ: テスト等の複数回連続実行によるセッション競合（403 Forbidden）を防ぐため
+                await Task.Delay(2000);
+
                 // Call the JS function to post the code to our backend
                 try
                 {

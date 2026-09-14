@@ -1,8 +1,10 @@
 using System;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+
 using Microsoft.Playwright;
 using Microsoft.Playwright.NUnit;
+
 using NUnit.Framework;
 
 namespace SRNSMudApp.E2ETests;
@@ -42,19 +44,20 @@ public class AddItemMentionE2ETests : PageTest
 
         // 一行目に文字を入力
         await input.PressSequentiallyAsync("Line 1", new() { Delay = 50 });
-        
+
         // 改行して二行目に文字を入力
         await input.PressAsync("Enter", new() { Delay = 50 });
         await input.PressSequentiallyAsync("Line 2", new() { Delay = 50 });
-        
+
         // ２行目の先頭に移動
-        for(int i=0; i<6; i++) {
+        for (int i = 0; i < 6; i++)
+        {
             await input.PressAsync("ArrowLeft", new() { Delay = 10 });
         }
-        
+
         // 改行して
         await input.PressAsync("Enter", new() { Delay = 50 });
-        
+
         // 上の空行に移動
         await input.PressAsync("ArrowUp", new() { Delay = 50 });
 

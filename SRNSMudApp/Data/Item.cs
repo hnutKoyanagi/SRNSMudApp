@@ -27,6 +27,10 @@ public class Item : BaseEntity, ITaggable
     public int? ParentItemId { get; set; }
     public Item? ParentItem { get; set; }
 
+    // このアイテムが属するリプライツリーのルートアイテム
+    public int? RootItemId { get; set; }
+    public Item? RootItem { get; set; }
+
     // このアイテムに対するリプライ一覧
     [SuppressMessage("Usage", "CA2227:Collection properties should be read only")]
     public ICollection<Item> Replies { get; set; } = [];

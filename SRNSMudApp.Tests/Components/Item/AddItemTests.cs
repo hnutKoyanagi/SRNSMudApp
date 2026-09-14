@@ -61,8 +61,8 @@ public sealed class AddItemTests : IAsyncLifetime
 
         cut.WaitForState(() => cut.FindAll("form").Count > 0);
         cut.Find("textarea").Input(TestContent);
-        
-        
+
+
         cut.Find("form").Submit();
 
         _itemCardDataMock.Verify(d => d.CreateItemAsync(
@@ -102,8 +102,8 @@ public sealed class AddItemTests : IAsyncLifetime
 
         cut.WaitForState(() => cut.FindAll("form").Count > 0);
         cut.Find("textarea").Input(inputContent);
-        
-        
+
+
 
         var previewCard = cut.FindComponent<SRNSMudApp.Components.UI.UrlPreviewCard>();
         Assert.NotNull(previewCard);
@@ -122,8 +122,8 @@ public sealed class AddItemTests : IAsyncLifetime
 
         cut.WaitForState(() => cut.FindAll("form").Count > 0);
         cut.Find("textarea").Input(TestContent);
-        
-        
+
+
 
         // プライベートモードのスイッチ (MudSwitch) を ON に切り替える
         var switchInput = cut.Find("input[type='checkbox']");

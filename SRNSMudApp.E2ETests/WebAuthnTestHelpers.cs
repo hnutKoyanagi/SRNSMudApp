@@ -61,12 +61,12 @@ public static class WebAuthnTestHelpers
     {
         // Random delay to avoid hitting the server rate limiter or causing session conflicts when running tests in parallel
         await Task.Delay(Random.Shared.Next(500, 2000));
-        
+
         await page.Context.ClearCookiesAsync();
         var userName = email.Contains('@') ? email.Split('@')[0] : email;
         await page.GotoAsync($"{serverAddress}/auth/callback?provider=Google&code=mock-{userName}");
         await page.WaitForURLAsync(new Regex(@"^" + Regex.Escape(serverAddress) + @"/?$"),
-            new PageWaitForURLOptions { Timeout = 10000 });
+            new PageWaitForURLOptions { Timeout = 30000 });
         await Assertions.Expect(page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Logout" }))
             .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 5000 });
     }

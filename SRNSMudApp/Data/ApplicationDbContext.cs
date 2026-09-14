@@ -33,6 +33,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Invitation> Invitations { get; set; } = null!;
     public DbSet<NotificationReadState> NotificationReadStates { get; set; } = null!;
     public DbSet<ItemReplyNotificationRecipient> ItemReplyNotificationRecipients { get; set; } = null!;
+    public DbSet<ConversationOptOut> ConversationOptOuts { get; set; } = null!;
     public DbSet<TagEdge> TagEdges { get; set; } = null!;
     public DbSet<TagEdgeTagAttachment> TagEdgeTagAttachments { get; set; } = null!;
     public DbSet<TaggableTarget> TaggableTargets { get; set; } = null!;
@@ -503,11 +504,45 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasIndex(r => r.CreatedDate);
 
         // --- ItemSplitRequest Configuration ---
+        // --- ConversationOptOut Configuration ---
+        _ = builder.Entity<ConversationOptOut>()
+            .HasOne(o => o.User)
+            .WithMany()
+            .HasForeignKey(o => o.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        _ = builder.Entity<ConversationOptOut>()
+            .HasOne(o => o.RootItem)
+            .WithMany()
+            .HasForeignKey(o => o.RootItemId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        _ = builder.Entity<ConversationOptOut>()
+            .HasIndex(o => new { o.UserId, o.RootItemId })
+            .IsUnique();
+
         _ = builder.Entity<ItemSplitRequest>()
             .HasOne(r => r.Owner)
             .WithMany()
             .HasForeignKey(r => r.OwnerId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // --- ConversationOptOut Configuration ---
+        _ = builder.Entity<ConversationOptOut>()
+            .HasOne(o => o.User)
+            .WithMany()
+            .HasForeignKey(o => o.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        _ = builder.Entity<ConversationOptOut>()
+            .HasOne(o => o.RootItem)
+            .WithMany()
+            .HasForeignKey(o => o.RootItemId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        _ = builder.Entity<ConversationOptOut>()
+            .HasIndex(o => new { o.UserId, o.RootItemId })
+            .IsUnique();
 
         _ = builder.Entity<ItemSplitRequest>()
             .HasOne(r => r.RequesterUser)
@@ -515,11 +550,45 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasForeignKey(r => r.RequesterUserId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // --- ConversationOptOut Configuration ---
+        _ = builder.Entity<ConversationOptOut>()
+            .HasOne(o => o.User)
+            .WithMany()
+            .HasForeignKey(o => o.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        _ = builder.Entity<ConversationOptOut>()
+            .HasOne(o => o.RootItem)
+            .WithMany()
+            .HasForeignKey(o => o.RootItemId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        _ = builder.Entity<ConversationOptOut>()
+            .HasIndex(o => new { o.UserId, o.RootItemId })
+            .IsUnique();
+
         _ = builder.Entity<ItemSplitRequest>()
             .HasOne(r => r.OwnerUser)
             .WithMany()
             .HasForeignKey(r => r.OwnerUserId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // --- ConversationOptOut Configuration ---
+        _ = builder.Entity<ConversationOptOut>()
+            .HasOne(o => o.User)
+            .WithMany()
+            .HasForeignKey(o => o.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        _ = builder.Entity<ConversationOptOut>()
+            .HasOne(o => o.RootItem)
+            .WithMany()
+            .HasForeignKey(o => o.RootItemId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        _ = builder.Entity<ConversationOptOut>()
+            .HasIndex(o => new { o.UserId, o.RootItemId })
+            .IsUnique();
 
         _ = builder.Entity<ItemSplitRequest>()
             .HasOne(r => r.OriginalItem)
@@ -527,20 +596,105 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasForeignKey(r => r.OriginalItemId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // --- ConversationOptOut Configuration ---
+        _ = builder.Entity<ConversationOptOut>()
+            .HasOne(o => o.User)
+            .WithMany()
+            .HasForeignKey(o => o.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        _ = builder.Entity<ConversationOptOut>()
+            .HasOne(o => o.RootItem)
+            .WithMany()
+            .HasForeignKey(o => o.RootItemId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        _ = builder.Entity<ConversationOptOut>()
+            .HasIndex(o => new { o.UserId, o.RootItemId })
+            .IsUnique();
+
         _ = builder.Entity<ItemSplitRequest>()
             .HasOne(r => r.CreatedItem)
             .WithMany()
             .HasForeignKey(r => r.CreatedItemId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // --- ConversationOptOut Configuration ---
+        _ = builder.Entity<ConversationOptOut>()
+            .HasOne(o => o.User)
+            .WithMany()
+            .HasForeignKey(o => o.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        _ = builder.Entity<ConversationOptOut>()
+            .HasOne(o => o.RootItem)
+            .WithMany()
+            .HasForeignKey(o => o.RootItemId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        _ = builder.Entity<ConversationOptOut>()
+            .HasIndex(o => new { o.UserId, o.RootItemId })
+            .IsUnique();
+
         _ = builder.Entity<ItemSplitRequest>()
             .HasIndex(r => r.OriginalItemId);
+
+        // --- ConversationOptOut Configuration ---
+        _ = builder.Entity<ConversationOptOut>()
+            .HasOne(o => o.User)
+            .WithMany()
+            .HasForeignKey(o => o.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        _ = builder.Entity<ConversationOptOut>()
+            .HasOne(o => o.RootItem)
+            .WithMany()
+            .HasForeignKey(o => o.RootItemId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        _ = builder.Entity<ConversationOptOut>()
+            .HasIndex(o => new { o.UserId, o.RootItemId })
+            .IsUnique();
 
         _ = builder.Entity<ItemSplitRequest>()
             .HasIndex(r => r.RequesterUserId);
 
+        // --- ConversationOptOut Configuration ---
+        _ = builder.Entity<ConversationOptOut>()
+            .HasOne(o => o.User)
+            .WithMany()
+            .HasForeignKey(o => o.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        _ = builder.Entity<ConversationOptOut>()
+            .HasOne(o => o.RootItem)
+            .WithMany()
+            .HasForeignKey(o => o.RootItemId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        _ = builder.Entity<ConversationOptOut>()
+            .HasIndex(o => new { o.UserId, o.RootItemId })
+            .IsUnique();
+
         _ = builder.Entity<ItemSplitRequest>()
             .HasIndex(r => r.OwnerUserId);
+
+        // --- ConversationOptOut Configuration ---
+        _ = builder.Entity<ConversationOptOut>()
+            .HasOne(o => o.User)
+            .WithMany()
+            .HasForeignKey(o => o.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        _ = builder.Entity<ConversationOptOut>()
+            .HasOne(o => o.RootItem)
+            .WithMany()
+            .HasForeignKey(o => o.RootItemId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        _ = builder.Entity<ConversationOptOut>()
+            .HasIndex(o => new { o.UserId, o.RootItemId })
+            .IsUnique();
 
         _ = builder.Entity<ItemSplitRequest>()
             .HasIndex(r => r.Status);

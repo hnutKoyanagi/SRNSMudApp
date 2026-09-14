@@ -1,8 +1,10 @@
 using System;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+
 using Microsoft.Playwright;
 using Microsoft.Playwright.NUnit;
+
 using NUnit.Framework;
 
 namespace SRNSMudApp.E2ETests;
@@ -45,7 +47,7 @@ public class AddItemUserMentionE2ETests : PageTest
 
         // Autocomplete popover (Tribute.js container) should appear
         var tributePopover = Page.Locator(".tribute-container");
-        
+
         // At least one user option should be visible (current user or mock users)
         var userOption = tributePopover.Locator("li").First;
         await Expect(userOption).ToBeVisibleAsync(new() { Timeout = 5000 });
