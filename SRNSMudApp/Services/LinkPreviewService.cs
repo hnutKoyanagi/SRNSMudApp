@@ -245,3 +245,4 @@ public partial class LinkPreviewService
     [GeneratedRegex(@"\s+")]
     private static partial Regex WhitespaceRegex();
 }
+// Temp marker, will rewrite using perl
