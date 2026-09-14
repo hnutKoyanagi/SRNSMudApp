@@ -16,17 +16,20 @@ using SRNSMudApp.Models;
 
 namespace SRNSMudApp.Services;
 
-public partial class LinkPreviewService
+public partial class LinkPreviewService(HttpClient httpClient, IServiceScopeFactory scopeFactory) : ILinkPreviewService
 {
     private readonly ConcurrentDictionary<string, LinkPreviewData> _cache = new();
-    private readonly HttpClient _httpClient;
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly HttpClient _httpClient = ConfigureHttpClient(httpClient);
+    private readonly IServiceScopeFactory _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
 
-    public LinkPreviewService(HttpClient httpClient, IServiceScopeFactory scopeFactory)
+    private static HttpClient ConfigureHttpClient(HttpClient client)
     {
-        _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
-        _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
-        _httpClient.DefaultRequestHeaders.Add("User-Agent", "SRNSMudApp-LinkPreviewBot/1.0");
+        ArgumentNullException.ThrowIfNull(client);
+        if (!client.DefaultRequestHeaders.Contains("User-Agent"))
+        {
+            client.DefaultRequestHeaders.Add("User-Agent", "SRNSMudApp-LinkPreviewBot/1.0");
+        }
+        return client;
     }
 
     [SuppressMessage("Design", "CA1054")]

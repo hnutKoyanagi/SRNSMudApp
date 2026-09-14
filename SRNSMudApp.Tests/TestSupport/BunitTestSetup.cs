@@ -48,6 +48,7 @@ public static class BunitTestSetup
 
         return services
             .AddSingleton<LinkPreviewService>()
+            .AddSingleton<ILinkPreviewService>(sp => sp.GetRequiredService<LinkPreviewService>())
             .AddScoped<ITaggingRequestActions, TaggingRequestActions>()
             .AddScoped<ISystemTagEnsurer, SystemTagEnsurer>()
             .AddScoped<IDialogLauncher, DialogLauncher>()
@@ -96,6 +97,7 @@ public static class BunitTestSetup
 
         return services
             .AddSingleton<LinkPreviewService>()
+            .AddSingleton<ILinkPreviewService>(sp => sp.GetRequiredService<LinkPreviewService>())
             .AddScoped(_ => new Mock<IItemTagService>().Object)
             .AddScoped(_ => new Mock<IItemReplyService>().Object)
             .AddScoped(_ => new Mock<IItemReactionService>().Object)

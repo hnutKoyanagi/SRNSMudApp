@@ -1,6 +1,5 @@
 @using Blazor.Diagrams.Core.Models
 @using Blazor.Diagrams.Components.Renderers
-@using Microsoft.Extensions.DependencyInjection
 @using SRNSMudApp.Components.UI
 @using SRNSMudApp.Models
 @using SRNSMudApp.Services
@@ -23,13 +22,13 @@
             <div class="d-flex align-center">
                 <MudIcon Icon="@Icons.Material.Filled.Description" Size="Size.Small" Class="mr-2 flex-shrink-0" />
                 <div class="item-content flex-grow-1">
-                    @foreach (var segment in GetSegments())
+                    @foreach (var segment in ItemNodeViewModel.GetTruncatedSegments(Node.Item.Content))
                     {
                         @switch (segment.IsUrl)
                         {
                             case true:
                                 <span @onclick:stopPropagation="true">
-                                    <UrlPreviewCard Url="@segment.Text" LoadPreview="@EffectiveLoadPreview" />
+                                    <UrlPreviewCard Url="@segment.Text" LoadPreview="@GetPreviewAsync" />
                                 </span>
                                 break;
                             case false:
@@ -51,6 +50,9 @@
 </div>
 
 @code {
+    /// <summary>
+    /// ダイアグラム上の Item ノード。
+    /// </summary>
     [Parameter] public ItemNode Node { get; set; } = null!;
 
     /// <summary>
@@ -58,99 +60,10 @@
     /// </summary>
     [Parameter] public Func<string, Task<LinkPreviewData?>>? LoadPreview { get; set; }
 
-    private Func<string, Task<LinkPreviewData?>> EffectiveLoadPreview =>
-        LoadPreview ?? GetPreviewAsync;
+    [Inject] private ILinkPreviewService PreviewService { get; set; } = null!;
 
-    private const int MaxPreviewLength = 80;
-
-    /// <summary>
-    /// 未展開時に表示するセグメント一覧を取得する。最大長 (80文字) を超える場合は適切に切り詰める。
-    /// </summary>
-    private IReadOnlyList<ContentSegment> GetSegments()
-    {
-        var rawContent = Node.Item.Content ?? "";
-        // HTML タグが含まれる場合は除去
-        var cleanContent = System.Text.RegularExpressions.Regex.Replace(rawContent, "<.*?>", string.Empty).Trim();
-        var segments = ItemCardViewModel.GetContentSegments(cleanContent);
-
-        var result = new List<ContentSegment>();
-        int currentLength = 0;
-
-        for (int i = 0; i < segments.Count; i++)
-        {
-            var segment = segments[i];
-            if (segment.IsUrl)
-            {
-                result.Add(segment);
-                currentLength += segment.Text.Length;
-                if (currentLength >= MaxPreviewLength)
-                {
-                    if (i < segments.Count - 1)
-                    {
-                        result.Add(new ContentSegment("...", false));
-                    }
-                    break;
-                }
-            }
-            else
-            {
-                int remaining = MaxPreviewLength - currentLength;
-                if (segment.Text.Length > remaining)
-                {
-                    result.Add(new ContentSegment(segment.Text[..remaining] + "...", false));
-                    break;
-                }
-
-                result.Add(segment);
-                currentLength += segment.Text.Length;
-            }
-        }
-
-        return result;
-    }
-
-    /// <summary>
-    /// URL に対するリンクプレビューデータを取得する。
-    /// Node.AllContextItems に該当アイテムが存在する場合は即座にプレビューデータを生成し、
-    /// それ以外は LinkPreviewService 経由で取得する。
-    /// </summary>
-    private async Task<LinkPreviewData?> GetPreviewAsync(string url)
-    {
-        if (url.StartsWith("/ItemDetail/", StringComparison.OrdinalIgnoreCase) &&
-            int.TryParse(url.AsSpan("/ItemDetail/".Length), out var itemId))
-        {
-            var contextItem = Node.AllContextItems.FirstOrDefault(i => i.Id == itemId);
-            if (contextItem != null)
-            {
-                var text = contextItem.Content ?? "";
-                if (text.Length > 200)
-                {
-                    text = $"{text.AsSpan(0, 200)}...";
-                }
-
-                return new LinkPreviewData
-                {
-                    Url = url,
-                    Title = $"Item #{contextItem.Id}",
-                    Description = text,
-                    Tags = contextItem.TagRelations?
-                        .Where(tr => tr.Tag != null && !tr.Tag.IsSystem)
-                        .OrderByDescending(tr => tr.Weight)
-                        .Select(tr => new TagPreviewItem(tr.Tag!.Id, tr.Tag.Name, tr.Tag.Owner?.UserName ?? "unknown", tr.Weight))
-                        .ToList() ?? [],
-                    SiteName = "SRNSMudApp",
-                    IsSuccess = true
-                };
-            }
-        }
-
-        return PreviewService != null
-            ? await PreviewService.GetPreviewAsync(url)
-            : null;
-    }
-
-    [Inject] private IServiceProvider ServiceProvider { get; set; } = null!;
-    private LinkPreviewService? PreviewService => ServiceProvider.GetService<LinkPreviewService>();
+    private Task<LinkPreviewData?> GetPreviewAsync(string url) =>
+        ItemNodeViewModel.ResolvePreviewAsync(url, Node.AllContextItems, PreviewService, LoadPreview);
 
     private void ToggleExpand()
     {
@@ -160,8 +73,6 @@
 
     private void OnClick()
     {
-        // Double click might be better, but simple click to navigate is fine, or we can just leave it as is and let the user
-        // see it.
-        // Let's not navigate on single click because it interferes with selection.
+        // 選択操作を妨げないため、シングルクリックではナビゲーションを行わない
     }
 }

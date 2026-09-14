@@ -113,6 +113,7 @@ builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSe
 // Register LinkPreviewService and HttpClient
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<LinkPreviewService>();
+builder.Services.AddSingleton<ILinkPreviewService>(sp => sp.GetRequiredService<LinkPreviewService>());
 
 // Register SmartComponents.LocalEmbeddings and TagEmbeddingService
 builder.Services.AddSingleton<LocalEmbedder>();
