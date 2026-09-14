@@ -15,14 +15,10 @@ public class AddItemMentionE2ETests : PageTest
 {
     private string _serverAddress = "http://localhost:5000";
 
-    [SetUp]
-    public void Setup()
+    [OneTimeSetUp]
+    public void OneTimeSetup()
     {
-        var serverAddress = Environment.GetEnvironmentVariable("TEST_SERVER_ADDRESS");
-        if (!string.IsNullOrEmpty(serverAddress))
-        {
-            _serverAddress = serverAddress;
-        }
+        _serverAddress = SharedTestServerFixture.ServerAddress;
     }
 
     [Test]
@@ -35,12 +31,15 @@ public class AddItemMentionE2ETests : PageTest
         await WebAuthnTestHelpers.LoginWithMockGoogleAsync(Page, _serverAddress, testEmail);
 
         // Feed page should be visible
-        await Expect(Page).ToHaveURLAsync(new Regex(".*"));
-        await Expect(Page.Locator("h1").Filter(new() { HasText = "タイムライン" })).ToBeVisibleAsync();
+        await Expect(Page).ToHaveURLAsync(new Regex(@"^" + Regex.Escape(_serverAddress) + @"/?$"));
+        await Expect(Page.Locator("h5").Filter(new() { HasText = "タイムライン" })).ToBeVisibleAsync();
 
-        var input = Page.Locator("textarea").First;
+        // Navigate to Item List to find the textarea
+        await Page.GotoAsync($"{_serverAddress}/Item/ItemList");
+
+        var input = Page.Locator("#add-item-textarea");
         await Expect(input).ToBeVisibleAsync();
-        await input.ClickAsync();
+        await input.ClickAsync(new LocatorClickOptions { Force = true });
 
         // 一行目に文字を入力
         await input.PressSequentiallyAsync("Line 1", new() { Delay = 50 });

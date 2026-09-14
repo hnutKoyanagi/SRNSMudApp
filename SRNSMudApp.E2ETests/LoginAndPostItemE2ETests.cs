@@ -64,7 +64,8 @@ public class LoginAndPostItemE2ETests : PageTest
     /// </summary>
     private async Task LoginWithMockProviderAsync(string provider, string code)
     {
-        await Page.GotoAsync($"{_serverAddress}/auth/callback?provider={provider}&code={code}");
+        await Page.GotoAsync($"{_serverAddress}/auth/callback?provider={provider}&code={code}",
+            new PageGotoOptions { WaitUntil = WaitUntilState.Commit });
         await Page.WaitForURLAsync(new Regex(@"^" + Regex.Escape(_serverAddress) + @"/?$"),
             new PageWaitForURLOptions { Timeout = 10000 });
         await Expect(Page.Locator("body")).ToContainTextAsync("Home");

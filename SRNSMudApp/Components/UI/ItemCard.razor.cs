@@ -271,7 +271,7 @@ public partial class ItemCard : IAsyncDisposable
         {
             var urls = ItemCardViewModel.ExtractUrls(_newReplyContent);
             var mentionedUserIds = urls
-                .Where(u => u.StartsWith("/User/UserDetail/"))
+                .Where(u => u.StartsWith("/User/UserDetail/", StringComparison.OrdinalIgnoreCase))
                 .Select(u => u.Substring("/User/UserDetail/".Length))
                 .Distinct();
 
@@ -618,6 +618,11 @@ public partial class ItemCard : IAsyncDisposable
             true => OnDataChanged.InvokeAsync(),
             false => Task.CompletedTask
         });
+    }
+
+    private void OpenTagDiagram()
+    {
+        NavigationManager.NavigateTo($"/tag-diagram?itemId={Item.Id}");
     }
 
     public async ValueTask DisposeAsync()
