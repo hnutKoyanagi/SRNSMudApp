@@ -42,7 +42,7 @@ public partial class ItemCard : IAsyncDisposable
     [Inject] private IJSRuntime JS { get; set; } = null!;
     [Inject] private ITaggingContractService TaggingContractService { get; set; } = null!;
     [Inject] private IItemCardDataProvider ItemCardData { get; set; } = null!;
-    [Inject] private LinkPreviewService PreviewService { get; set; } = null!;
+    [Inject] private ILinkPreviewService PreviewService { get; set; } = null!;
     [Inject] private NavigationManager NavigationManager { get; set; } = null!;
 
     [Parameter][EditorRequired] public Data.Item Item { get; set; } = null!;

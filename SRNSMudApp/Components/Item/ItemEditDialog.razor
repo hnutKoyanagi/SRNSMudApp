@@ -2,22 +2,13 @@
 @using SRNSMudApp.Components.UI
 @inject IItemCardDataProvider ItemCardData
 @inject ISnackbar Snackbar
-@inject LinkPreviewService PreviewService
+@inject ILinkPreviewService PreviewService
 
 <MudDialog>
     <DialogContent>
-        <MudTextField T="string"
-                      @bind-Value="_editContent"
-                      Label="内容"
-                      Variant="Variant.Outlined"
-                      Lines="5"
-                      MaxLines="10"
-                      MaxLength="1000"
-                      Counter="1000"
-                      Immediate="true"
-                      AutoFocus="true"
-                      Required="true"
-                      RequiredError="内容は必須です"/>
+        <MudTextField T="string" @bind-Value="_editContent" Label="内容" Variant="Variant.Outlined" Lines="5"
+                      MaxLines="10" MaxLength="1000" Counter="1000" Immediate="true" AutoFocus="true" Required="true"
+                      RequiredError="内容は必須です" />
 
         @* 抽出したURLのプレビューを表示 *@
         @{

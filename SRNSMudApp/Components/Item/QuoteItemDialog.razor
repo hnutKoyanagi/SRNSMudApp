@@ -3,7 +3,7 @@
 @using SRNSMudApp.Components.UI
 @inject IItemQuoteService ItemQuoteService
 @inject ISnackbar Snackbar
-@inject LinkPreviewService PreviewService
+@inject ILinkPreviewService PreviewService
 
 <MudDialog>
     <TitleContent>
@@ -15,20 +15,9 @@
     <DialogContent>
         <MudStack Spacing="3">
             @* 新規引用投稿の本文入力 *@
-            <MudTextField T="string"
-                          @bind-Value="_content"
-                          Label="コメントを追加..."
-                          Placeholder="このアイテムについて何か書く..."
-                          Variant="Variant.Outlined"
-                          Lines="4"
-                          MaxLines="8"
-                          MaxLength="1000"
-                          Counter="1000"
-                          Immediate="true"
-                          AutoFocus="true"
-                          Required="true"
-                          RequiredError="本文を入力してください。"
-                          data-testid="quote-item-content-input" />
+            <MudTextField T="string" @bind-Value="_content" Label="コメントを追加..." Placeholder="このアイテムについて何か書く..."
+                          Variant="Variant.Outlined" Lines="4" MaxLines="8" MaxLength="1000" Counter="1000" Immediate="true"
+                          AutoFocus="true" Required="true" RequiredError="本文を入力してください。" data-testid="quote-item-content-input" />
 
             @* 抽出したURLのプレビュー *@
             @{
@@ -56,8 +45,7 @@
     <DialogActions>
         <MudButton OnClick="Cancel">キャンセル</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync"
-                   Disabled="@(string.IsNullOrWhiteSpace(_content) || _isSubmitting)"
-                   data-testid="quote-item-submit-button">
+                   Disabled="@(string.IsNullOrWhiteSpace(_content) || _isSubmitting)" data-testid="quote-item-submit-button">
             @switch (_isSubmitting)
             {
                 case true:

@@ -8,14 +8,17 @@ using Microsoft.AspNetCore.Components.Rendering;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 using Moq;
 
 using MudBlazor.Services;
 
 using SRNSMudApp.Data;
+using SRNSMudApp.Models;
 using SRNSMudApp.Services;
 using SRNSMudApp.Services.Dialogs;
+using SRNSMudApp.Services.Providers;
 using SRNSMudApp.Services.Resolvers;
 
 namespace SRNSMudApp.Tests.TestSupport;
@@ -42,11 +45,14 @@ public static class BunitTestSetup
     /// </summary>
     public static IServiceCollection AddSrnsComponentServices(this IServiceCollection services)
     {
-        // ItemCard 経由で UrlPreviewCard のプレビュー取得に使用される。
-        // 個別テストで Fake ハンドラ付きインスタンスを登録する場合は上書きされる
+        _ = services.AddLogging();
         _ = services.AddHttpClient();
 
         return services
+            .AddSingleton<ILinkPreviewProvider, ItemLinkPreviewProvider>()
+            .AddSingleton<ILinkPreviewProvider, TagLinkPreviewProvider>()
+            .AddSingleton<ILinkPreviewProvider, UserLinkPreviewProvider>()
+            .AddSingleton<ILinkPreviewProvider, ExternalOgpLinkPreviewProvider>()
             .AddSingleton<LinkPreviewService>()
             .AddSingleton<ILinkPreviewService>(sp => sp.GetRequiredService<LinkPreviewService>())
             .AddScoped<ITaggingRequestActions, TaggingRequestActions>()
@@ -90,14 +96,20 @@ public static class BunitTestSetup
     /// </summary>
     public static IServiceCollection AddMockSrnsServices(this IServiceCollection services)
     {
+        _ = services.AddLogging();
         _ = services.AddHttpClient();
 
         var dummyOptions = new DbContextOptions<ApplicationDbContext>();
         var dummyContext = new ApplicationDbContext(dummyOptions);
 
         return services
-            .AddSingleton<LinkPreviewService>()
-            .AddSingleton<ILinkPreviewService>(sp => sp.GetRequiredService<LinkPreviewService>())
+            .AddSingleton<ILinkPreviewService>(sp =>
+            {
+                var mock = new Mock<ILinkPreviewService>();
+                mock.Setup(s => s.GetPreviewAsync(It.IsAny<string>()))
+                    .ReturnsAsync((string url) => new LinkPreviewData { Url = url, IsSuccess = false });
+                return mock.Object;
+            })
             .AddScoped(_ => new Mock<IItemTagService>().Object)
             .AddScoped(_ => new Mock<IItemReplyService>().Object)
             .AddScoped(_ => new Mock<IItemReactionService>().Object)

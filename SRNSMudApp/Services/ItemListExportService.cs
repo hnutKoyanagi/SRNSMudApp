@@ -71,9 +71,9 @@ public interface IItemListExportService
 ///     JSON エクスポート用 DTO 群を構築するアプリケーションサービス。
 ///     UI (JS ダウンロード) 以外の処理はすべてここに集約し、bUnit 不要の単体テストを可能にする。
 /// </summary>
-public sealed class ItemListExportService(LinkPreviewService linkPreviewService) : IItemListExportService
+public sealed class ItemListExportService(ILinkPreviewService linkPreviewService) : IItemListExportService
 {
-    private readonly LinkPreviewService _linkPreviewService =
+    private readonly ILinkPreviewService _linkPreviewService =
         linkPreviewService ?? throw new ArgumentNullException(nameof(linkPreviewService));
 
     private const int MaxLinkPreviewsPerItem = 3;

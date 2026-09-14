@@ -184,6 +184,6 @@ public class ItemReplyService(IDbContextFactory<ApplicationDbContext> dbFactory)
             .Select(o => o.UserId)
             .ToListAsync();
 
-        return new HashSet<string>(userIds);
+        return [.. userIds];
     }
 }

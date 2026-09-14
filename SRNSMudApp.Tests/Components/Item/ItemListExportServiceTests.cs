@@ -1,6 +1,9 @@
 using System.Net;
 
+using Moq;
+
 using SRNSMudApp.Data;
+using SRNSMudApp.Models;
 using SRNSMudApp.Services;
 
 namespace SRNSMudApp.Tests.Components.Item;
@@ -8,7 +11,6 @@ namespace SRNSMudApp.Tests.Components.Item;
 /// <summary>
 ///     ItemListExportService の単体テスト。
 ///     タグ展開 (親タグ・関連タグ) とリンクプレビュー組み立てを bUnit なしで検証する。
-///     LinkPreviewService は具象クラスのため、フェイク HTTP ハンドラ経由の実インスタンスを注入する。
 /// </summary>
 public class ItemListExportServiceTests
 {
@@ -69,9 +71,10 @@ public class ItemListExportServiceTests
     public async Task BuildExportAsync_WithFailingFetch_ExcludesPreview()
     {
         var exportData = new ItemListExportData([], [], []);
-        // 404 を返すハンドラでプレビュー取得失敗を再現する
-        var service = new ItemListExportService(new LinkPreviewService(
-            new HttpClient(new StatusCodeHandler(HttpStatusCode.NotFound)), new Moq.Mock<Microsoft.Extensions.DependencyInjection.IServiceScopeFactory>().Object));
+        var mockPreview = new Mock<ILinkPreviewService>();
+        mockPreview.Setup(s => s.GetPreviewAsync(It.IsAny<string>()))
+            .ReturnsAsync((string url) => new LinkPreviewData { Url = url, IsSuccess = false });
+        var service = new ItemListExportService(mockPreview.Object);
 
         IReadOnlyList<ExportItemDto> result = await service.BuildExportAsync(
             exportData, [new SRNSMudApp.Data.Item { Id = 1, Content = "see https://fail.com", OwnerId = "u1" }]);
@@ -168,29 +171,17 @@ public class ItemListExportServiceTests
         Assert.Contains("\"Name\": \"タグ作者\"", json);
     }
 
-    /// <summary>あらゆる GET に title 付き HTML を返すフェイクハンドラ。</summary>
-    private static LinkPreviewService CreatePreviewService() =>
-        new(new HttpClient(new TitleHtmlHandler()), new Moq.Mock<Microsoft.Extensions.DependencyInjection.IServiceScopeFactory>().Object);
-
-    private sealed class TitleHtmlHandler : HttpMessageHandler
+    /// <summary>テスト用の ILinkPreviewService モックを生成する。</summary>
+    private static ILinkPreviewService CreatePreviewService()
     {
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            HttpResponseMessage response = new(HttpStatusCode.OK)
+        var mock = new Mock<ILinkPreviewService>();
+        mock.Setup(s => s.GetPreviewAsync(It.IsAny<string>()))
+            .ReturnsAsync((string url) => new LinkPreviewData
             {
-                Content = new StringContent(
-                    "<html><head><title>Example Title</title></head><body></body></html>",
-                    System.Text.Encoding.UTF8,
-                    "text/html")
-            };
-            return Task.FromResult(response);
-        }
-    }
-
-    private sealed class StatusCodeHandler(HttpStatusCode statusCode) : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request, CancellationToken cancellationToken) => Task.FromResult(new HttpResponseMessage(statusCode));
+                Url = url,
+                Title = "Example Title",
+                IsSuccess = true
+            });
+        return mock.Object;
     }
 }

@@ -63,7 +63,7 @@ public class AddItemMentionE2ETests : PageTest
 
         // Select the "C#" option
         await csharpOption.ClickAsync();
-        
+
         // Wait for replacement to finish
         await Page.WaitForTimeoutAsync(200);
 

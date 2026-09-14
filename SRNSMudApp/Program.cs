@@ -17,6 +17,7 @@ using SRNSMudApp.Data;
 using SRNSMudApp.Extensions;
 using SRNSMudApp.Services;
 using SRNSMudApp.Services.Auth;
+using SRNSMudApp.Services.Providers;
 
 #endregion
 
@@ -110,8 +111,12 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
 
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
 
-// Register LinkPreviewService and HttpClient
+// Register LinkPreview providers and services (Strategy Pattern)
 builder.Services.AddHttpClient();
+builder.Services.AddSingleton<ILinkPreviewProvider, ItemLinkPreviewProvider>();
+builder.Services.AddSingleton<ILinkPreviewProvider, TagLinkPreviewProvider>();
+builder.Services.AddSingleton<ILinkPreviewProvider, UserLinkPreviewProvider>();
+builder.Services.AddSingleton<ILinkPreviewProvider, ExternalOgpLinkPreviewProvider>();
 builder.Services.AddSingleton<LinkPreviewService>();
 builder.Services.AddSingleton<ILinkPreviewService>(sp => sp.GetRequiredService<LinkPreviewService>());
 

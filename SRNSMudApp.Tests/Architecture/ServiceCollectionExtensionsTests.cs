@@ -8,6 +8,7 @@ using SRNSMudApp.Services;
 using SRNSMudApp.Services.Commands;
 using SRNSMudApp.Services.Contracts;
 using SRNSMudApp.Services.Dialogs;
+using SRNSMudApp.Services.Providers;
 using SRNSMudApp.Services.Reports;
 
 namespace SRNSMudApp.Tests.Architecture;
@@ -143,8 +144,13 @@ public class ServiceCollectionExtensionsTests
         Assert.Throws<ArgumentNullException>(() => new TagCommandService(new Moq.Mock<Microsoft.EntityFrameworkCore.IDbContextFactory<ApplicationDbContext>>().Object, null!));
         Assert.Throws<ArgumentNullException>(() => new ItemListExportService(null!));
         Assert.Throws<ArgumentNullException>(() => new SystemTagEnsurer(null!));
-        Assert.Throws<ArgumentNullException>(() => new LinkPreviewService(null!, new Moq.Mock<Microsoft.Extensions.DependencyInjection.IServiceScopeFactory>().Object));
-        Assert.Throws<ArgumentNullException>(() => new LinkPreviewService(new HttpClient(), null!));
+        Assert.Throws<ArgumentNullException>(() => new LinkPreviewService(null!, new Moq.Mock<Microsoft.Extensions.Logging.ILogger<LinkPreviewService>>().Object));
+        Assert.Throws<ArgumentNullException>(() => new LinkPreviewService([], null!));
+        Assert.Throws<ArgumentNullException>(() => new ItemLinkPreviewProvider(null!));
+        Assert.Throws<ArgumentNullException>(() => new TagLinkPreviewProvider(null!));
+        Assert.Throws<ArgumentNullException>(() => new UserLinkPreviewProvider(null!));
+        Assert.Throws<ArgumentNullException>(() => new ExternalOgpLinkPreviewProvider(null!, new Moq.Mock<Microsoft.Extensions.Logging.ILogger<ExternalOgpLinkPreviewProvider>>().Object));
+        Assert.Throws<ArgumentNullException>(() => new ExternalOgpLinkPreviewProvider(new HttpClient(), null!));
         Assert.Throws<ArgumentNullException>(() => new ContentReportService(null!, new Moq.Mock<IReportTargetHandlerFactory>().Object, new Moq.Mock<ICommandHandler<ResolveContentReportCommand, Result<bool>>>().Object));
         Assert.Throws<ArgumentNullException>(() => new ResolveContentReportHandler(null!, new Moq.Mock<IReportTargetHandlerFactory>().Object, new Moq.Mock<INotificationService>().Object));
         Assert.Throws<ArgumentNullException>(() => new ReportTargetHandlerFactory(null!));

@@ -4,10 +4,13 @@ using System.Net;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 
 using SRNSMudApp.Data;
 using SRNSMudApp.Models;
 using SRNSMudApp.Services;
+using SRNSMudApp.Services.Providers;
+using SRNSMudApp.Tests.TestSupport;
 
 #endregion
 
@@ -31,12 +34,23 @@ public class LinkPreviewServiceTests : IAsyncLifetime
     {
         var tid = Guid.NewGuid().ToString("N")[..8];
         var services = new ServiceCollection();
-        services.AddScoped(_ => new ApplicationDbContext(_sharedDb.Options));
+        _ = services.AddMsSqlDbFactory(_sharedDb.ConnectionString);
         var sp = services.BuildServiceProvider();
-        var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
+        var dbFactory = sp.GetRequiredService<IDbContextFactory<ApplicationDbContext>>();
 
         var httpClient = new HttpClient(new FakeHttpMessageHandler());
-        var sut = new LinkPreviewService(httpClient, scopeFactory);
+        var ogpLogger = NullLogger<ExternalOgpLinkPreviewProvider>.Instance;
+        var serviceLogger = NullLogger<LinkPreviewService>.Instance;
+
+        var providers = new ILinkPreviewProvider[]
+        {
+            new ItemLinkPreviewProvider(dbFactory),
+            new TagLinkPreviewProvider(dbFactory),
+            new UserLinkPreviewProvider(dbFactory),
+            new ExternalOgpLinkPreviewProvider(httpClient, ogpLogger)
+        };
+
+        var sut = new LinkPreviewService(providers, serviceLogger);
         var db = new ApplicationDbContext(_sharedDb.Options);
 
         return (db, sut, tid);

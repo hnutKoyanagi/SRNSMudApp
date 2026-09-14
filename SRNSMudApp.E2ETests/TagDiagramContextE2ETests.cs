@@ -77,9 +77,7 @@ public class TagDiagramContextE2ETests : PageTest
         db.TagEdges.AddRange(edge1, edge2, edge3);
         await db.SaveChangesAsync();
 
-        await Page.GotoAsync($"{_serverAddress}/auth/callback?provider=Google&code=mock-google-test",
-            new PageGotoOptions { WaitUntil = WaitUntilState.Commit });
-        await Page.WaitForURLAsync(new Regex(@"^" + Regex.Escape(_serverAddress) + @"/?$"), new PageWaitForURLOptions { Timeout = 10000 });
+        await WebAuthnTestHelpers.LoginWithMockGoogleAsync(Page, _serverAddress, "mock-google-test@example.com");
 
         await Page.GotoAsync($"{_serverAddress}/tag-diagram?itemId={item1.Id}");
 
