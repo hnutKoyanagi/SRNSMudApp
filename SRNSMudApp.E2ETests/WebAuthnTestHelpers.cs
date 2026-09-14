@@ -59,6 +59,9 @@ public static class WebAuthnTestHelpers
     /// </summary>
     public static async Task LoginWithMockGoogleAsync(IPage page, string serverAddress, string email)
     {
+        // Random delay to avoid hitting the server rate limiter or causing session conflicts when running tests in parallel
+        await Task.Delay(Random.Shared.Next(500, 2000));
+        
         await page.Context.ClearCookiesAsync();
         var userName = email.Contains('@') ? email.Split('@')[0] : email;
         await page.GotoAsync($"{serverAddress}/auth/callback?provider=Google&code=mock-{userName}");
