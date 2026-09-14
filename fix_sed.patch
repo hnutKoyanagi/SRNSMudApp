@@ -1,0 +1,17 @@
+--- SRNSMudApp/Components/Item/AddItem.razor
++++ SRNSMudApp/Components/Item/AddItem.razor
+@@ -207,11 +207,6 @@
+     }
+ 
+-    [JSInvokable]
+-    
+-    public record MentionItem(string name, string replacement);
+-
+-    [JSInvokable]
+-    public async Task<IEnumerable<MentionItem>> SearchTags(string query)
++    public record MentionItem(string name, string replacement);
++
++    [JSInvokable]
++    public async Task<IEnumerable<MentionItem>> SearchTags(string query)
+     {
+         

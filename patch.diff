@@ -1,0 +1,99 @@
+--- SRNSMudApp/Components/Item/AddItem.razor
++++ SRNSMudApp/Components/Item/AddItem.razor
+@@ -6,6 +6,7 @@
+ 
+ @using SRNSMudApp.Components.UI
+ @using SRNSMudApp.Services
++@implements IAsyncDisposable
+ @inject IItemCardDataProvider ItemCardData
+ @inject IUserGroupDataProvider UserGroupData
+ @inject NavigationManager NavigationManager
+@@ -13,6 +14,7 @@
+ @inject UserManager<ApplicationUser> UserManager
+ @inject LinkPreviewService PreviewService
+ @inject ITagSearchQueryService TagSearchQueryService
++@inject IJSRuntime JS
+ 
+ <MudStack Class="w-100 pb-2">
+     @switch (_newItem)
+@@ -28,21 +30,10 @@
+                 <MudStack Row="true" Spacing="4" AlignItems="AlignItems.Start">
+                     <MudStack Class="flex-grow-1" Style="min-width: 0;">
+                         <MudTextField @bind-Value="_newItem.Content" For="@(() => _newItem.Content)" name="_newItem.Content"
++                                      id="add-item-textarea"
+                                       Placeholder="新しいアイテムのコンテンツを入力..." Variant="Variant.Outlined" Lines="3" MaxLength="1000"
+                                       Counter="1000" Required="true" RequiredError="コンテンツは必須です。" Immediate="true"
+                                       OnKeyDown="@HandleKeyDown" />
+-                        <MudAutocomplete T="string" @bind-Value="_newItem.Content"
+-                                         SearchFunc="SearchMentionsAsync"
+-                                         Placeholder="新しいアイテムのコンテンツを入力..." Variant="Variant.Outlined" 
+-                                         Lines="3" MaxLength="1000" Counter="1000" 
+-                                         Required="true" RequiredError="コンテンツは必須です。" Immediate="true"
+-                                         OnKeyDown="@HandleKeyDown"
+-                                         ResetValueOnEmptyText="false" CoerceText="true" CoerceValue="true"
+-                                         For="@(() => _newItem.Content)" name="_newItem.Content">
+-                            <ItemTemplate Context="replacement">
+-                                <MudText Typo="Typo.body2">
+-                                    <MudIcon Icon="@Icons.Material.Filled.Tag" Size="Size.Small" Class="mr-1 mb-n1" />
+-                                    @(_suggestionDisplayNames.TryGetValue(replacement, out var name) ? name : replacement)
+-                                </MudText>
+-                            </ItemTemplate>
+-                        </MudAutocomplete>
+ 
+                         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="4" Class="mt-1">
+                             <MudSwitch @bind-Value="_isPrivate" Color="Color.Primary" Label="プライベートモード" Size="Size.Small" />
+@@ -197,29 +188,32 @@
+         Snackbar.Add("入力内容を確認してください。", Severity.Warning);
+     }
+ 
+-    // --- Autocomplete Mentions Logic ---
++    // --- JS Interop Mentions Logic ---
+ 
+-    private Dictionary<string, string> _suggestionDisplayNames = new();
++    private DotNetObjectReference<AddItem>? _objRef;
+ 
+-    private async Task<IEnumerable<string>> SearchMentionsAsync(string value, CancellationToken token)
++    protected override async Task OnAfterRenderAsync(bool firstRender)
+     {
+-        if (string.IsNullOrEmpty(value)) return [];
+-
+-        var match = System.Text.RegularExpressions.Regex.Match(value, @"(^|\s)#(\S+)$");
+-        if (match.Success)
++        if (firstRender && _newItem != null)
+         {
+-            var query = match.Groups[2].Value;
+-            var prefix = value.Substring(0, match.Groups[2].Index - 1); // 1 for '#'
++            _objRef = DotNetObjectReference.Create(this);
++            await JS.InvokeVoidAsync("tributeInterop.init", "add-item-textarea", _objRef);
++        }
++    }
+ 
+-            var tags = await TagSearchQueryService.SearchTagsWithFallbackAsync(query, token);
+-            
+-            var results = new List<string>();
+-            _suggestionDisplayNames.Clear();
+-            foreach (var t in tags)
+-            {
+-                var replacement = prefix + $"/TagDetail/{t.Id} ";
+-                _suggestionDisplayNames[replacement] = t.Name;
+-                results.Add(replacement);
+-            }
+-            return results;
+-        }
+-        return [];
++    [JSInvokable]
++    public async Task<IEnumerable<object>> SearchTags(string query)
++    {
++        if (string.IsNullOrWhiteSpace(query)) return [];
++        var tags = await TagSearchQueryService.SearchTagsWithFallbackAsync(query);
++        return tags.Select(t => new { name = "#" + t.Name, replacement = $"/TagDetail/{t.Id}" });
++    }
++
++    public async ValueTask DisposeAsync()
++    {
++        if (_objRef != null)
++        {
++            try { await JS.InvokeVoidAsync("tributeInterop.destroy", "add-item-textarea"); } catch { }
++            _objRef.Dispose();
++        }
+     }

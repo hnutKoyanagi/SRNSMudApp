@@ -1,0 +1,16 @@
+--- SRNSMudApp.E2ETests/AddItemMentionE2ETests.cs
++++ SRNSMudApp.E2ETests/AddItemMentionE2ETests.cs
+@@ -58,5 +58,13 @@
+ 
+         // Verify the input has the internal link
+         await Expect(input).ToHaveValueAsync(new System.Text.RegularExpressions.Regex("/TagDetail/"));
++
++        // Save the form
++        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "追加" }).ClickAsync();
++
++        // The item card should appear in the feed with the link
++        var itemCard = Page.Locator(".mud-card-content").First;
++        await Expect(itemCard).ToBeVisibleAsync();
++        await Expect(itemCard).ToContainTextAsync("Line 1");
+     }
+ }

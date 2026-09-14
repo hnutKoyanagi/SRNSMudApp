@@ -1,0 +1,47 @@
+--- SRNSMudApp/Components/Item/AddItem.razor
++++ SRNSMudApp/Components/Item/AddItem.razor
+@@ -11,10 +11,11 @@
+ @inject IUserGroupDataProvider UserGroupData
++@inject IUserDataProvider UserDataProvider
+ @inject NavigationManager NavigationManager
+ @inject ISnackbar Snackbar
+-@inject UserManager<ApplicationUser> UserManager
+ @inject LinkPreviewService PreviewService
+ @inject ITagSearchQueryService TagSearchQueryService
+ @inject IJSRuntime JS
++@inject ILogger<AddItem> Logger
+ 
+ <MudStack Class="w-100 pb-2">
+@@ -111,8 +112,8 @@
+                         if (!string.IsNullOrEmpty(userId))
+                         {
+                             _userGroups = await UserGroupData.GetUserGroupsForUserAsync(userId);
+-                            var appUser = await UserManager.FindByIdAsync(userId);
+-                            if (appUser != null && appUser.IsPrivateModeDefault)
++                            var appUser = await UserDataProvider.FindUserByIdAsync(userId);
++                            if (appUser is not null && appUser.IsPrivateModeDefault)
+                             {
+                                 _isPrivate = true;
+@@ -202,17 +203,19 @@
+             }
+             catch (Exception ex)
+             {
+-                Console.WriteLine("JS Interop Error: " + ex.Message);
++                Logger.LogError(ex, "JS Interop Error while initializing Tribute: {Message}", ex.Message);
+             }
+         }
+     }
+ 
++    public record MentionItem(string name, string replacement);
++
+     [JSInvokable]
+-    public async Task<IEnumerable<object>> SearchTags(string query)
++    public async Task<IEnumerable<MentionItem>> SearchTags(string query)
+     {
+         
+         var tags = await TagSearchQueryService.SearchTagsWithFallbackAsync(query);
+-        return tags.Select(t => new { name = "#" + t.Name, replacement = $"/TagDetail/{t.Id}" });
++        return tags.Select(t => new MentionItem("#" + t.Name, $"/TagDetail/{t.Id}"));
+     }
+ 
+     public async ValueTask DisposeAsync()

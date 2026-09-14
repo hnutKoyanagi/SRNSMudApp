@@ -1,0 +1,18 @@
+--- SRNSMudApp/Components/Item/AddItem.razor
++++ SRNSMudApp/Components/Item/AddItem.razor
+@@ -190,12 +190,15 @@
+     // --- JS Interop Mentions Logic ---
+ 
+     private DotNetObjectReference<AddItem>? _objRef;
++    private bool _tributeInitialized = false;
+ 
+     protected override async Task OnAfterRenderAsync(bool firstRender)
+     {
+-        if (firstRender && _newItem != null)
++        if (!_tributeInitialized && _newItem != null)
+         {
++            _tributeInitialized = true;
+             _objRef = DotNetObjectReference.Create(this);
+             await JS.InvokeVoidAsync("tributeInterop.init", "add-item-textarea", _objRef);
+         }
+     }

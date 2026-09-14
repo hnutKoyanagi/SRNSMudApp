@@ -1,0 +1,20 @@
+--- SRNSMudApp/wwwroot/js/tributeInterop.js
++++ SRNSMudApp/wwwroot/js/tributeInterop.js
+@@ -2,9 +2,15 @@
+     instances: {},
+     init: function (elementId, dotNetHelper) {
+         var wrapper = document.getElementById(elementId);
+-        if (!wrapper) return;
++        if (!wrapper) {
++            console.error('TributeInterop: wrapper not found for ' + elementId);
++            return;
++        }
+         var element = wrapper.tagName === 'TEXTAREA' || wrapper.tagName === 'INPUT' ? wrapper : wrapper.querySelector('textarea, input');
+-        if (!element) return;
++        if (!element) {
++            console.error('TributeInterop: textarea not found inside ' + elementId);
++            return;
++        }
++        console.log('TributeInterop: initialized successfully on elementId: ' + elementId);
+         
+         var tribute = new Tribute({

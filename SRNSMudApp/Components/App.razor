@@ -13,6 +13,21 @@
     <link rel="stylesheet" href="_content/Z.Blazor.Diagrams/style.min.css" />
     <link rel="stylesheet" href="@Assets["SRNSMudApp.styles.css"]" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jqtree@1.8.10/jqtree.css" />
+    <link rel="stylesheet" href="https://unpkg.com/tributejs@5.1.3/dist/tribute.css" />
+    <style>
+            .tribute-container {
+                z-index: 9999;
+            }
+
+            .tribute-item {
+                padding: 4px 8px;
+                cursor: pointer;
+            }
+
+            .tribute-item.highlight {
+                background: rgba(0, 0, 0, 0.1);
+            }
+    </style>
     <ImportMap />
     <link rel="icon" type="image/ico" href="favicon.ico" />
     <HeadOutlet />
@@ -32,6 +47,8 @@
     <script src="js/contentOverflow.js"></script>
     <script src="js/download.js"></script>
     <script src="js/selectionHelper.js"></script>
+    <script src="https://unpkg.com/tributejs@5.1.3/dist/tribute.min.js"></script>
+    <script src="js/tributeInterop.js"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="js/auth.js"></script>
 </body>

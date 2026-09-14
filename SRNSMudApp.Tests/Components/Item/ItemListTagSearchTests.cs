@@ -133,7 +133,7 @@ public sealed class ItemListTagSearchTests : IAsyncLifetime
             cut.FindComponents<MudAutocomplete<TagSuggestion>>()[0];
         await cut.InvokeAsync(() => autocomplete.Instance.TextChanged.InvokeAsync(TagName));
 
-        IRenderedComponent<MudIconButton> adornment = cut.FindComponent<MudIconButton>();
+        IRenderedComponent<MudIconButton> adornment = cut.FindComponent<TagSearchBar>().FindComponent<MudIconButton>();
         await cut.InvokeAsync(() => adornment.Instance.OnClick.InvokeAsync(null));
 
         cut.WaitForAssertion(() =>

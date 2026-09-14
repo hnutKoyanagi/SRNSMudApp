@@ -1,0 +1,54 @@
+--- SRNSMudApp/Components/Pages/AuthCallback.razor
++++ SRNSMudApp/Components/Pages/AuthCallback.razor
+@@ -4,6 +4,7 @@
+ @inject NavigationManager NavigationManager
+ @inject IJSRuntime JS
++@inject ILogger<AuthCallback> Logger
+ <PageTitle>Authenticating...</PageTitle>
+ 
+ <MudContainer MaxWidth="MaxWidth.Small" Class="mt-8 text-center">
+@@ -21,7 +22,7 @@
+             {
+                 try
+                 {
+-                    await JS.InvokeVoidAsync("console.log", $"[AuthCallback] Found code={code}, provider={provider}");
++                    Logger.LogInformation("AuthCallback invoked with provider={Provider}", provider);
+                 }
+                 catch (JSException)
+                 {
+@@ -39,7 +40,7 @@
+                     }
+                     try
+                     {
+-                        await JS.InvokeVoidAsync("console.log", "[AuthCallback] InvokeVoidAsync completed");
++                        Logger.LogInformation("LoginWithToken JS invocation completed");
+                     }
+                     catch (JSException)
+                     {
+@@ -49,11 +50,7 @@
+                 catch (Exception ex)
+                 {
+-                    try
+-                    {
+-                        await JS.InvokeVoidAsync("console.error", $"[AuthCallback] JS interop error: {ex.Message}");
+-                    }
+-                    catch (JSException)
+-                    {
+-                        // ignored
+-                    }
++                    Logger.LogError(ex, "JS interop error during AuthCallback");
+                     NavigationManager.NavigateTo("/Account/Login");
+                 }
+             }
+             else
+             {
+-                try
+-                {
+-                    await JS.InvokeVoidAsync("console.error", $"[AuthCallback] Missing code or provider in query. Query: {uri.Query}");
+-                }
+-                catch (JSException)
+-                {
+-                }
++                Logger.LogWarning("Missing code or provider in query. Query: {Query}", uri.Query);
+ 
+                 NavigationManager.NavigateTo("/Account/Login");

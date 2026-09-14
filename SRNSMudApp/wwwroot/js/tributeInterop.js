@@ -12,7 +12,7 @@ window.tributeInterop = {
             return;
         }
         console.log('TributeInterop: initialized successfully on elementId: ' + elementId);
-        
+
         var tribute = new Tribute({
             trigger: '#',
             requireLeadingSpace: false,
@@ -36,9 +36,9 @@ window.tributeInterop = {
                 return '<span style="display:flex;align-items:center;"><svg style="width:16px;height:16px;margin-right:4px;" focusable="false" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20 10h-8.3l.5-4.8c.1-.5-.1-1.1-.6-1.4-.4-.3-1-.3-1.5-.1L5.3 5.4c-.4.2-.7.6-.8 1.1l-.6 5.5H2c-.6 0-1 .4-1 1s.4 1 1 1h1.7l-.5 4H2c-.6 0-1 .4-1 1s.4 1 1 1h1l-.5 4.8c-.1.5.1 1.1.6 1.4.2.1.4.2.6.2.3 0 .7-.1.9-.3l4.8-1.7c.4-.2.7-.6.8-1.1l.6-5.5h8.3l-.5 4.8c-.1.5.1 1.1.6 1.4.2.1.4.2.6.2.3 0 .7-.1.9-.3l4.8-1.7c.4-.2.7-.6.8-1.1l.6-5.5H22c.6 0 1-.4 1-1s-.4-1-1-1h-1.7l.5-4H22c.6 0 1-.4 1-1s-.4-1-1-1h-1l.5-4.8c.1-.5-.1-1.1-.6-1.4-.4-.3-1-.3-1.5-.1l-4.8 1.7c-.4.2-.7.6-.8 1.1L13.7 10zM6.5 7.1l3.6-1.3-.4 3.2H6.1l.4-1.9zM7.5 16l3.6-1.3-.4 3.2H7.1l.4-1.9zm8-2h-8.3l.6-5.5h8.3l-.6 5.5zm1-5.9l-3.6 1.3.4-3.2h3.6l-.4 1.9zm1 8.9l-3.6 1.3.4-3.2h3.6l-.4 1.9z"></path></svg>' + item.original.name + '</span>';
             }
         });
-        
+
         tribute.attach(element);
-        
+
         element.addEventListener('tribute-replaced', function (e) {
             console.log('TributeInterop: replaced, dispatching input event');
             var event = new Event('input', { bubbles: true });

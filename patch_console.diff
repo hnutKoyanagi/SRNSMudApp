@@ -1,0 +1,21 @@
+--- SRNSMudApp.E2ETests/AddItemMentionE2ETests.cs
++++ SRNSMudApp.E2ETests/AddItemMentionE2ETests.cs
+@@ -29,6 +29,11 @@
+     [Test]
+     public async Task GivenAddItemInput_WhenTypeMultiLineAndMention_ThenReplacesWithLink()
+     {
++        Page.Console += (_, e) => Console.WriteLine($"Browser Console: {e.Type}: {e.Text}");
++        Page.PageError += (_, e) => Console.WriteLine($"Browser Error: {e}");
++
+         var testEmail = $"testmention-{Guid.NewGuid():N}@example.com";
+         await WebAuthnTestHelpers.LoginWithMockGoogleAsync(Page, _serverAddress, testEmail);
+ 
+@@ -58,6 +63,8 @@
+         await input.PressAsync("ArrowUp");
+ 
+         // # を入力
++        await input.FocusAsync();
++        await input.PressSequentiallyAsync(" ", new() { Delay = 50 }); // Force space just in case
+         await input.PressSequentiallyAsync("#C", new() { Delay = 100 });
+ 
+         // Autocomplete popover (Tribute.js container) should appear

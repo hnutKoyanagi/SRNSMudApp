@@ -1,0 +1,15 @@
+--- SRNSMudApp.Tests/Components/Item/AddItemTests.cs
++++ SRNSMudApp.Tests/Components/Item/AddItemTests.cs
+@@ -37,10 +37,8 @@
+         var authState = new AuthenticationState(new ClaimsPrincipal(identity));
+         _ = _ctx.Services.AddCascadingValue(_ => Task.FromResult(authState));
+         _ = _ctx.Services.AddAuthorizationCore();
+ 
+-        var storeMock = new Mock<IUserStore<ApplicationUser>>();
+-        var userManagerMock = new Mock<UserManager<ApplicationUser>>(storeMock.Object, null!, null!, null!, null!,
+-            null!, null!, null!, null!);
+-        _ = _ctx.Services.AddScoped(_ => userManagerMock.Object);
++        var userDataProviderMock = new Mock<IUserDataProvider>();
++        _ = _ctx.Services.AddScoped(_ => userDataProviderMock.Object);
+ 
+         var tagSearchMock = new Mock<ITagSearchQueryService>();

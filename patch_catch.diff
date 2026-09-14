@@ -1,0 +1,18 @@
+--- SRNSMudApp/Components/Item/AddItem.razor
++++ SRNSMudApp/Components/Item/AddItem.razor
+@@ -197,7 +197,14 @@
+         {
+             _tributeInitialized = true;
+             _objRef = DotNetObjectReference.Create(this);
+-            await JS.InvokeVoidAsync("tributeInterop.init", "add-item-textarea", _objRef);
++            try
++            {
++                await JS.InvokeVoidAsync("tributeInterop.init", "add-item-textarea", _objRef);
++            }
++            catch (Exception ex)
++            {
++                Console.WriteLine("JS Interop Error: " + ex.Message);
++            }
+         }
+     }
+ 
