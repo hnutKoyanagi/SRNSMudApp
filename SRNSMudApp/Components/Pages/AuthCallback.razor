@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JS
+@inject ILogger<AuthCallback> Logger
 <PageTitle>Authenticating...</PageTitle>
 
 <MudContainer MaxWidth="MaxWidth.Small" Class="mt-8 text-center">
@@ -21,13 +22,7 @@
 
             if (query.TryGetValue("code", out var code) && query.TryGetValue("provider", out var provider))
             {
-                try
-                {
-                    await JS.InvokeVoidAsync("console.log", $"[AuthCallback] Found code={code}, provider={provider}");
-                }
-                catch (JSException)
-                {
-                }
+                Logger.LogInformation("AuthCallback invoked with provider={Provider}", provider);
 
                 // Call the JS function to post the code to our backend
                 try
@@ -40,37 +35,17 @@
                     {
                         NavigationManager.NavigateTo("/Account/Login");
                     }
-                    try
-                    {
-                        await JS.InvokeVoidAsync("console.log", "[AuthCallback] InvokeVoidAsync completed");
-                    }
-                    catch (JSException)
-                    {
-                        // ignored
-                    }
+                    Logger.LogInformation("LoginWithToken JS invocation completed");
                 }
                 catch (Exception ex)
                 {
-                    try
-                    {
-                        await JS.InvokeVoidAsync("console.error", $"[AuthCallback] JS interop error: {ex.Message}");
-                    }
-                    catch (JSException)
-                    {
-                        // ignored
-                    }
+                    Logger.LogError(ex, "JS interop error during AuthCallback");
                     NavigationManager.NavigateTo("/Account/Login");
                 }
             }
             else
             {
-                try
-                {
-                    await JS.InvokeVoidAsync("console.error", $"[AuthCallback] Missing code or provider in query. Query: {uri.Query}");
-                }
-                catch (JSException)
-                {
-                }
+                Logger.LogWarning("Missing code or provider in query. Query: {Query}", uri.Query);
 
                 NavigationManager.NavigateTo("/Account/Login");
             }

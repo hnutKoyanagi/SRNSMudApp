@@ -36,10 +36,11 @@ public sealed class AddItemTests : IAsyncLifetime
         _ = _ctx.Services.AddCascadingValue(_ => Task.FromResult(authState));
         _ = _ctx.Services.AddAuthorizationCore();
 
-        var storeMock = new Mock<IUserStore<ApplicationUser>>();
-        var userManagerMock = new Mock<UserManager<ApplicationUser>>(storeMock.Object, null!, null!, null!, null!,
-            null!, null!, null!, null!);
-        _ = _ctx.Services.AddScoped(_ => userManagerMock.Object);
+        var userDataProviderMock = new Mock<IUserDataProvider>();
+        _ = _ctx.Services.AddScoped(_ => userDataProviderMock.Object);
+
+        var tagSearchMock = new Mock<ITagSearchQueryService>();
+        _ = _ctx.Services.AddScoped(_ => tagSearchMock.Object);
 
         _ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         _ = _ctx.Render<MudPopoverProvider>();
@@ -60,6 +61,8 @@ public sealed class AddItemTests : IAsyncLifetime
 
         cut.WaitForState(() => cut.FindAll("form").Count > 0);
         cut.Find("textarea").Input(TestContent);
+        
+        
         cut.Find("form").Submit();
 
         _itemCardDataMock.Verify(d => d.CreateItemAsync(
@@ -99,6 +102,8 @@ public sealed class AddItemTests : IAsyncLifetime
 
         cut.WaitForState(() => cut.FindAll("form").Count > 0);
         cut.Find("textarea").Input(inputContent);
+        
+        
 
         var previewCard = cut.FindComponent<SRNSMudApp.Components.UI.UrlPreviewCard>();
         Assert.NotNull(previewCard);
@@ -117,6 +122,8 @@ public sealed class AddItemTests : IAsyncLifetime
 
         cut.WaitForState(() => cut.FindAll("form").Count > 0);
         cut.Find("textarea").Input(TestContent);
+        
+        
 
         // プライベートモードのスイッチ (MudSwitch) を ON に切り替える
         var switchInput = cut.Find("input[type='checkbox']");
