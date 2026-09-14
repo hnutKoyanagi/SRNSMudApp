@@ -521,6 +521,38 @@ public sealed class TagDiagramPageTests : IAsyncDisposable
         Assert.Contains(diagram.Nodes.OfType<ItemNode>(), n => n.Item.Id == 10);
     }
 
+    [Fact]
+    public void TagDiagramPage_InitializesDiagram_WithInverseZoomEnabled()
+    {
+        // Arrange
+        _ = _dataProviderMock.Setup(p => p.LoadAllTagsAsync()).ReturnsAsync([]);
+        _ = _dataProviderMock.Setup(p => p.LoadAllEdgesAsync()).ReturnsAsync([]);
+
+        // Act
+        var cut = _ctx.Render<TagDiagramPage>();
+        cut.WaitForState(() => cut.Markup.Contains("Tag Edge Diagram"));
+
+        var canvas = cut.FindComponent<TagDiagramCanvas>();
+        var diagram = canvas.Instance.Diagram;
+
+        // Assert: Zoom.Inverse が true（ピンチインで縮小、ピンチアウトで拡大）に設定されていること
+        Assert.True(diagram.Options.Zoom.Enabled);
+        Assert.True(diagram.Options.Zoom.Inverse);
+
+        // 動作検証: コンテナを設定した状態で DeltaY > 0（ピンチイン）を送信すると縮小し、DeltaY < 0（ピンチアウト）を送信すると拡大すること
+        diagram.SetContainer(new Rectangle(0, 0, 800, 600));
+        diagram.SetZoom(1.0);
+
+        // ピンチイン（DeltaY > 0）
+        diagram.TriggerWheel(new Blazor.Diagrams.Core.Events.WheelEventArgs(100, 100, 0, 0, true, false, false, 0, 100, 0, 0));
+        Assert.True(diagram.Zoom < 1.0, $"Expected zoom to decrease on pinch-in (DeltaY > 0), but was {diagram.Zoom}");
+
+        // ピンチアウト（DeltaY < 0）
+        double currentZoom = diagram.Zoom;
+        diagram.TriggerWheel(new Blazor.Diagrams.Core.Events.WheelEventArgs(100, 100, 0, 0, true, false, false, 0, -100, 0, 0));
+        Assert.True(diagram.Zoom > currentZoom, $"Expected zoom to increase on pinch-out (DeltaY < 0), but was {diagram.Zoom}");
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _ctx.DisposeAsync();

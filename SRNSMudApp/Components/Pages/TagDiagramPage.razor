@@ -293,6 +293,8 @@ else
             Zoom =
             {
                 Enabled = true,
+                // ピンチイン（deltaY > 0）で縮小、ピンチアウト（deltaY < 0）で拡大にするためズーム方向を反転
+                Inverse = true,
                 Minimum = 0.3,
                 Maximum = 2.0
             }
