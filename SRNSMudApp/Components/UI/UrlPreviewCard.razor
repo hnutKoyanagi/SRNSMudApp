@@ -25,7 +25,7 @@
                     <ChildContent>
                         <span @onclick="NavigateToUrl" data-testid="internal-link-preview-pill" class="cursor-pointer px-1 mx-1 rounded"
                               style="background-color: var(--mud-palette-action-default-hover); color: var(--mud-palette-primary);">
-                            @loaded.Data.Description
+                            @(loaded.Data.DisplayText ?? loaded.Data.Description)
                         </span>
                     </ChildContent>
                     <TooltipContent>
@@ -36,7 +36,7 @@
             case false:
                 <span @onclick="NavigateToUrl" data-testid="internal-link-preview-pill" class="cursor-pointer px-1 mx-1 rounded"
                       style="background-color: var(--mud-palette-action-default-hover); color: var(--mud-palette-primary);">
-                    @loaded.Data.Description
+                    @(loaded.Data.DisplayText ?? loaded.Data.Description)
                 </span>
                 break;
         }

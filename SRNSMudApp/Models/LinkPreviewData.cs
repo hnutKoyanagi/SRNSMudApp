@@ -19,6 +19,11 @@ public class LinkPreviewData
     public bool IsSuccess { get; set; }
 
     /// <summary>
+    ///     プレビューのリンク文字列として表示するテキスト。未指定の場合は Description が使用される。
+    /// </summary>
+    public string? DisplayText { get; set; }
+
+    /// <summary>
     ///     関連付けられているタグ情報のプレビュー一覧。
     /// </summary>
     public IReadOnlyList<TagPreviewItem> Tags { get; set; } = [];

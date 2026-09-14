@@ -238,6 +238,7 @@ public partial class LinkPreviewService
             Url = originalUrl,
             Title = $"Tag: {tag.Name} ({ownerName})",
             Description = text,
+            DisplayText = $"{tag.Name}:{ownerName}",
             Tags = [new TagPreviewItem(tag.Id, tag.Name, ownerName, 0)],
             SiteName = "SRNSMudApp",
             IsSuccess = true
@@ -268,6 +269,7 @@ public partial class LinkPreviewService
             Url = originalUrl,
             Title = $"User: {user.UserName}",
             Description = $"@{user.UserName}",
+            DisplayText = $"@{user.UserName}",
             SiteName = "SRNSMudApp",
             IsSuccess = true
         };
