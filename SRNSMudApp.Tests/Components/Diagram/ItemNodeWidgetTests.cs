@@ -11,6 +11,7 @@ using MudBlazor.Services;
 
 using SRNSMudApp.Components.Diagram;
 using SRNSMudApp.Components.UI;
+using SRNSMudApp.Models;
 using SRNSMudApp.Tests.TestSupport;
 
 using ItemEntity = SRNSMudApp.Data.Item;
@@ -57,12 +58,67 @@ public class ItemNodeWidgetTests : IAsyncDisposable
             .Add(p => p.Node, node)
             .AddCascadingValue(diagram));
 
-        // Assert: /ItemDetail/200 が "Detailed Linked Information" に置換されていること
+        // Assert: /ItemDetail/200 が "Detailed Linked Information" のリンクプレビュー（pill）として描画されていること
         Assert.Contains("Detailed Linked Information", cut.Markup);
         Assert.DoesNotContain("/ItemDetail/200", cut.Markup);
+        var pill = cut.Find("[data-testid='internal-link-preview-pill']");
+        Assert.NotNull(pill);
+        Assert.Equal("Detailed Linked Information", pill.TextContent.Trim());
 
         // 展開用カードコンテナはまだ存在しないこと
         Assert.Empty(cut.FindAll(".expanded-card-container"));
+    }
+
+    [Fact]
+    public void ItemNodeWidget_Unexpanded_RendersInternalLinkPreviewPill_ForTagAndUserLinks()
+    {
+        // Arrange
+        var diagram = new BlazorDiagram();
+        var item = new ItemEntity
+        {
+            Id = 100,
+            Content = "Check tag /TagDetail/42 and user /User/UserDetail/alice.",
+            OwnerId = TestUserId
+        };
+        var node = new ItemNode(item, [item]);
+        diagram.Nodes.Add(node);
+
+        Task<LinkPreviewData?> MockLoadPreview(string url)
+        {
+            if (url == "/TagDetail/42")
+            {
+                return Task.FromResult<LinkPreviewData?>(new LinkPreviewData
+                {
+                    Url = url,
+                    DisplayText = "Rust:alice",
+                    IsSuccess = true
+                });
+            }
+            if (url == "/User/UserDetail/alice")
+            {
+                return Task.FromResult<LinkPreviewData?>(new LinkPreviewData
+                {
+                    Url = url,
+                    DisplayText = "@alice",
+                    IsSuccess = true
+                });
+            }
+            return Task.FromResult<LinkPreviewData?>(null);
+        }
+
+        // Act
+        var cut = _ctx.Render<ItemNodeWidget>(parameters => parameters
+            .Add(p => p.Node, node)
+            .Add(p => p.LoadPreview, MockLoadPreview)
+            .AddCascadingValue(diagram));
+
+        // Assert
+        var pills = cut.FindAll("[data-testid='internal-link-preview-pill']");
+        Assert.Equal(2, pills.Count);
+        Assert.Equal("Rust:alice", pills[0].TextContent.Trim());
+        Assert.Equal("@alice", pills[1].TextContent.Trim());
+        Assert.DoesNotContain("/TagDetail/42", cut.Markup);
+        Assert.DoesNotContain("/User/UserDetail/alice", cut.Markup);
     }
 
     [Fact]

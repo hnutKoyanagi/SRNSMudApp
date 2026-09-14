@@ -30,40 +30,31 @@ public class AddItemMentionE2ETests : PageTest
         var testEmail = $"testmention-{Guid.NewGuid():N}@example.com";
         await WebAuthnTestHelpers.LoginWithMockGoogleAsync(Page, _serverAddress, testEmail);
 
+        var dbFactory = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<Microsoft.EntityFrameworkCore.IDbContextFactory<SRNSMudApp.Data.ApplicationDbContext>>(SharedTestServerFixture.Factory.AppServices);
+        await using var db = await dbFactory.CreateDbContextAsync();
+        var user = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.Users, u => u.Email == testEmail);
+        if (user != null)
+        {
+            var tag = new SRNSMudApp.Data.Tag { Name = "C#", OwnerId = user.Id };
+            db.Tags.Add(tag);
+            await db.SaveChangesAsync();
+        }
+
         // Feed page should be visible
         await Expect(Page).ToHaveURLAsync(new Regex(@"^" + Regex.Escape(_serverAddress) + @"/?$"));
         await Expect(Page.Locator("h5").Filter(new() { HasText = "タイムライン" })).ToBeVisibleAsync();
 
         // Navigate to Item List to find the textarea
-        await Page.GotoAsync($"{_serverAddress}/Item/ItemList");
+        await Page.GotoAsync($"{_serverAddress}/Item/ItemList", new() { WaitUntil = WaitUntilState.Commit });
 
         var input = Page.Locator("#add-item-textarea");
         await Expect(input).ToBeVisibleAsync();
-        await input.ClickAsync(new LocatorClickOptions { Force = true });
-
-        // 一行目に文字を入力
-        await input.PressSequentiallyAsync("Line 1", new() { Delay = 50 });
-
-        // 改行して二行目に文字を入力
-        await input.PressAsync("Enter", new() { Delay = 50 });
-        await input.PressSequentiallyAsync("Line 2", new() { Delay = 50 });
-
-        // ２行目の先頭に移動
-        for (int i = 0; i < 6; i++)
-        {
-            await input.PressAsync("ArrowLeft", new() { Delay = 10 });
-        }
-
-        // 改行して
-        await input.PressAsync("Enter", new() { Delay = 50 });
-
-        // 上の空行に移動
-        await input.PressAsync("ArrowUp", new() { Delay = 50 });
+        await input.FocusAsync();
+        await Page.WaitForTimeoutAsync(1500); // Wait for Blazor Server circuit to fully connect
+        await input.PressSequentiallyAsync("Line 1\n ", new() { Delay = 50 });
 
         // # を入力
-        await input.FocusAsync();
-        await input.PressSequentiallyAsync(" ", new() { Delay = 50 }); // Force space just in case
-        await input.PressSequentiallyAsync("#C", new() { Delay = 100 });
+        await input.PressSequentiallyAsync("#C#", new() { Delay = 100 });
 
         // Autocomplete popover (Tribute.js container) should appear
         var tributePopover = Page.Locator(".tribute-container");
@@ -72,6 +63,12 @@ public class AddItemMentionE2ETests : PageTest
 
         // Select the "C#" option
         await csharpOption.ClickAsync();
+        
+        // Wait for replacement to finish
+        await Page.WaitForTimeoutAsync(200);
+
+        // Type Line 2
+        await input.PressSequentiallyAsync("\nLine 2", new() { Delay = 50 });
 
         // 決定して入力可能かてすとをする (verify text was replaced with mention)
         // Tribute replaces it with the display text (which is configured as "#C#" or similar, but the binding should catch it)

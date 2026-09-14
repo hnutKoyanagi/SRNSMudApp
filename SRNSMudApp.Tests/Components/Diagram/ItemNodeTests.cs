@@ -8,6 +8,7 @@ using MudBlazor;
 using MudBlazor.Services;
 
 using SRNSMudApp.Components.Diagram;
+using SRNSMudApp.Tests.TestSupport;
 
 using ItemEntity = SRNSMudApp.Data.Item;
 using TagEntity = SRNSMudApp.Data.Tag;
@@ -21,7 +22,7 @@ public class ItemNodeTests : IAsyncDisposable
     public ItemNodeTests()
     {
         _ctx.JSInterop.Mode = JSRuntimeMode.Loose;
-        _ = _ctx.Services.AddMudServices();
+        _ = _ctx.Services.AddMudServices().AddMockSrnsServices();
         _ = _ctx.Render<MudPopoverProvider>();
         _ctx.JSInterop.Setup<Rectangle>(invocation => invocation.Identifier.Contains("getBoundingClientRect"))
             .SetResult(new Rectangle(0, 0, 800, 600));

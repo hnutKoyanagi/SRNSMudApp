@@ -35,13 +35,12 @@ public class AddItemUserMentionE2ETests : PageTest
         await Expect(Page.Locator("h5").Filter(new() { HasText = "タイムライン" })).ToBeVisibleAsync();
 
         // Navigate to Item List to find the textarea
-        await Page.GotoAsync($"{_serverAddress}/Item/ItemList");
+        await Page.GotoAsync($"{_serverAddress}/Item/ItemList", new() { WaitUntil = WaitUntilState.Commit });
 
         var input = Page.Locator("#add-item-textarea");
         await Expect(input).ToBeVisibleAsync();
-        await input.ClickAsync(new LocatorClickOptions { Force = true });
-
-        // Type @ mention
+        await input.FocusAsync();
+        await Page.WaitForTimeoutAsync(1500); // Wait for Blazor Server circuit to fully connect
         await input.PressSequentiallyAsync("Hello @", new() { Delay = 50 });
 
         // Autocomplete popover (Tribute.js container) should appear
