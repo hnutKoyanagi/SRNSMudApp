@@ -4,6 +4,7 @@ using Blazor.Diagrams;
 
 using Bunit;
 
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 
 using MudBlazor;
@@ -173,5 +174,53 @@ public class ItemNodeWidgetTests : IAsyncDisposable
         // Assert 3: 折りたたまれ、ItemCard が非表示になること
         Assert.False(node.IsExpanded);
         Assert.Empty(cut.FindAll(".expanded-card-container"));
+    }
+
+    [Fact]
+    public void ItemNodeWidget_Unexpanded_DetailButton_NavigatesToItemDetailPage()
+    {
+        // Arrange
+        var diagram = new BlazorDiagram();
+        var item = new ItemEntity { Id = 300, Content = "Unexpanded item", OwnerId = TestUserId };
+        var node = new ItemNode(item, [item]);
+        diagram.Nodes.Add(node);
+
+        var navManager = _ctx.Services.GetRequiredService<NavigationManager>();
+
+        var cut = _ctx.Render<ItemNodeWidget>(parameters => parameters
+            .Add(p => p.Node, node)
+            .AddCascadingValue(diagram));
+
+        // Act: 詳細ボタンをクリック
+        var detailBtn = cut.Find("button.item-detail-button");
+        Assert.NotNull(detailBtn);
+        detailBtn.Click();
+
+        // Assert: ItemDetail ページへ遷移していること
+        Assert.Contains("/ItemDetail/300", navManager.Uri);
+    }
+
+    [Fact]
+    public void ItemNodeWidget_Expanded_DetailButton_NavigatesToItemDetailPage()
+    {
+        // Arrange
+        var diagram = new BlazorDiagram();
+        var item = new ItemEntity { Id = 400, Content = "Expanded item", OwnerId = TestUserId };
+        var node = new ItemNode(item, [item]) { IsExpanded = true };
+        diagram.Nodes.Add(node);
+
+        var navManager = _ctx.Services.GetRequiredService<NavigationManager>();
+
+        var cut = _ctx.Render<ItemNodeWidget>(parameters => parameters
+            .Add(p => p.Node, node)
+            .AddCascadingValue(diagram));
+
+        // Act: 展開コンテナ内の詳細ボタンをクリック
+        var detailBtn = cut.Find(".expanded-card-container button.item-detail-button");
+        Assert.NotNull(detailBtn);
+        detailBtn.Click();
+
+        // Assert: ItemDetail ページへ遷移していること
+        Assert.Contains("/ItemDetail/400", navManager.Uri);
     }
 }

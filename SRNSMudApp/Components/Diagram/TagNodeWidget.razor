@@ -1,4 +1,5 @@
 @inject IJSRuntime JS
+@inject NavigationManager NavigationManager
 @using Blazor.Diagrams.Components.Renderers
 @using Blazor.Diagrams.Core.Models
 @using SRNSMudApp.Components.Tag
@@ -49,6 +50,12 @@
         <span @onclick:stopPropagation="true">
             <MudIconButton Icon="@Icons.Material.Filled.AccountTree" Size="Size.Small" Color="Color.Default"
                            Class="pa-0 ml-1 tag-tree-button" Title="タグツリーを表示" OnClick="ToggleTree" />
+        </span>
+        <span @onclick:stopPropagation="true">
+            <MudTooltip Text="タグ詳細へ遷移">
+                <MudIconButton Icon="@Icons.Material.Filled.OpenInNew" Size="Size.Small" Color="Color.Default"
+                               Class="pa-0 ml-1 tag-detail-button" Title="タグ詳細へ遷移" OnClick="NavigateToTagDetail" />
+            </MudTooltip>
         </span>
     </div>
     @foreach (var port in Node.Ports)
@@ -109,6 +116,11 @@
         {
             await Node.RequestAddChildTag(targetTag);
         }
+    }
+
+    private void NavigateToTagDetail()
+    {
+        NavigationManager.NavigateTo($"/TagDetail/{Node.Tag.Id}");
     }
 
     private static string GetPortClass(PortAlignment alignment) => alignment switch

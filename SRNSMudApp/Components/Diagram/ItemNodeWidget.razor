@@ -9,9 +9,16 @@
     @if (Node.IsExpanded)
     {
         <div class="expanded-card-container" @onclick:stopPropagation="true">
-            <div class="d-flex justify-end p-1"
+            <div class="d-flex justify-end align-center p-1"
                  style="background: var(--mud-palette-surface); border-bottom: 1px solid var(--mud-palette-lines-default);">
-                <MudIconButton Icon="@Icons.Material.Filled.Compress" Size="Size.Small" OnClick="ToggleExpand" />
+                <MudIconButton Icon="@Icons.Material.Filled.Compress" Size="Size.Small" OnClick="ToggleExpand"
+                               Class="item-compress-button" />
+                <span @onclick:stopPropagation="true">
+                    <MudTooltip Text="アイテム詳細へ遷移">
+                        <MudIconButton Icon="@Icons.Material.Filled.OpenInNew" Size="Size.Small" Color="Color.Default"
+                                       Class="ml-1 item-detail-button" Title="アイテム詳細へ遷移" OnClick="NavigateToItemDetail" />
+                    </MudTooltip>
+                </span>
             </div>
             <ItemCard Item="Node.Item" EnableNavigation="true" />
         </div>
@@ -38,7 +45,14 @@
                     }
                 </div>
                 <MudIconButton Icon="@Icons.Material.Filled.ExpandMore" Size="Size.Small" OnClick="ToggleExpand"
-                               Class="ml-auto flex-shrink-0" />
+                               Class="ml-auto flex-shrink-0 item-expand-button" />
+                <span @onclick:stopPropagation="true">
+                    <MudTooltip Text="アイテム詳細へ遷移">
+                        <MudIconButton Icon="@Icons.Material.Filled.OpenInNew" Size="Size.Small" Color="Color.Default"
+                                       Class="ml-1 flex-shrink-0 item-detail-button" Title="アイテム詳細へ遷移"
+                                       OnClick="NavigateToItemDetail" />
+                    </MudTooltip>
+                </span>
             </div>
         </MudPaper>
     }
@@ -74,5 +88,10 @@
     private void OnClick()
     {
         // 選択操作を妨げないため、シングルクリックではナビゲーションを行わない
+    }
+
+    private void NavigateToItemDetail()
+    {
+        NavigationManager.NavigateTo($"/ItemDetail/{Node.Item.Id}");
     }
 }
