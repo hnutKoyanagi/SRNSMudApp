@@ -110,8 +110,10 @@ window.tributeInterop = {
 
         if (element.isContentEditable) {
             var hiddenInput = document.getElementById(elementId + '-hidden') || document.querySelector('textarea[name="_newItem.Content"]');
+            var isComposing = false;
 
             function sync() {
+                if (isComposing) return;
                 var text = window.tributeInterop.extractText(element);
                 if (hiddenInput) {
                     hiddenInput.value = text;
@@ -120,9 +122,19 @@ window.tributeInterop = {
                 }
             }
 
+            element.addEventListener('compositionstart', function () {
+                isComposing = true;
+            });
+
+            element.addEventListener('compositionend', function () {
+                isComposing = false;
+                sync();
+            });
+
             element.addEventListener('input', sync);
             element.addEventListener('tribute-replaced', function (e) {
                 console.log('TributeInterop: tribute-replaced on contenteditable');
+                isComposing = false;
                 sync();
             });
 
