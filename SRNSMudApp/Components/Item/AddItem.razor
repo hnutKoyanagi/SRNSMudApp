@@ -360,7 +360,12 @@
     public async Task<IEnumerable<MentionItem>> SearchTags(string query)
     {
         var tags = await TagSearchQueryService.SearchTagsWithFallbackAsync(query);
-        return tags.Select(t => new MentionItem("#" + t.Name, $"/TagDetail/{t.Id}"));
+        return tags.Select(t =>
+        {
+            var ownerName = t.Owner?.UserName
+                ?? (t.IsSystem || t.OwnerId == "system" ? "system" : (!string.IsNullOrEmpty(t.OwnerId) ? t.OwnerId : "unknown"));
+            return new MentionItem($"{t.Name} : {ownerName}", $"/TagDetail/{t.Id}");
+        });
     }
 
     /// <summary>

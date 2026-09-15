@@ -1,4 +1,4 @@
-﻿@page "/Account/Manage"
+@page "/Account/Manage"
 @using System.ComponentModel.DataAnnotations
 
 @inject UserManager<ApplicationUser> UserManager
@@ -9,20 +9,20 @@
 
 <MudText Typo="Typo.h6" GutterBottom="true">Profile</MudText>
 
-<StatusMessage/>
+<StatusMessage />
 
 <EditForm Model="Input" FormName="profile" OnValidSubmit="OnValidSubmitAsync" method="post">
-    <DataAnnotationsValidator/>
+    <DataAnnotationsValidator />
 
     <MudGrid>
         <MudItem md="12">
-            <MudStaticTextField Value="@username" Label="Username" Disabled="true"
-                                Placeholder="Please choose your username."/>
+            <MudStaticTextField For="@(() => Input.Username)" @bind-Value="Input.Username" Label="Username"
+                                HelperText="Please choose your username." Placeholder="Please choose your username." />
         </MudItem>
         <MudItem md="12">
-            <MudStaticTextField For="@(() => Input.PhoneNumber)" @bind-Value="Input.PhoneNumber"
-                                Label="Phone Number" HelperText="Please enter your phone number."
-                                UserAttributes="@(new Dictionary<string, object?> { { "autocomplete", "tel-national" } })"/>
+            <MudStaticTextField For="@(() => Input.PhoneNumber)" @bind-Value="Input.PhoneNumber" Label="Phone Number"
+                                HelperText="Please enter your phone number."
+                                UserAttributes="@(new Dictionary<string, object?> { { "autocomplete", "tel-national" } })" />
         </MudItem>
         <MudItem md="12">
             <MudStaticButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
@@ -55,6 +55,7 @@
         username = await UserManager.GetUserNameAsync(user);
         phoneNumber = await UserManager.GetPhoneNumberAsync(user);
 
+        Input.Username ??= username;
         Input.PhoneNumber ??= phoneNumber;
     }
 
@@ -64,6 +65,17 @@
         {
             RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
             return;
+        }
+
+        if (Input.Username != username)
+        {
+            var setUserNameResult = await UserManager.SetUserNameAsync(user, Input.Username);
+            if (!setUserNameResult.Succeeded)
+            {
+                RedirectManager.RedirectToCurrentPageWithStatus(
+                    $"Error: {string.Join(" ", setUserNameResult.Errors.Select(e => e.Description))}", HttpContext);
+                return;
+            }
         }
 
         if (Input.PhoneNumber != phoneNumber)
@@ -82,6 +94,10 @@
 
     private sealed class InputModel
     {
+        [Required(ErrorMessage = "ユーザー名を入力してください。")]
+        [Display(Name = "Username")]
+        public string? Username { get; set; }
+
         [Phone]
         [Display(Name = "Phone number")]
         public string? PhoneNumber { get; set; }

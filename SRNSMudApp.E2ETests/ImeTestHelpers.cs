@@ -56,4 +56,3 @@ public static class ImeTestHelpers
         }", new { selector = elementSelector, composing = composingText, final = finalText, interval = compositionIntervalMs });
     }
 }
-

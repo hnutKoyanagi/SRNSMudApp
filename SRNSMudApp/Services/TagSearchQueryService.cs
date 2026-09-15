@@ -78,7 +78,7 @@ public class TagSearchQueryService(
         }
 
         await using ApplicationDbContext dbContext = await _dbFactory.CreateDbContextAsync(token);
-        IQueryable<Tag> query = dbContext.Tags.AsQueryable();
+        IQueryable<Tag> query = dbContext.Tags.Include(t => t.Owner).AsQueryable();
 
         if (string.IsNullOrEmpty(value))
         {

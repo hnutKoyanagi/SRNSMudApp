@@ -103,6 +103,8 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
     {
         options.SignIn.RequireConfirmedAccount = true;
         options.Stores.SchemaVersion = IdentitySchemaVersions.Version3;
+        // 任意の文字列（日本語等）をユーザー名として許可するため、文字種制限を解除
+        options.User.AllowedUserNameCharacters = null;
     })
     .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContext>()

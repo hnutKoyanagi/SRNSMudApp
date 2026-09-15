@@ -167,8 +167,27 @@ public sealed class AddItemTests : IAsyncLifetime
     {
         var sampleTags = new List<SRNSMudApp.Data.Tag>
         {
-            new() { Id = 10, Name = "C#", OwnerId = "owner-1" },
-            new() { Id = 20, Name = "Blazor", OwnerId = "owner-1" }
+            new()
+            {
+                Id = 10,
+                Name = "C#",
+                OwnerId = "owner-1",
+                Owner = new ApplicationUser { Id = "owner-1", UserName = "Alice" }
+            },
+            new()
+            {
+                Id = 20,
+                Name = "Blazor",
+                OwnerId = "owner-2",
+                Owner = new ApplicationUser { Id = "owner-2", UserName = "Bob" }
+            },
+            new()
+            {
+                Id = 30,
+                Name = "SystemTag",
+                OwnerId = "system",
+                IsSystem = true
+            }
         };
         _ = _tagSearchMock
             .Setup(s => s.SearchTagsWithFallbackAsync("test", It.IsAny<CancellationToken>()))
@@ -179,11 +198,13 @@ public sealed class AddItemTests : IAsyncLifetime
 
         var results = (await cut.Instance.SearchTags("test")).ToList();
 
-        Assert.Equal(2, results.Count);
-        Assert.Equal("#C#", results[0].name);
+        Assert.Equal(3, results.Count);
+        Assert.Equal("C# : Alice", results[0].name);
         Assert.Equal("/TagDetail/10", results[0].replacement);
-        Assert.Equal("#Blazor", results[1].name);
+        Assert.Equal("Blazor : Bob", results[1].name);
         Assert.Equal("/TagDetail/20", results[1].replacement);
+        Assert.Equal("SystemTag : system", results[2].name);
+        Assert.Equal("/TagDetail/30", results[2].replacement);
     }
 
     [Fact]
