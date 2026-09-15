@@ -1,17 +1,55 @@
 window.tributeInterop = {
     instances: {},
+    extractText: function (element) {
+        if (!element) return '';
+        if (element.textContent.trim() === '' && element.querySelectorAll('[data-url]').length === 0) {
+            return '';
+        }
+        function traverse(node) {
+            if (!node) return '';
+            if (node.nodeType === Node.TEXT_NODE) {
+                return node.textContent.replace(/\u00A0/g, ' ');
+            }
+            if (node.nodeType === Node.ELEMENT_NODE) {
+                if (node.hasAttribute('data-url')) {
+                    return node.getAttribute('data-url');
+                }
+                if (node.tagName === 'BR') {
+                    return '\n';
+                }
+                var result = '';
+                var isBlock = ['DIV', 'P'].includes(node.tagName);
+                for (var i = 0; i < node.childNodes.length; i++) {
+                    result += traverse(node.childNodes[i]);
+                }
+                if (isBlock && result.length > 0 && !result.endsWith('\n')) {
+                    result += '\n';
+                }
+                return result;
+            }
+            return '';
+        }
+        var text = '';
+        for (var i = 0; i < element.childNodes.length; i++) {
+            text += traverse(element.childNodes[i]);
+        }
+        return text;
+    },
     init: function (elementId, dotNetHelper) {
         var wrapper = document.getElementById(elementId);
         if (!wrapper) {
             console.error('TributeInterop: wrapper not found for ' + elementId);
             return;
         }
-        var element = wrapper.tagName === 'TEXTAREA' || wrapper.tagName === 'INPUT' ? wrapper : wrapper.querySelector('textarea, input');
+        var element = wrapper.isContentEditable || wrapper.getAttribute('contenteditable') === 'true'
+            ? wrapper
+            : (wrapper.querySelector('[contenteditable="true"]') || (wrapper.tagName === 'TEXTAREA' || wrapper.tagName === 'INPUT' ? wrapper : wrapper.querySelector('textarea, input')));
+
         if (!element) {
-            console.error('TributeInterop: textarea not found inside ' + elementId);
+            console.error('TributeInterop: editable element not found inside ' + elementId);
             return;
         }
-        console.log('TributeInterop: initialized successfully on elementId: ' + elementId);
+        console.log('TributeInterop: initialized successfully on elementId: ' + elementId + ', isContentEditable: ' + element.isContentEditable);
 
         var tribute = new Tribute({
             collection: [
@@ -31,6 +69,9 @@ window.tributeInterop = {
                     lookup: 'name',
                     fillAttr: 'replacement',
                     selectTemplate: function (item) {
+                        if (element.isContentEditable) {
+                            return '<span class="internal-link-preview-pill" data-testid="internal-link-preview-pill" data-url="' + item.original.replacement + '" contenteditable="false">' + item.original.name + '</span>\u00A0';
+                        }
                         return item.original.replacement + ' ';
                     },
                     menuItemTemplate: function (item) {
@@ -53,6 +94,9 @@ window.tributeInterop = {
                     lookup: 'name',
                     fillAttr: 'replacement',
                     selectTemplate: function (item) {
+                        if (element.isContentEditable) {
+                            return '<span class="internal-link-preview-pill" data-testid="internal-link-preview-pill" data-url="' + item.original.replacement + '" contenteditable="false">' + item.original.name + '</span>\u00A0';
+                        }
                         return item.original.replacement + ' ';
                     },
                     menuItemTemplate: function (item) {
@@ -64,19 +108,75 @@ window.tributeInterop = {
 
         tribute.attach(element);
 
-        element.addEventListener('tribute-replaced', function (e) {
-            console.log('TributeInterop: replaced, dispatching input event');
-            var event = new Event('input', { bubbles: true });
-            element.dispatchEvent(event);
-        });
+        if (element.isContentEditable) {
+            var hiddenInput = document.getElementById(elementId + '-hidden') || document.querySelector('textarea[name="_newItem.Content"]');
+
+            function sync() {
+                var text = window.tributeInterop.extractText(element);
+                if (hiddenInput) {
+                    hiddenInput.value = text;
+                    var event = new Event('input', { bubbles: true });
+                    hiddenInput.dispatchEvent(event);
+                }
+            }
+
+            element.addEventListener('input', sync);
+            element.addEventListener('tribute-replaced', function (e) {
+                console.log('TributeInterop: tribute-replaced on contenteditable');
+                sync();
+            });
+
+            element.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    dotNetHelper.invokeMethodAsync('SubmitForm');
+                }
+            });
+
+            element.addEventListener('focus', function () {
+                if (element.parentElement) {
+                    element.parentElement.classList.add('focused');
+                }
+            });
+
+            element.addEventListener('blur', function () {
+                if (element.parentElement) {
+                    element.parentElement.classList.remove('focused');
+                }
+            });
+        } else {
+            element.addEventListener('tribute-replaced', function (e) {
+                console.log('TributeInterop: replaced, dispatching input event');
+                var event = new Event('input', { bubbles: true });
+                element.dispatchEvent(event);
+            });
+        }
 
         this.instances[elementId] = tribute;
+    },
+    clear: function (elementId) {
+        var wrapper = document.getElementById(elementId);
+        if (!wrapper) return;
+        var element = wrapper.isContentEditable || wrapper.getAttribute('contenteditable') === 'true'
+            ? wrapper
+            : wrapper.querySelector('[contenteditable="true"]');
+        if (element) {
+            element.innerHTML = '';
+            var hiddenInput = document.getElementById(elementId + '-hidden') || document.querySelector('textarea[name="_newItem.Content"]');
+            if (hiddenInput) {
+                hiddenInput.value = '';
+                var event = new Event('input', { bubbles: true });
+                hiddenInput.dispatchEvent(event);
+            }
+        }
     },
     destroy: function (elementId) {
         var tribute = this.instances[elementId];
         if (tribute) {
             var wrapper = document.getElementById(elementId);
-            var element = wrapper && (wrapper.tagName === 'TEXTAREA' || wrapper.tagName === 'INPUT') ? wrapper : (wrapper ? wrapper.querySelector('textarea, input') : null);
+            var element = wrapper && (wrapper.isContentEditable || wrapper.getAttribute('contenteditable') === 'true' || wrapper.tagName === 'TEXTAREA' || wrapper.tagName === 'INPUT')
+                ? wrapper
+                : (wrapper ? (wrapper.querySelector('[contenteditable="true"]') || wrapper.querySelector('textarea, input')) : null);
             if (element) {
                 tribute.detach(element);
             }

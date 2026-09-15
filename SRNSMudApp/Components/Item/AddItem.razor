@@ -33,10 +33,28 @@
 
                 <MudStack Row="true" Spacing="4" AlignItems="AlignItems.Start">
                     <MudStack Class="flex-grow-1" Style="min-width: 0;">
-                        <MudTextField Value="@_newItem.Content" ValueChanged="@(async (string v) => await HandleContentChanged(v))" For="@(() => _newItem.Content)" name="_newItem.Content"
-                                      id="add-item-textarea" Placeholder="新しいアイテムのコンテンツを入力..." Variant="Variant.Outlined" Lines="3" MaxLength="1000"
-                                      Counter="1000" Required="true" RequiredError="コンテンツは必須です。" Immediate="true"
-                                      OnKeyDown="@HandleKeyDown" />
+                        @{
+                            var allUrls = ItemCardViewModel.ExtractUrls(_newItem.Content);
+                            var externalUrls = allUrls.Where(u => !u.StartsWith("/")).ToList();
+                        }
+                        <div class="add-item-editor-container" onclick="document.getElementById('add-item-textarea')?.focus()">
+                            @* リンクプレビュー（pill）をインライン表示可能な contenteditable エディタ *@
+                            <div id="add-item-textarea" class="add-item-editor" contenteditable="true" role="textbox"
+                                 aria-multiline="true" data-placeholder="新しいアイテムのコンテンツを入力..."></div>
+
+                            @* bUnit テストおよびフォーム同期用の textarea（テスト・バリデーション互換性を維持） *@
+                            <textarea id="add-item-textarea-hidden" name="_newItem.Content" class="add-item-hidden-textarea"
+                                      value="@_newItem.Content"
+                                      @oninput="@(async (ChangeEventArgs e) => await HandleContentChanged(e.Value?.ToString() ?? string.Empty))"
+                                      @onkeydown="@HandleKeyDown"></textarea>
+                        </div>
+                        <div class="d-flex justify-space-between align-center px-1 mt-1">
+                            <ValidationMessage For="@(() => _newItem.Content)" />
+                            <MudText Typo="Typo.caption"
+                                     Color="@(_newItem.Content?.Length > 1000 ? Color.Error : Color.Default)">
+                                @($"{_newItem?.Content?.Length ?? 0} / 1000")
+                            </MudText>
+                        </div>
 
                         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="4" Class="mt-1">
                             <MudSwitch @bind-Value="_isPrivate" Color="Color.Primary" Label="プライベートモード" Size="Size.Small" />
@@ -75,15 +93,12 @@
                             </MudExpansionPanels>
                         }
 
-                        @* 抽出したURLのプレビューを表示 *@
-                        @{
-                            var urls = ItemCardViewModel.ExtractUrls(_newItem.Content);
-                        }
-                        @switch (urls.Any())
+                        @* 外部URLのプレビューカードのみ別セクションに表示 *@
+                        @switch (externalUrls.Count > 0)
                         {
                             case true:
                                 <MudStack Spacing="2" Class="mt-2">
-                                    @foreach (var url in urls.Take(3)) // 最大3件程度に制限
+                                    @foreach (var url in externalUrls.Take(3))
                                     {
                                         <SRNSMudApp.Components.UI.UrlPreviewCard Url="@url" LoadPreview="@PreviewService.GetPreviewAsync" />
                                     }
@@ -192,6 +207,15 @@
                 TargetUserGroupId = _isPrivate ? _selectedGroupId : null
             };
 
+            try
+            {
+                await JS.InvokeVoidAsync("tributeInterop.clear", "add-item-textarea");
+            }
+            catch (Exception)
+            {
+                // ignored
+            }
+
             Snackbar.Add("アイテムが正常に保存されました。", Severity.Success);
 
             if (OnItemAdded.HasDelegate)
@@ -277,7 +301,7 @@
         
         var users = await UserDataProvider.GetUsersByIdsAsync(userIdsInText);
         
-        _targetCandidates = users.Select(u => new ReplyTargetCandidate(u.Id, u.UserName!)).ToList();
+        _targetCandidates = (users ?? []).Select(u => new ReplyTargetCandidate(u.Id, u.UserName!)).ToList();
         
         // Update selected states
         foreach (var candidate in _targetCandidates)
@@ -338,6 +362,12 @@
     {
         var users = await UserDataProvider.SearchUsersAsync(query);
         return users.Select(u => new MentionItem("@" + u.UserName, $"/User/UserDetail/{u.Id}"));
+    }
+
+    [JSInvokable]
+    public async Task SubmitForm()
+    {
+        await HandleValidSubmit();
     }
 
     public async ValueTask DisposeAsync()

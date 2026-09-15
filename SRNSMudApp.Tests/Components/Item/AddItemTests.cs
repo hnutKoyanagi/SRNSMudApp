@@ -136,6 +136,33 @@ public sealed class AddItemTests : IAsyncLifetime
             It.IsAny<IReadOnlyCollection<int>?>()), Times.Once);
     }
 
+    [Fact]
+    public void Render_ContainsContentEditableEditor()
+    {
+        IRenderedComponent<AddItem> cut = _ctx.Render<AddItem>();
+
+        cut.WaitForState(() => cut.FindAll("form").Count > 0);
+
+        var editor = cut.Find("#add-item-textarea");
+        Assert.NotNull(editor);
+        Assert.Equal("true", editor.GetAttribute("contenteditable"));
+        Assert.Equal("新しいアイテムのコンテンツを入力...", editor.GetAttribute("data-placeholder"));
+    }
+
+    [Fact]
+    public void Input_InternalUrlInContent_DoesNotRenderBottomPreviewCards()
+    {
+        const string inputContent = "Check tag /TagDetail/1 and user /User/UserDetail/user1";
+        IRenderedComponent<AddItem> cut = _ctx.Render<AddItem>();
+
+        cut.WaitForState(() => cut.FindAll("form").Count > 0);
+        cut.Find("textarea").Input(inputContent);
+
+        // 内部リンクはエディタ内でインライン表示されるため、bottomの外部プレビューカードセクションには描画されない
+        var previewCards = cut.FindComponents<SRNSMudApp.Components.UI.UrlPreviewCard>();
+        Assert.Empty(previewCards);
+    }
+
     public async Task DisposeAsync()
     {
         await _ctx.DisposeAsync();
