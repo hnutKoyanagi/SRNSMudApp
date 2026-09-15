@@ -1,24 +1,41 @@
 @using SRNSMudApp.Services
 @using SRNSMudApp.Components.UI
+@using SRNSMudApp.Models
+@implements IAsyncDisposable
 @inject IItemCardDataProvider ItemCardData
 @inject ISnackbar Snackbar
 @inject ILinkPreviewService PreviewService
+@inject ITagSearchQueryService TagSearchQueryService
+@inject IUserDataProvider UserDataProvider
+@inject IJSRuntime JS
+@inject ILogger<ItemEditDialog> Logger
 
 <MudDialog>
     <DialogContent>
-        <MudTextField T="string" @bind-Value="_editContent" Label="内容" Variant="Variant.Outlined" Lines="5"
-                      MaxLines="10" MaxLength="1000" Counter="1000" Immediate="true" AutoFocus="true" Required="true"
-                      RequiredError="内容は必須です" />
+        <div class="add-item-editor-container" onclick="document.getElementById('edit-item-textarea')?.focus()">
+            <div id="edit-item-textarea" class="add-item-editor" contenteditable="true" role="textbox"
+                 aria-multiline="true" data-placeholder="内容を編集..."></div>
+
+            <textarea id="edit-item-textarea-hidden" name="_editContent" class="add-item-hidden-textarea"
+                      value="@_editContent"
+                      @oninput="@((ChangeEventArgs e) => { _editContent = e.Value?.ToString() ?? string.Empty; })"></textarea>
+        </div>
+        <div class="d-flex justify-space-between align-center px-1 mt-1">
+            <MudText Typo="Typo.caption" Color="@(_editContent?.Length > 1000 ? Color.Error : Color.Default)">
+                @($"{_editContent?.Length ?? 0} / 1000")
+            </MudText>
+        </div>
 
         @* 抽出したURLのプレビューを表示 *@
         @{
-            var urls = ItemCardViewModel.ExtractUrls(_editContent);
+            var allUrls = ItemCardViewModel.ExtractUrls(_editContent ?? "");
+            var externalUrls = allUrls.Where(u => !u.StartsWith("/")).ToList();
         }
-        @switch (urls.Any())
+        @switch (externalUrls.Count > 0)
         {
             case true:
                 <MudStack Spacing="2" Class="mt-2">
-                    @foreach (var url in urls.Take(3))
+                    @foreach (var url in externalUrls.Take(3))
                     {
                         <SRNSMudApp.Components.UI.UrlPreviewCard Url="@url" LoadPreview="@PreviewService.GetPreviewAsync" />
                     }
@@ -35,16 +52,76 @@
 @code {
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
 
-    // ItemList.razor から渡される Item パラメータ
     [Parameter] public Item Item { get; set; } = null!;
 
-    // 編集用のバインド変数（キャンセル時に元のオブジェクトを汚染しないため）
     private string _editContent = null!;
+
+    private DotNetObjectReference<ItemEditDialog>? _objRef;
+    private bool _tributeInitialized = false;
 
     protected override void OnInitialized()
     {
-        // 初期値として現在のコンテンツをセット
         _editContent = Item.Content;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_tributeInitialized)
+        {
+            _tributeInitialized = true;
+            _objRef = DotNetObjectReference.Create(this);
+            try
+            {
+                // Init HTML content of the editor with parsed pills
+                var initialHtml = ParsePillsToHtml(_editContent);
+                await JS.InvokeVoidAsync("eval", $"document.getElementById('edit-item-textarea').innerHTML = {System.Text.Json.JsonSerializer.Serialize(initialHtml)}");
+                
+                await JS.InvokeVoidAsync("tributeInterop.init", "edit-item-textarea", _objRef);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "JS Interop Error while initializing Tribute: {Message}", ex.Message);
+            }
+        }
+    }
+
+    /// <summary>
+    /// テキスト内の内部リンク（/TagDetail/ や /User/UserDetail/）を contenteditable 用の pill HTML に変換する
+    /// </summary>
+    internal static string ParsePillsToHtml(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return "";
+        var lines = text.Split('\n');
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            var segments = ItemCardViewModel.GetContentSegments(line);
+            var sb = new System.Text.StringBuilder();
+            foreach (var segment in segments)
+            {
+                if (segment.IsUrl && segment.Text.StartsWith("/"))
+                {
+                    var displayText = segment.Text;
+                    if (segment.Text.StartsWith("/TagDetail/"))
+                    {
+                        // Minimal parsing to just show text if possible.
+                        // Full tag info would require DB lookup. For now just show original or a placeholder.
+                        displayText = "#タグ";
+                    }
+                    else if (segment.Text.StartsWith("/User/UserDetail/"))
+                    {
+                        displayText = "@ユーザー";
+                    }
+                    sb.Append($"<span class=\"internal-link-preview-pill\" data-testid=\"internal-link-preview-pill\" data-url=\"{segment.Text}\" contenteditable=\"false\">{displayText}</span>&#8203;&nbsp;");
+                }
+                else
+                {
+                    sb.Append(System.Net.WebUtility.HtmlEncode(segment.Text).Replace(" ", "&nbsp;"));
+                }
+            }
+            lines[i] = sb.ToString();
+        }
+        return string.Join("<br>", lines);
     }
 
     private void Cancel()
@@ -64,10 +141,8 @@
         try
         {
             bool updated = await ItemCardData.UpdateItemContentAsync(Item.Id, _editContent);
-
             switch (updated)
             {
-                // 成功した場合はダイアログを閉じ、結果として true を返す
                 case true:
                     MudDialog.Close(DialogResult.Ok(true));
                     break;
@@ -83,4 +158,34 @@
         }
     }
 
+    public record MentionItem(string name, string replacement);
+
+    [JSInvokable]
+    public async Task<IEnumerable<MentionItem>> SearchTags(string query)
+    {
+        var tags = await TagSearchQueryService.SearchTagsWithFallbackAsync(query);
+        return tags.Select(t => new MentionItem("#" + t.Name, $"/TagDetail/{t.Id}"));
+    }
+
+    [JSInvokable]
+    public async Task<IEnumerable<MentionItem>> SearchUsers(string query)
+    {
+        var users = await UserDataProvider.SearchUsersAsync(query);
+        return users.Select(u => new MentionItem("@" + u.UserName, $"/User/UserDetail/{u.Id}"));
+    }
+
+    [JSInvokable]
+    public async Task SubmitForm()
+    {
+        await SaveAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_objRef != null)
+        {
+            try { await JS.InvokeVoidAsync("tributeInterop.destroy", "edit-item-textarea"); } catch { }
+            _objRef.Dispose();
+        }
+    }
 }

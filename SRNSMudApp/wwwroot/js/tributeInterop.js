@@ -70,7 +70,7 @@ window.tributeInterop = {
                     fillAttr: 'replacement',
                     selectTemplate: function (item) {
                         if (element.isContentEditable) {
-                            return '<span class="internal-link-preview-pill" data-testid="internal-link-preview-pill" data-url="' + item.original.replacement + '" contenteditable="false">' + item.original.name + '</span>\u00A0';
+                            return '<span class="internal-link-preview-pill" data-testid="internal-link-preview-pill" data-url="' + item.original.replacement + '" contenteditable="false">' + item.original.name + '</span>&#8203;\u00A0';
                         }
                         return item.original.replacement + ' ';
                     },
@@ -95,7 +95,7 @@ window.tributeInterop = {
                     fillAttr: 'replacement',
                     selectTemplate: function (item) {
                         if (element.isContentEditable) {
-                            return '<span class="internal-link-preview-pill" data-testid="internal-link-preview-pill" data-url="' + item.original.replacement + '" contenteditable="false">' + item.original.name + '</span>\u00A0';
+                            return '<span class="internal-link-preview-pill" data-testid="internal-link-preview-pill" data-url="' + item.original.replacement + '" contenteditable="false">' + item.original.name + '</span>&#8203;\u00A0';
                         }
                         return item.original.replacement + ' ';
                     },

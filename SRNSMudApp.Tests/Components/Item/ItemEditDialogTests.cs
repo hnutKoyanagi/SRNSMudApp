@@ -53,6 +53,81 @@ public sealed class ItemEditDialogTests : IAsyncLifetime
         Assert.NotNull(previewCard.Instance.LoadPreview);
     }
 
+    [Fact]
+    public void ParsePillsToHtml_ConvertsTagsAndUserMentionsToPillHtml()
+    {
+        const string input = "Hello /TagDetail/10 and /User/UserDetail/user-1 & <special>";
+        var html = ItemEditDialog.ParsePillsToHtml(input);
+
+        Assert.Contains("class=\"internal-link-preview-pill\"", html);
+        Assert.Contains("data-url=\"/TagDetail/10\"", html);
+        Assert.Contains(">#タグ</span>&#8203;&nbsp;", html);
+        Assert.Contains("data-url=\"/User/UserDetail/user-1\"", html);
+        Assert.Contains(">@ユーザー</span>&#8203;&nbsp;", html);
+        // HTML 特殊文字がエスケープされていること
+        Assert.Contains("&amp;&nbsp;&lt;special&gt;", html);
+    }
+
+    [Fact]
+    public async Task Render_InitializesContentEditableContainer_AndHiddenTextarea()
+    {
+        var item = new SRNSMudApp.Data.Item
+        {
+            Id = 42,
+            OwnerId = "test-user-id",
+            Content = "Initial content"
+        };
+        var parameters = new DialogParameters<ItemEditDialog>
+        {
+            { x => x.Item, item }
+        };
+
+        IDialogService dialogService = _ctx.Services.GetRequiredService<IDialogService>();
+        _ = await dialogService.ShowAsync<ItemEditDialog>("アイテムの編集", parameters);
+
+        _dialogProvider.WaitForState(() => _dialogProvider.FindAll("#edit-item-textarea").Count > 0);
+
+        var editor = _dialogProvider.Find("#edit-item-textarea");
+        Assert.Equal("true", editor.GetAttribute("contenteditable"));
+
+        var hiddenTextarea = _dialogProvider.Find("#edit-item-textarea-hidden");
+        Assert.Equal("Initial content", hiddenTextarea.GetAttribute("value"));
+    }
+
+    [Fact]
+    public async Task Save_WhenContentValid_CallsUpdateItemContentAsync()
+    {
+        _itemCardDataMock
+            .Setup(d => d.UpdateItemContentAsync(100, "New updated content"))
+            .ReturnsAsync(true);
+
+        var item = new SRNSMudApp.Data.Item
+        {
+            Id = 100,
+            OwnerId = "test-user-id",
+            Content = "Old content"
+        };
+        var parameters = new DialogParameters<ItemEditDialog>
+        {
+            { x => x.Item, item }
+        };
+
+        IDialogService dialogService = _ctx.Services.GetRequiredService<IDialogService>();
+        _ = await dialogService.ShowAsync<ItemEditDialog>("アイテムの編集", parameters);
+
+        _dialogProvider.WaitForState(() => _dialogProvider.FindAll("textarea").Count > 0);
+
+        // テキストエリアを変更
+        var textarea = _dialogProvider.Find("#edit-item-textarea-hidden");
+        textarea.Input("New updated content");
+
+        // 保存ボタンをクリック
+        var saveButton = _dialogProvider.FindAll("button").First(b => b.TextContent.Contains("保存"));
+        saveButton.Click();
+
+        _itemCardDataMock.Verify(d => d.UpdateItemContentAsync(100, "New updated content"), Times.Once);
+    }
+
     public async Task DisposeAsync()
     {
         await _ctx.DisposeAsync();

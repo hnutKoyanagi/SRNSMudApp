@@ -24,6 +24,8 @@ public sealed class AddItemTests : IAsyncLifetime
 
     private readonly BunitContext _ctx = new();
     private readonly Mock<IItemCardDataProvider> _itemCardDataMock = new();
+    private readonly Mock<IUserDataProvider> _userDataProviderMock = new();
+    private readonly Mock<ITagSearchQueryService> _tagSearchMock = new();
 
     public AddItemTests()
     {
@@ -36,11 +38,8 @@ public sealed class AddItemTests : IAsyncLifetime
         _ = _ctx.Services.AddCascadingValue(_ => Task.FromResult(authState));
         _ = _ctx.Services.AddAuthorizationCore();
 
-        var userDataProviderMock = new Mock<IUserDataProvider>();
-        _ = _ctx.Services.AddScoped(_ => userDataProviderMock.Object);
-
-        var tagSearchMock = new Mock<ITagSearchQueryService>();
-        _ = _ctx.Services.AddScoped(_ => tagSearchMock.Object);
+        _ = _ctx.Services.AddScoped(_ => _userDataProviderMock.Object);
+        _ = _ctx.Services.AddScoped(_ => _tagSearchMock.Object);
 
         _ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         _ = _ctx.Render<MudPopoverProvider>();
@@ -161,6 +160,106 @@ public sealed class AddItemTests : IAsyncLifetime
         // 内部リンクはエディタ内でインライン表示されるため、bottomの外部プレビューカードセクションには描画されない
         var previewCards = cut.FindComponents<SRNSMudApp.Components.UI.UrlPreviewCard>();
         Assert.Empty(previewCards);
+    }
+
+    [Fact]
+    public async Task SearchTags_InvokesTagSearchQueryService_AndReturnsFormattedMentionItems()
+    {
+        var sampleTags = new List<SRNSMudApp.Data.Tag>
+        {
+            new() { Id = 10, Name = "C#", OwnerId = "owner-1" },
+            new() { Id = 20, Name = "Blazor", OwnerId = "owner-1" }
+        };
+        _ = _tagSearchMock
+            .Setup(s => s.SearchTagsWithFallbackAsync("test", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(sampleTags);
+
+        IRenderedComponent<AddItem> cut = _ctx.Render<AddItem>();
+        cut.WaitForState(() => cut.FindAll("form").Count > 0);
+
+        var results = (await cut.Instance.SearchTags("test")).ToList();
+
+        Assert.Equal(2, results.Count);
+        Assert.Equal("#C#", results[0].name);
+        Assert.Equal("/TagDetail/10", results[0].replacement);
+        Assert.Equal("#Blazor", results[1].name);
+        Assert.Equal("/TagDetail/20", results[1].replacement);
+    }
+
+    [Fact]
+    public async Task SearchUsers_InvokesUserDataProvider_AndReturnsFormattedMentionItems()
+    {
+        var sampleUsers = new List<ApplicationUser>
+        {
+            new() { Id = "user-1", UserName = "Alice" },
+            new() { Id = "user-2", UserName = "Bob" }
+        };
+        _ = _userDataProviderMock
+            .Setup(u => u.SearchUsersAsync("al", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(sampleUsers);
+
+        IRenderedComponent<AddItem> cut = _ctx.Render<AddItem>();
+        cut.WaitForState(() => cut.FindAll("form").Count > 0);
+
+        var results = (await cut.Instance.SearchUsers("al")).ToList();
+
+        Assert.Equal(2, results.Count);
+        Assert.Equal("@Alice", results[0].name);
+        Assert.Equal("/User/UserDetail/user-1", results[0].replacement);
+        Assert.Equal("@Bob", results[1].name);
+        Assert.Equal("/User/UserDetail/user-2", results[1].replacement);
+    }
+
+    [Fact]
+    public async Task SubmitForm_WhenInvokedDirectly_SavesItem()
+    {
+        _ = _itemCardDataMock
+            .Setup(d => d.CreateItemAsync(It.IsAny<SRNSMudApp.Data.Item>(), It.IsAny<IReadOnlyCollection<int>?>()))
+            .Returns(Task.CompletedTask);
+
+        IRenderedComponent<AddItem> cut = _ctx.Render<AddItem>();
+        cut.WaitForState(() => cut.FindAll("form").Count > 0);
+
+        cut.Find("textarea").Input(TestContent);
+
+        // JS側から Cmd+Enter 等で呼ばれる SubmitForm() を直接テスト
+        await cut.Instance.SubmitForm();
+
+        _itemCardDataMock.Verify(d => d.CreateItemAsync(
+            It.Is<SRNSMudApp.Data.Item>(i => i.Content == TestContent && i.OwnerId == ExistingUserId),
+            It.IsAny<IReadOnlyCollection<int>?>()), Times.Once);
+    }
+
+    [Fact]
+    public void Input_UserMentionInContent_UpdatesNotificationTargets_AndSavesRecipients()
+    {
+        var mentionedUser = new ApplicationUser { Id = "target-user-1", UserName = "TargetUser" };
+        _ = _userDataProviderMock
+            .Setup(u => u.GetUsersByIdsAsync(It.Is<IEnumerable<string>>(ids => ids.Contains("target-user-1"))))
+            .ReturnsAsync([mentionedUser]);
+
+        _ = _itemCardDataMock
+            .Setup(d => d.CreateItemAsync(It.IsAny<SRNSMudApp.Data.Item>(), It.IsAny<IReadOnlyCollection<int>?>()))
+            .Returns(Task.CompletedTask);
+
+        IRenderedComponent<AddItem> cut = _ctx.Render<AddItem>();
+        cut.WaitForState(() => cut.FindAll("form").Count > 0);
+
+        // メンションを含むテキストを入力
+        cut.Find("textarea").Input("Hello /User/UserDetail/target-user-1 please check");
+
+        // 通知先パネルが表示されるのを待機
+        cut.WaitForState(() => cut.FindAll(".mud-expand-panel").Count > 0);
+        Assert.Contains("通知先 (1)", cut.Markup);
+
+        cut.Find("form").Submit();
+
+        _itemCardDataMock.Verify(d => d.CreateItemAsync(
+            It.Is<SRNSMudApp.Data.Item>(i =>
+                i.NotificationRecipients != null &&
+                i.NotificationRecipients.Count == 1 &&
+                i.NotificationRecipients.Any(r => r.RecipientUserId == "target-user-1")),
+            It.IsAny<IReadOnlyCollection<int>?>()), Times.Once);
     }
 
     public async Task DisposeAsync()

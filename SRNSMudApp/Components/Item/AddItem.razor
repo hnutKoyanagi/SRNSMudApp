@@ -20,110 +20,113 @@
 @inject IItemReplyService ItemReplyService
 
 <MudStack Class="w-100 pb-2">
-    @switch (_newItem)
+    @if (_newItem == null)
     {
-        case null:
-            <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
-            <MudText>読み込み中...</MudText>
-            break;
-        case not null:
-            <EditForm Model="@_newItem" OnValidSubmit="HandleValidSubmit" OnInvalidSubmit="HandleInvalidSubmit"
-                      FormName="AddItem" class="w-100">
-                <DataAnnotationsValidator />
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+        <MudText>読み込み中...</MudText>
+    }
+    else
+    {
+        <EditForm Model="@_newItem" OnValidSubmit="HandleValidSubmit" OnInvalidSubmit="HandleInvalidSubmit"
+                  FormName="AddItem" class="w-100">
+            <DataAnnotationsValidator />
 
-                <MudStack Row="true" Spacing="4" AlignItems="AlignItems.Start">
-                    <MudStack Class="flex-grow-1" Style="min-width: 0;">
-                        @{
-                            var allUrls = ItemCardViewModel.ExtractUrls(_newItem.Content);
-                            var externalUrls = allUrls.Where(u => !u.StartsWith("/")).ToList();
+            <MudStack Row="true" Spacing="4" AlignItems="AlignItems.Start">
+                <MudStack Class="flex-grow-1" Style="min-width: 0;">
+                    @{
+                        var allUrls = ItemCardViewModel.ExtractUrls(_newItem.Content);
+                        var externalUrls = allUrls.Where(u => !u.StartsWith("/")).ToList();
+                    }
+                    <div class="add-item-editor-container" onclick="document.getElementById('add-item-textarea')?.focus()">
+                        @* リンクプレビュー（pill）をインライン表示可能な contenteditable エディタ *@
+                        <div id="add-item-textarea" class="add-item-editor" contenteditable="true" role="textbox"
+                             aria-multiline="true" data-placeholder="新しいアイテムのコンテンツを入力..."></div>
+
+                        @* bUnit テストおよびフォーム同期用の textarea（テスト・バリデーション互換性を維持） *@
+                        <textarea id="add-item-textarea-hidden" name="_newItem.Content" class="add-item-hidden-textarea"
+                                  value="@_newItem.Content"
+                                  @oninput="@(async (ChangeEventArgs e) => await HandleContentChanged(e.Value?.ToString() ?? string.Empty))"
+                                  @onkeydown="@HandleKeyDown"></textarea>
+                    </div>
+                    <div class="d-flex justify-space-between align-center px-1 mt-1">
+                        <ValidationMessage For="@(() => _newItem.Content)" />
+                        <MudText Typo="Typo.caption"
+                                 Color="@(_newItem.Content?.Length > 1000 ? Color.Error : Color.Default)">
+                            @($"{_newItem?.Content?.Length ?? 0} / 1000")
+                        </MudText>
+                    </div>
+
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="4" Class="mt-1">
+                        <MudSwitch @bind-Value="_isPrivate" Color="Color.Primary" Label="プライベートモード" Size="Size.Small" />
+
+                        @if (_isPrivate)
+                        {
+                            <MudSelect T="int?" @bind-Value="_selectedGroupId" Label="公開範囲" Dense="true" Margin="Margin.Dense"
+                                       Variant="Variant.Outlined" Style="max-width: 250px;">
+                                <MudSelectItem T="int?" Value="@((int?)null)">フォロワーのみ（デフォルト）</MudSelectItem>
+                                @foreach (var group in _userGroups ?? [])
+                                {
+                                    <MudSelectItem T="int?" Value="@((int?)group.Id)">@group.Name</MudSelectItem>
+                                }
+                            </MudSelect>
                         }
-                        <div class="add-item-editor-container" onclick="document.getElementById('add-item-textarea')?.focus()">
-                            @* リンクプレビュー（pill）をインライン表示可能な contenteditable エディタ *@
-                            <div id="add-item-textarea" class="add-item-editor" contenteditable="true" role="textbox"
-                                 aria-multiline="true" data-placeholder="新しいアイテムのコンテンツを入力..."></div>
+                    </MudStack>
 
-                            @* bUnit テストおよびフォーム同期用の textarea（テスト・バリデーション互換性を維持） *@
-                            <textarea id="add-item-textarea-hidden" name="_newItem.Content" class="add-item-hidden-textarea"
-                                      value="@_newItem.Content"
-                                      @oninput="@(async (ChangeEventArgs e) => await HandleContentChanged(e.Value?.ToString() ?? string.Empty))"
-                                      @onkeydown="@HandleKeyDown"></textarea>
-                        </div>
-                        <div class="d-flex justify-space-between align-center px-1 mt-1">
-                            <ValidationMessage For="@(() => _newItem.Content)" />
-                            <MudText Typo="Typo.caption"
-                                     Color="@(_newItem.Content?.Length > 1000 ? Color.Error : Color.Default)">
-                                @($"{_newItem?.Content?.Length ?? 0} / 1000")
-                            </MudText>
-                        </div>
-
-                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="4" Class="mt-1">
-                            <MudSwitch @bind-Value="_isPrivate" Color="Color.Primary" Label="プライベートモード" Size="Size.Small" />
-
-                            @if (_isPrivate)
-                            {
-                                <MudSelect T="int?" @bind-Value="_selectedGroupId" Label="公開範囲" Dense="true" Margin="Margin.Dense"
-                                           Variant="Variant.Outlined" Style="max-width: 250px;">
-                                    <MudSelectItem T="int?" Value="@((int?)null)">フォロワーのみ（デフォルト）</MudSelectItem>
-                                    @foreach (var group in _userGroups ?? [])
+                    @if (_targetCandidates.Count > 0)
+                    {
+                        <MudExpansionPanels Class="mt-2" Elevation="0" Outlined="true">
+                            <MudExpansionPanel Text="@($"通知先 ({_selectedTargetUserIds.Count})")" Dense="true">
+                                <div class="d-flex flex-wrap align-center gap-2 px-1">
+                                    @foreach (var candidate in _targetCandidates)
                                     {
-                                        <MudSelectItem T="int?" Value="@((int?)group.Id)">@group.Name</MudSelectItem>
+                                        var isChecked = _selectedTargetUserIds.Contains(candidate.Id);
+                                        <div class="d-inline-flex align-center">
+                                            <MudCheckBox T="bool" Value="@isChecked"
+                                                         ValueChanged="@((bool val) => HandleTargetToggled(candidate.Id, val))" Dense="true"
+                                                         Size="Size.Small" Color="Color.Primary">
+                                                <MudText Typo="Typo.caption">@candidate.UserName</MudText>
+                                            </MudCheckBox>
+                                        </div>
                                     }
-                                </MudSelect>
+                                </div>
+                            </MudExpansionPanel>
+                        </MudExpansionPanels>
+                    }
+
+                    @* 外部URLのプレビューカードのみ別セクションに表示 *@
+                    @if (externalUrls.Count > 0)
+                    {
+                        <MudStack Spacing="2" Class="mt-2">
+                            @foreach (var url in externalUrls.Take(3))
+                            {
+                                <SRNSMudApp.Components.UI.UrlPreviewCard Url="@url" LoadPreview="@PreviewService.GetPreviewAsync" />
                             }
                         </MudStack>
-
-                        @if (_targetCandidates.Count > 0)
-                        {
-                            <MudExpansionPanels Class="mt-2" Elevation="0" Outlined="true">
-                                <MudExpansionPanel Text="@($"通知先 ({_selectedTargetUserIds.Count})")" Dense="true">
-                                    <div class="d-flex flex-wrap align-center gap-2 px-1">
-                                        @foreach (var candidate in _targetCandidates)
-                                        {
-                                            var isChecked = _selectedTargetUserIds.Contains(candidate.Id);
-                                            <div class="d-inline-flex align-center">
-                                                <MudCheckBox T="bool" Value="@isChecked"
-                                                             ValueChanged="@((bool val) => HandleTargetToggled(candidate.Id, val))" Dense="true"
-                                                             Size="Size.Small" Color="Color.Primary">
-                                                    <MudText Typo="Typo.caption">@candidate.UserName</MudText>
-                                                </MudCheckBox>
-                                            </div>
-                                        }
-                                    </div>
-                                </MudExpansionPanel>
-                            </MudExpansionPanels>
-                        }
-
-                        @* 外部URLのプレビューカードのみ別セクションに表示 *@
-                        @switch (externalUrls.Count > 0)
-                        {
-                            case true:
-                                <MudStack Spacing="2" Class="mt-2">
-                                    @foreach (var url in externalUrls.Take(3))
-                                    {
-                                        <SRNSMudApp.Components.UI.UrlPreviewCard Url="@url" LoadPreview="@PreviewService.GetPreviewAsync" />
-                                    }
-                                </MudStack>
-                                break;
-                        }
-                    </MudStack>
-
-                    <MudStack AlignItems="AlignItems.Center" Class="mt-2" Style="min-width: 90px;">
-                        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary"
-                                   Size="Size.Large" Class="w-100">
-                            保存
-                        </MudButton>
-                    </MudStack>
+                    }
                 </MudStack>
-            </EditForm>
-            break;
+
+                <MudStack AlignItems="AlignItems.Center" Class="mt-2" Style="min-width: 90px;">
+                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary"
+                               Size="Size.Large" Class="w-100">
+                        保存
+                    </MudButton>
+                </MudStack>
+            </MudStack>
+        </EditForm>
     }
 </MudStack>
 
 @code {
     [CascadingParameter] private Task<AuthenticationState> AuthenticationStateTask { get; set; } = null!;
 
+    /// <summary>
+    /// 初期状態で設定されるタグのリスト（任意）
+    /// </summary>
     [Parameter] public IEnumerable<Data.Tag> InitialTags { get; set; } = [];
 
+    /// <summary>
+    /// アイテムが追加された後に呼び出されるコールバック
+    /// </summary>
     [Parameter] public EventCallback OnItemAdded { get; set; }
 
     [SupplyParameterFromForm] private Data.Item? _newItem { get; set; }
@@ -138,41 +141,40 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // 2. フォーム送信時（POST）の再読み込みで、入力済みデータを上書きしないようにガードする
-        switch (_newItem)
+        // フォーム送信時（POST）の再読み込みで、入力済みデータを上書きしないようにガードする
+        if (_newItem == null)
         {
-            case null:
-                var authState = await AuthenticationStateTask;
-                var user = authState.User;
-
-                var userId = string.Empty;
-
-                switch (user.Identity is not null && user.Identity.IsAuthenticated)
-                {
-                    case true:
-                        userId = user.FindFirst(c => c.Type == ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
-                        if (!string.IsNullOrEmpty(userId))
-                        {
-                            _userGroups = await UserGroupData.GetUserGroupsForUserAsync(userId);
-                            var appUser = await UserDataProvider.FindUserByIdAsync(userId);
-                            if (appUser != null && appUser.IsPrivateModeDefault)
-                            {
-                                _isPrivate = true;
-                                _selectedGroupId = appUser.DefaultPrivateUserGroupId;
-                            }
-                        }
-                        break;
-                }
-
-                _newItem = new Data.Item
-                {
-                    Content = string.Empty,
-                    OwnerId = userId,
-                    IsPrivate = _isPrivate,
-                    TargetUserGroupId = _selectedGroupId
-                };
-                break;
+            var authState = await AuthenticationStateTask;
+            await InitializeItemDefaultsAsync(authState.User);
         }
+    }
+
+    private async Task InitializeItemDefaultsAsync(ClaimsPrincipal user)
+    {
+        var userId = string.Empty;
+
+        if (user.Identity is { IsAuthenticated: true })
+        {
+            userId = user.FindFirst(c => c.Type == ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+            if (!string.IsNullOrEmpty(userId))
+            {
+                _userGroups = await UserGroupData.GetUserGroupsForUserAsync(userId);
+                var appUser = await UserDataProvider.FindUserByIdAsync(userId);
+                if (appUser != null && appUser.IsPrivateModeDefault)
+                {
+                    _isPrivate = true;
+                    _selectedGroupId = appUser.DefaultPrivateUserGroupId;
+                }
+            }
+        }
+
+        _newItem = new Data.Item
+        {
+            Content = string.Empty,
+            OwnerId = userId,
+            IsPrivate = _isPrivate,
+            TargetUserGroupId = _selectedGroupId
+        };
     }
 
     private async Task HandleValidSubmit()
@@ -349,14 +351,23 @@
 
     public record MentionItem(string name, string replacement);
 
+    /// <summary>
+    /// Tribute.js から呼び出され、タグの部分一致検索を行う
+    /// </summary>
+    /// <param name="query">検索文字列（# 以降の文字列）</param>
+    /// <returns>補完候補となるメンションアイテムのリスト</returns>
     [JSInvokable]
     public async Task<IEnumerable<MentionItem>> SearchTags(string query)
     {
-        
         var tags = await TagSearchQueryService.SearchTagsWithFallbackAsync(query);
         return tags.Select(t => new MentionItem("#" + t.Name, $"/TagDetail/{t.Id}"));
     }
 
+    /// <summary>
+    /// Tribute.js から呼び出され、ユーザーの部分一致検索を行う
+    /// </summary>
+    /// <param name="query">検索文字列（@ 以降の文字列）</param>
+    /// <returns>補完候補となるメンションアイテムのリスト</returns>
     [JSInvokable]
     public async Task<IEnumerable<MentionItem>> SearchUsers(string query)
     {
@@ -364,12 +375,18 @@
         return users.Select(u => new MentionItem("@" + u.UserName, $"/User/UserDetail/{u.Id}"));
     }
 
+    /// <summary>
+    /// Tribute.js のイベントから Cmd+Enter で送信されたときに呼び出される
+    /// </summary>
     [JSInvokable]
     public async Task SubmitForm()
     {
         await HandleValidSubmit();
     }
 
+    /// <summary>
+    /// コンポーネント破棄時に Tribute.js インスタンスと JS 参照をクリーンアップする
+    /// </summary>
     public async ValueTask DisposeAsync()
     {
         if (_objRef != null)
