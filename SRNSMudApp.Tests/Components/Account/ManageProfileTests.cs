@@ -149,8 +149,6 @@ public sealed class ManageProfileTests : IDisposable
         {
             Id = "test-user-id",
             UserName = "CurrentUserName",
-            Email = "current@example.com",
-            PhoneNumber = "090-1234-5678"
             Email = "current@example.com"
         };
 

@@ -5,6 +5,7 @@
 @using SRNSMudApp.Data
 @using SRNSMudApp.Models.Unions
 @using SRNSMudApp.Components.UI
+@using SRNSMudApp.Components.Contract
 @inject ITagDetailDataProvider TagDetailData
 @inject ITagCommandService TagCommandService
 @inject ITagContentProposalService TagContentProposalService
@@ -45,6 +46,10 @@
             }
             else if (_currentUserId is not null)
             {
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Send"
+                           OnClick="@OpenRequestPermissionDialogAsync" Class="mr-2">
+                    操作権限をリクエスト
+                </MudButton>
                 <MudMenu Label="編集を提案" Variant="Variant.Outlined" Color="Color.Primary"
                          StartIcon="@Icons.Material.Filled.EditNote" EndIcon="@Icons.Material.Filled.ArrowDropDown" Class="mr-2">
                     @if (!_tag.IsSystem && _tag.OwnerId != "system" && _tag.Name != "全て∀")
@@ -107,6 +112,15 @@
                                                        OnDataChanged="LoadDataAsync" />
             </MudTabPanel>
             <MudTabPanel Text="リクエスト" BadgeData="@_pendingRequests.Count()" BadgeColor="Color.Error">
+                @if (_currentUserId is not null && _currentUserId != _tag.OwnerId)
+                {
+                    <div class="d-flex justify-end mb-3">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.Send" OnClick="@OpenRequestPermissionDialogAsync">
+                            操作権限をリクエスト
+                        </MudButton>
+                    </div>
+                }
                 <TaggingRequestList Requests="_pendingRequests" OnRequestChanged="LoadDataAsync" />
             </MudTabPanel>
             <MudTabPanel Text="編集提案" BadgeData="@(_pendingProposals.Count + _pendingNameProposals.Count)"
@@ -538,6 +552,28 @@
             case Failure fail:
                 Snackbar.Add(fail.ErrorMessage, Severity.Error);
                 break;
+        }
+    }
+
+    private async Task OpenRequestPermissionDialogAsync()
+    {
+        if (_tag is null || _currentUserId is null)
+        {
+            return;
+        }
+
+        var parameters = new DialogParameters<ProposeContractDialog>
+        {
+            { x => x.RequestedTag, _tag }
+        };
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        IDialogReference dialog = await DialogLauncher.ShowAsync<ProposeContractDialog>("操作権限のリクエスト（コントラクト提案）", parameters,
+options);
+        DialogResult? result = await dialog.Result;
+
+        if (result is { Canceled: false })
+        {
+            await LoadDataAsync();
         }
     }
 }

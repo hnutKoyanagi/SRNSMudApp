@@ -12,7 +12,16 @@
                 タグの作成者に@(IsRemovalRequest ? "タグの削除" : "タグ付け")のリクエスト（コントラクト）を提案しますか？
             </MudText>
 
-            <MudTextField T="string" Label="対象のアイテム" Value="@TargetItem.Content" ReadOnly="true" />
+            @if (TargetItem is not null)
+            {
+                <MudTextField T="string" Label="対象のアイテム" Value="@TargetItem.Content" ReadOnly="true" />
+            }
+            else
+            {
+                <MudAutocomplete T="Item" Label="対象のアイテム" @bind-Value="_selectedTargetItem" SearchFunc="@SearchItems"
+                                 ToStringFunc="@(i => i?.Content ?? "")" Required="true" RequiredError="対象のアイテムを選択してください"
+                                 ResetValueOnEmptyText="true" CoerceText="true" CoerceValue="true" />
+            }
             <MudTextField T="string" Label="希望するタグ" Value="@RequestedTag.Name" ReadOnly="true" />
 
             @switch (IsRemovalRequest)
@@ -80,7 +89,7 @@
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
     [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
 
-    [Parameter] public Item TargetItem { get; set; } = null!;
+    [Parameter] public Item? TargetItem { get; set; }
     [Parameter] public Tag RequestedTag { get; set; } = null!;
     [Parameter] public int WeightDelta { get; set; }
     [Parameter] public bool IsRemovalRequest { get; set; }
@@ -90,6 +99,7 @@
     private int _activeTabIndex;
     private string _currentUserId = string.Empty;
     private int ProposedWeightInput { get; set; } = 1;
+    private Item? _selectedTargetItem;
 
     // Gratis fields
     private string? _gratisMessage;
@@ -106,6 +116,7 @@
         _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
 
         ProposedWeightInput = WeightDelta != 0 ? WeightDelta : 1;
+        _selectedTargetItem = TargetItem;
 
         await LoadMyAssetsAsync();
     }
@@ -127,6 +138,13 @@
 
     private async Task Submit()
     {
+        var effectiveTargetItem = TargetItem ?? _selectedTargetItem;
+        if (effectiveTargetItem is null)
+        {
+            Snackbar.Add("対象のアイテムを選択してください。", Severity.Error);
+            return;
+        }
+
         switch (ProposedWeightInput == 0 && !IsRemovalRequest)
         {
             case true:
@@ -156,7 +174,7 @@
                 await ContractService.ProposeMutualContractAsync(
                     _currentUserId,
                     RequestedTag.OwnerId,
-                    TargetItem.Id,
+                    effectiveTargetItem.Id,
                     RequestedTag.Id,
                     _offeredItem!.Id,
                     _offeredTag!.Id,
@@ -169,7 +187,7 @@
                 await ContractService.ProposeGratisContractAsync(
                     _currentUserId,
                     RequestedTag.OwnerId,
-                    TargetItem.Id,
+                    effectiveTargetItem.Id,
                     RequestedTag.Id,
                     requestType,
                     absoluteWeight,
