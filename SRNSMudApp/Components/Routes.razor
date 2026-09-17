@@ -1,13 +1,13 @@
-﻿@using SRNSMudApp.Components.Pages
+@using SRNSMudApp.Components.Pages
 @using SRNSMudApp.Client
-<Router AppAssembly="typeof(Program).Assembly" AdditionalAssemblies="[typeof(RedirectToLogin).Assembly]"
+<Router AppAssembly="typeof(Program).Assembly" AdditionalAssemblies="[typeof(SRNSMudApp.Client._Imports).Assembly]"
         NotFoundPage="typeof(NotFound)">
     <Found Context="routeData">
         <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(MainLayout)">
             <NotAuthorized>
-                <RedirectToLogin/>
+                <RedirectToLogin />
             </NotAuthorized>
         </AuthorizeRouteView>
-        <FocusOnNavigate RouteData="routeData" Selector="h1"/>
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
 </Router>

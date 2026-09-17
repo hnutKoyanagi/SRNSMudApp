@@ -1,0 +1,133 @@
+@using SRNSMudApp.Data
+@using SRNSMudApp.Models
+@using SRNSMudApp.Services
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.Link" Class="mr-2" />
+            内部リンクへの置き換え確認
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudAlert Severity="Severity.Info" Dense="true">
+                本文中にタグリンク候補が検出されました。内部リンク（<code>/TagDetail/{id}</code>）への置き換え方法を選択してください。
+            </MudAlert>
+
+            <MudPaper Class="pa-3" Outlined="true">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">元のリンク記述:</MudText>
+                <MudText Typo="Typo.body2" Class="mb-2"><code>@OriginalMatchText</code></MudText>
+
+                <MudText Typo="Typo.caption" Color="Color.Secondary">検出されたタグ名:</MudText>
+                <MudText Typo="Typo.body1"><strong>@TagName</strong></MudText>
+            </MudPaper>
+
+            <MudRadioGroup T="TagLinkReplaceAction" @bind-Value="_action">
+                <MudRadio Value="TagLinkReplaceAction.ReplaceWithFirstCandidate" Color="Color.Primary"
+                          Disabled="@(FirstCandidateTag == null)">
+                    サジェストの第1候補通りに置き換え
+                    @if (FirstCandidateTag != null)
+                    {
+                        <span class="ml-1 text-muted">
+                            (「@FirstCandidateTag.Name」 -> <code>/TagDetail/@FirstCandidateTag.Id</code>)
+                        </span>
+                    }
+                </MudRadio>
+
+                <MudRadio Value="TagLinkReplaceAction.ReplaceWithSelectedCandidate" Color="Color.Secondary">
+                    他の候補タグを選択して置き換え
+                </MudRadio>
+
+                <MudRadio Value="TagLinkReplaceAction.DoNotReplace" Color="Color.Default">
+                    置き換えない / スキップ (「@TagName」の文字のみ残し、リンク記号とURLは削除)
+                </MudRadio>
+            </MudRadioGroup>
+
+            @if (_action == TagLinkReplaceAction.ReplaceWithSelectedCandidate)
+            {
+                <MudPaper Class="pa-3" Outlined="true">
+                    <MudAutocomplete T="Tag" Label="置き換え先タグを検索・選択" @bind-Value="_selectedCustomTag"
+                                     SearchFunc="SearchTagsAsync" ToStringFunc="@(t => t == null ? "" : $"{t.Name} (ID: {t.Id})")"
+                                     Placeholder="タグ名を入力..." ResetValueOnEmptyText="true" Clearable="true" Dense="true"
+                                     Variant="Variant.Outlined" />
+                </MudPaper>
+            }
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Default" Variant="Variant.Text" OnClick="Skip">
+            スキップ
+        </MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit" Disabled="@(!CanSubmit)">
+            適用
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter]
+    public string OriginalMatchText { get; set; } = string.Empty;
+
+    [Parameter]
+    public string TagName { get; set; } = string.Empty;
+
+    [Parameter]
+    public Tag? FirstCandidateTag { get; set; }
+
+    [Inject]
+    private ITaggingImportDataProvider DataProvider { get; set; } = null!;
+
+    private TagLinkReplaceAction _action = TagLinkReplaceAction.ReplaceWithFirstCandidate;
+    private Tag? _selectedCustomTag;
+
+    protected override void OnParametersSet()
+    {
+        if (FirstCandidateTag == null)
+        {
+            // 候補がなければスキップをデフォルトとする
+            _action = TagLinkReplaceAction.DoNotReplace;
+        }
+        else
+        {
+            _action = TagLinkReplaceAction.ReplaceWithFirstCandidate;
+        }
+    }
+
+    private bool CanSubmit
+    {
+        get
+        {
+            if (_action == TagLinkReplaceAction.DoNotReplace) return true;
+            if (_action == TagLinkReplaceAction.ReplaceWithFirstCandidate) return FirstCandidateTag != null;
+            if (_action == TagLinkReplaceAction.ReplaceWithSelectedCandidate) return _selectedCustomTag != null;
+            return false;
+        }
+    }
+
+    private async Task<IEnumerable<Tag>> SearchTagsAsync(string? value, CancellationToken token)
+    {
+        return await DataProvider.SearchTagsAsync(value, token);
+    }
+
+    private void Skip()
+    {
+        MudDialog.Close(DialogResult.Ok(new TagLinkReplaceDecision(TagLinkReplaceAction.DoNotReplace, null)));
+    }
+
+    private void Submit()
+    {
+        int? tagId = _action switch
+        {
+            TagLinkReplaceAction.ReplaceWithFirstCandidate => FirstCandidateTag?.Id,
+            TagLinkReplaceAction.ReplaceWithSelectedCandidate => _selectedCustomTag?.Id,
+            _ => null
+        };
+
+        MudDialog.Close(DialogResult.Ok(new TagLinkReplaceDecision(_action, tagId)));
+    }
+}
+

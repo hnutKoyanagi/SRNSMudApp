@@ -1,0 +1,338 @@
+@page "/import-tagging"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using System.Security.Claims
+@using System.Text
+@using System.Text.Json
+@using System.Text.RegularExpressions
+@using MudBlazor
+@using SRNSMudApp.Data
+@using SRNSMudApp.Models
+@using SRNSMudApp.Services
+@using SRNSMudApp.Services.Dialogs
+
+@inject ITaggingImportDataProvider DataProvider
+@inject ITagHierarchyService HierarchyService
+@inject IDialogLauncher DialogLauncher
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+@inject NavigationManager NavigationManager
+
+<MudText Typo="Typo.h4" GutterBottom="true">タグ付け構造インポート (JSON)</MudText>
+<MudText Typo="Typo.body1" Class="mb-4">
+    Item、Tag、TagRelation、および Tag間の Edge（タグ付け含む）を一括インポートします。<br/>
+    未登録タグの親階層決定や内部リンクへの置き換えは、AIサジェストをもとにモーダルで確認・調整できます。
+</MudText>
+
+<MudPaper Class="pa-4 mb-4" Elevation="3">
+    <MudStack Spacing="3">
+        <MudFileUpload T="IBrowserFile" FilesChanged="OnFileSelected" Accept=".json">
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.CloudUpload">
+                JSONファイルを選択
+            </MudButton>
+        </MudFileUpload>
+
+        @if (_file != null)
+        {
+            <MudText Typo="Typo.body2">選択されたファイル: @_file.Name (@_file.Size bytes)</MudText>
+        }
+
+        <MudTextField T="string"
+                      Label="JSONテキストを直接入力または貼り付け"
+                      @bind-Value="_jsonText"
+                      Lines="10"
+                      Variant="Variant.Outlined"
+                      Placeholder="@_placeholderJson" />
+
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Success"
+                   StartIcon="@Icons.Material.Filled.PlayArrow"
+                   OnClick="StartImportAsync"
+                   Disabled="@(_isProcessing || string.IsNullOrWhiteSpace(_jsonText))">
+            @if (_isProcessing)
+            {
+                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                <MudText Class="ms-2">@_currentStatusText</MudText>
+            }
+            else
+            {
+                <MudText>インポート開始</MudText>
+            }
+        </MudButton>
+    </MudStack>
+</MudPaper>
+
+@if (_importResult != null)
+{
+    <MudAlert Severity="Severity.Success" Class="mb-4">
+        <MudText Typo="Typo.h6">インポート完了！</MudText>
+        <MudText Typo="Typo.body2">
+            作成されたアイテム: @_importResult.CreatedItemsCount 件<br />
+            新規作成されたタグ: @_totalNewTagsCreated 件<br />
+            作成されたタグリレーション: @_importResult.CreatedRelationsCount 件<br />
+            作成されたエッジ: @_importResult.CreatedEdgesCount 件<br />
+            作成されたエッジタグ付与: @_importResult.CreatedAttachmentsCount 件
+        </MudText>
+    </MudAlert>
+
+    <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="@(() => NavigationManager.NavigateTo("/items"))">
+        アイテム一覧へ
+    </MudButton>
+}
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthState { get; set; }
+
+    private const string _placeholderJson = """
+    {
+      "TaggingRequestEntity": {
+        "Item": [...],
+        "TagRelations": [...],
+        "TagEdges": [...]
+      }
+    }
+    """;
+
+    private string _jsonText = string.Empty;
+    private IBrowserFile? _file;
+    private bool _isProcessing;
+    private string _currentStatusText = "処理中...";
+    private string? _currentUserId;
+    private TaggingImportResult? _importResult;
+    private int _totalNewTagsCreated;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthState != null)
+        {
+            var auth = await AuthState;
+            _currentUserId = auth.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        }
+    }
+
+    private async Task OnFileSelected(IBrowserFile? file)
+    {
+        _file = file;
+        if (file != null)
+        {
+            try
+            {
+                using var stream = file.OpenReadStream(10 * 1024 * 1024);
+                using var reader = new StreamReader(stream, Encoding.UTF8);
+                _jsonText = await reader.ReadToEndAsync();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"ファイルの読み込みに失敗しました: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private async Task StartImportAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_currentUserId))
+        {
+            Snackbar.Add("ログインが必要です。", Severity.Error);
+            return;
+        }
+
+        TaggingImportRoot? root;
+        try
+        {
+            root = JsonSerializer.Deserialize<TaggingImportRoot>(_jsonText, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"JSONの解析に失敗しました: {ex.Message}", Severity.Error);
+            return;
+        }
+
+        if (root?.TaggingRequestEntity == null)
+        {
+            Snackbar.Add("有効な TaggingRequestEntity が含まれていません。", Severity.Warning);
+            return;
+        }
+
+        var payload = root.TaggingRequestEntity;
+        _isProcessing = true;
+        _totalNewTagsCreated = 0;
+        _importResult = null;
+
+        try
+        {
+            // 1. タグの検証・解決・親階層決定
+            _currentStatusText = "タグの検証・解決中...";
+
+            var relationIdToTagMap = new Dictionary<string, int>();
+
+            foreach (var relDto in payload.TagRelations)
+            {
+                var isSystem = string.Equals(relDto.Tag.TagKind, "SystemClassificationTag", StringComparison.OrdinalIgnoreCase);
+                var existingTag = await DataProvider.FindExistingTagAsync(relDto.Tag.Name, _currentUserId, isSystem);
+
+                if (existingTag != null)
+                {
+                    relationIdToTagMap[relDto.RelationId] = existingTag.Id;
+                }
+                else
+                {
+                    // AIサジェスト親タグ（2階層目より下）を取得
+                    _currentStatusText = $"タグ「{relDto.Tag.Name}」の階層サジェストを生成中...";
+
+                    var suggestedParent = await HierarchyService.SuggestParentTagAsync(relDto.Tag.Name, JS);
+
+                    // モーダルダイアログで人間による確認・調整
+                    var parameters = new DialogParameters
+                    {
+                        { nameof(TagResolutionDialog.TagName), relDto.Tag.Name },
+                        { nameof(TagResolutionDialog.TagKind), relDto.Tag.TagKind },
+                        { nameof(TagResolutionDialog.SuggestedParentTag), suggestedParent }
+                    };
+
+                    var dialog = await DialogLauncher.ShowAsync<TagResolutionDialog>(
+                        $"未登録タグの解決: {relDto.Tag.Name}", parameters);
+                    var dialogResult = await dialog.Result;
+
+                    if (dialogResult is { Canceled: false, Data: TagResolutionDecision decision })
+                    {
+                        if (decision.Action == TagResolutionAction.CreateNew)
+                        {
+                            var createdTag = await DataProvider.CreateTagAsync(
+                                relDto.Tag.Name, _currentUserId, isSystem, decision.SelectedParentTagId);
+                            relationIdToTagMap[relDto.RelationId] = createdTag.Id;
+                            _totalNewTagsCreated++;
+                        }
+                        else if (decision.Action == TagResolutionAction.UseExisting && decision.SelectedExistingTagId.HasValue)
+                        {
+                            relationIdToTagMap[relDto.RelationId] = decision.SelectedExistingTagId.Value;
+                        }
+                    }
+                }
+            }
+
+            // TagEdges の AppliedTags に含まれるタグも同様に解決
+            foreach (var edgeDto in payload.TagEdges)
+            {
+                foreach (var appliedTagName in edgeDto.AppliedTags)
+                {
+                    if (string.IsNullOrWhiteSpace(appliedTagName)) continue;
+
+                    var existingTag = await DataProvider.FindExistingTagAsync(appliedTagName, _currentUserId, false);
+                    if (existingTag == null)
+                    {
+                        var suggestedParent = await HierarchyService.SuggestParentTagAsync(appliedTagName, JS);
+                        var parameters = new DialogParameters
+                        {
+                            { nameof(TagResolutionDialog.TagName), appliedTagName },
+                            { nameof(TagResolutionDialog.TagKind), "UserCustomTag" },
+                            { nameof(TagResolutionDialog.SuggestedParentTag), suggestedParent }
+                        };
+
+                        var dialog = await DialogLauncher.ShowAsync<TagResolutionDialog>(
+                            $"エッジ意味付けタグの解決: {appliedTagName}", parameters);
+                        var dialogResult = await dialog.Result;
+
+                        if (dialogResult is { Canceled: false, Data: TagResolutionDecision decision })
+                        {
+                            if (decision.Action == TagResolutionAction.CreateNew)
+                            {
+                                _ = await DataProvider.CreateTagAsync(appliedTagName, _currentUserId, false, decision.SelectedParentTagId);
+                                _totalNewTagsCreated++;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 2. Item 内の内部リンク置き換え
+            _currentStatusText = "内部リンク置き換えを確認中...";
+
+            var processedContents = new List<string>();
+            var linkRegex = new Regex(@"\[(?<label>[^\]]+)\]\((?<url>https?://[^\)]+)\)", RegexOptions.Compiled);
+
+            foreach (var item in payload.Item)
+            {
+                var content = item.Content;
+                var matches = linkRegex.Matches(content);
+
+                foreach (Match match in matches)
+                {
+                    var label = match.Groups["label"].Value;
+                    var url = match.Groups["url"].Value;
+
+                    // RelationId の特定 (例: q=rel-001)
+                    var matchedRelId = payload.TagRelations
+                        .FirstOrDefault(r => url.Contains(r.RelationId, StringComparison.OrdinalIgnoreCase) || string.Equals(r.Tag.Name, label, StringComparison.OrdinalIgnoreCase))
+                        ?.RelationId;
+
+                    Tag? firstCandidateTag = null;
+                    if (matchedRelId != null && relationIdToTagMap.TryGetValue(matchedRelId, out var resolvedTagId))
+                    {
+                        var existingTags = await DataProvider.SearchTagsAsync(label);
+                        firstCandidateTag = existingTags.FirstOrDefault(t => t.Id == resolvedTagId)
+                            ?? (await DataProvider.SearchTagsAsync(null)).FirstOrDefault(t => t.Id == resolvedTagId);
+                    }
+
+                    // モーダルダイアログでユーザーに選択させる
+                    var dialogParams = new DialogParameters
+                    {
+                        { nameof(TagLinkReplaceDialog.OriginalMatchText), match.Value },
+                        { nameof(TagLinkReplaceDialog.TagName), label },
+                        { nameof(TagLinkReplaceDialog.FirstCandidateTag), firstCandidateTag }
+                    };
+
+                    var dialog = await DialogLauncher.ShowAsync<TagLinkReplaceDialog>(
+                        $"リンク置換確認: {label}", dialogParams);
+                    var dialogResult = await dialog.Result;
+
+                    if (dialogResult is { Canceled: false, Data: TagLinkReplaceDecision decision })
+                    {
+                        if (decision.Action != TagLinkReplaceAction.DoNotReplace && decision.SelectedTagId.HasValue)
+                        {
+                            // 置き換えられた時は既存の []() を消去して内部リンクURL (/TagDetail/{id}) をインサート
+                            var replacement = $"/TagDetail/{decision.SelectedTagId.Value}";
+                            content = content.Replace(match.Value, replacement, StringComparison.Ordinal);
+                        }
+                        else
+                        {
+                            // 置き換えずに残す（スキップ）時は URL と記号 ([]()) を削除し、ラベル文字のみを残す
+                            content = content.Replace(match.Value, label, StringComparison.Ordinal);
+                        }
+                    }
+                    else
+                    {
+                        // ダイアログキャンセル時もスキップ（ラベル文字のみ残置）として扱う
+                        content = content.Replace(match.Value, label, StringComparison.Ordinal);
+                    }
+                }
+
+                processedContents.Add(content);
+            }
+
+            // 3. インポートトランザクション実行
+            _currentStatusText = "データベースへ永続化中...";
+
+            _importResult = await DataProvider.ExecuteImportAsync(
+                _currentUserId,
+                payload,
+                relationIdToTagMap,
+                processedContents);
+
+            Snackbar.Add("インポートが完了しました！", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"インポート処理中にエラーが発生しました: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isProcessing = false;
+        }
+    }
+}

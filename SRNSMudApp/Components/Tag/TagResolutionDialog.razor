@@ -1,0 +1,301 @@
+@using SRNSMudApp.Data
+@using SRNSMudApp.Models
+@using SRNSMudApp.Services
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.NewLabel" Class="mr-2" />
+            未登録タグの解決: 「@TagName」
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudAlert Severity="Severity.Info" Dense="true">
+                タグ <strong>「@TagName」</strong> (種別: @TagKind) はまだデータベースに存在しません。このタグの扱いを選択してください。
+            </MudAlert>
+
+            <MudRadioGroup T="TagResolutionAction" @bind-Value="_action">
+                <MudRadio Value="TagResolutionAction.UseExisting" Color="Color.Secondary">
+                    既存の別タグを割り当てる (推奨)
+                </MudRadio>
+                <MudRadio Value="TagResolutionAction.CreateNew" Color="Color.Primary">
+                    新規タグとして作成する
+                </MudRadio>
+            </MudRadioGroup>
+
+            @if (_action == TagResolutionAction.UseExisting)
+            {
+                <MudPaper Class="pa-3" Outlined="true">
+                    <MudAutocomplete T="Tag" Label="割り当てる既存タグを検索" @bind-Value="_selectedExistingTag"
+                                     SearchFunc="SearchExistingTagsAsync"
+                                     ToStringFunc="@(t => t == null ? "" : $"{t.Name} (ID: {t.Id})")" Placeholder="タグ名を入力..."
+                                     ResetValueOnEmptyText="true" Clearable="true" Dense="true" Variant="Variant.Outlined" />
+
+                    @if (_initialSuggestions.Count > 0)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
+                            割り当て候補タグ:
+                        </MudText>
+                        <MudChipSet T="Tag" SelectedValue="_selectedExistingTag" SelectedValueChanged="OnSuggestionSelected"
+                                    SelectionMode="SelectionMode.SingleSelection" Class="mt-1">
+                            @foreach (var tag in _initialSuggestions)
+                            {
+                                <MudChip T="Tag" Value="@tag"
+                                         Color="@(_selectedExistingTag?.Id == tag.Id ? Color.Primary : Color.Default)"
+                                         Variant="@(_selectedExistingTag?.Id == tag.Id ? Variant.Filled : Variant.Outlined)">
+                                    @tag.Name (ID: @tag.Id)
+                                </MudChip>
+                            }
+                        </MudChipSet>
+                    }
+                </MudPaper>
+            }
+            else if (_action == TagResolutionAction.CreateNew)
+            {
+                <MudPaper Class="pa-3" Outlined="true">
+                    <MudText Typo="Typo.subtitle2" Color="Color.Primary" Class="mb-2">
+                        <MudIcon Icon="@Icons.Material.Filled.AccountTree" Size="Size.Small" Class="mr-1" />
+                        親タグ階層の決定（1階層目以降）
+                    </MudText>
+
+                    @if (SuggestedParentTag != null)
+                    {
+                        <MudAlert Severity="Severity.Success" Dense="true" Class="mb-3">
+                            AIサジェスト親タグ: <strong>@SuggestedParentTag.Name</strong> (ID: @SuggestedParentTag.Id)
+                        </MudAlert>
+                    }
+                    else
+                    {
+                        <MudAlert Severity="Severity.Normal" Dense="true" Class="mb-3">
+                            サジェスト可能な親タグがありません。手動で親タグを選択してください。
+                        </MudAlert>
+                    }
+
+                    <MudRadioGroup T="bool" Value="_useSuggestedParent" ValueChanged="OnUseSuggestedParentChanged">
+                        <MudRadio Value="true" Color="Color.Primary" Disabled="@(SuggestedParentTag == null)">
+                            サジェスト通りの親タグに紐付ける
+                        </MudRadio>
+                        <MudRadio Value="false" Color="Color.Secondary">
+                            別の親タグを手動で選択する
+                        </MudRadio>
+                    </MudRadioGroup>
+
+                    @if (!_useSuggestedParent || SuggestedParentTag == null)
+                    {
+                        <MudAutocomplete T="Tag" Label="親タグを検索・選択（1階層目以降）" @bind-Value="_selectedCustomParentTag"
+                                         SearchFunc="SearchParentCandidateTagsAsync"
+                                         ToStringFunc="@(t => t == null ? "" : $"{t.Name} (Level: {t.Node?.GetLevel() ?? 0})")"
+                                         Placeholder="親タグ名を入力..." ResetValueOnEmptyText="true" Clearable="true" Dense="true"
+                                         Variant="Variant.Outlined" Class="mt-2" />
+
+                        @if (_parentSuggestions.Count > 0)
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
+                                親タグ候補（1階層目以降）:
+                            </MudText>
+                            <MudChipSet T="Tag" SelectedValue="_selectedCustomParentTag"
+                                        SelectedValueChanged="OnParentSuggestionSelected" SelectionMode="SelectionMode.SingleSelection"
+                                        Class="mt-1">
+                                @foreach (var pTag in _parentSuggestions)
+                                {
+                                    <MudChip T="Tag" Value="@pTag"
+                                             Color="@(_selectedCustomParentTag?.Id == pTag.Id ? Color.Primary : Color.Default)"
+                                             Variant="@(_selectedCustomParentTag?.Id == pTag.Id ? Variant.Filled : Variant.Outlined)">
+                                        @pTag.Name (Level: @(pTag.Node?.GetLevel() ?? 0))
+                                    </MudChip>
+                                }
+                            </MudChipSet>
+                        }
+                    }
+                </MudPaper>
+            }
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Default" Variant="Variant.Text" OnClick="Skip">
+            スキップ
+        </MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit" Disabled="@(!CanSubmit)">
+            決定
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter]
+    public string TagName { get; set; } = string.Empty;
+
+    [Parameter]
+    public string TagKind { get; set; } = "UserCustomTag";
+
+    [Parameter]
+    public Tag? SuggestedParentTag { get; set; }
+
+    [Inject]
+    private ITaggingImportDataProvider DataProvider { get; set; } = null!;
+
+    private TagResolutionAction _action = TagResolutionAction.UseExisting;
+    private bool _useSuggestedParent = true;
+    private Tag? _selectedCustomParentTag;
+    private Tag? _selectedExistingTag;
+    private List<Tag> _initialSuggestions = [];
+    private List<Tag> _parentSuggestions = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 1. 既存タグの候補（TagNameで検索し、不足分は null (全タグ上位) で補充して常に候補を表示）
+        var suggestions = new List<Tag>();
+        if (!string.IsNullOrWhiteSpace(TagName))
+        {
+            var results = await DataProvider.SearchTagsAsync(TagName);
+            if (results != null)
+            {
+                suggestions.AddRange(results);
+            }
+        }
+
+        if (suggestions.Count < 5)
+        {
+            var defaultTags = await DataProvider.SearchTagsAsync(null);
+            if (defaultTags != null)
+            {
+                foreach (var tag in defaultTags)
+                {
+                    if (suggestions.All(s => s.Id != tag.Id))
+                    {
+                        suggestions.Add(tag);
+                        if (suggestions.Count >= 8) break;
+                    }
+                }
+            }
+        }
+
+        _initialSuggestions = suggestions.Take(8).ToList();
+        if (_selectedExistingTag == null && _initialSuggestions.Count > 0)
+        {
+            _selectedExistingTag = _initialSuggestions[0];
+        }
+
+        // 2. 親タグ候補（1階層目以降）も同様に検索・補充
+        var parentSuggestions = new List<Tag>();
+        if (!string.IsNullOrWhiteSpace(TagName))
+        {
+            var parentResults = await DataProvider.SearchParentCandidateTagsAsync(TagName);
+            if (parentResults != null)
+            {
+                parentSuggestions.AddRange(parentResults);
+            }
+        }
+
+        if (parentSuggestions.Count < 5)
+        {
+            var defaultParents = await DataProvider.SearchParentCandidateTagsAsync(null);
+            if (defaultParents != null)
+            {
+                foreach (var pTag in defaultParents)
+                {
+                    if (parentSuggestions.All(s => s.Id != pTag.Id))
+                    {
+                        parentSuggestions.Add(pTag);
+                        if (parentSuggestions.Count >= 8) break;
+                    }
+                }
+            }
+        }
+
+        _parentSuggestions = parentSuggestions.Take(8).ToList();
+        if (_selectedCustomParentTag == null && _parentSuggestions.Count > 0)
+        {
+            _selectedCustomParentTag = _parentSuggestions[0];
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        _useSuggestedParent = SuggestedParentTag != null;
+    }
+
+    private void OnSuggestionSelected(Tag? tag)
+    {
+        _selectedExistingTag = tag;
+    }
+
+    private void OnParentSuggestionSelected(Tag? tag)
+    {
+        _selectedCustomParentTag = tag;
+    }
+
+    private void OnUseSuggestedParentChanged(bool useSuggested)
+    {
+        _useSuggestedParent = useSuggested;
+        if (!useSuggested && _selectedCustomParentTag == null && _parentSuggestions.Count > 0)
+        {
+            _selectedCustomParentTag = _parentSuggestions[0];
+        }
+    }
+
+    private bool CanSubmit
+    {
+        get
+        {
+            if (_action == TagResolutionAction.Skip) return true;
+            if (_action == TagResolutionAction.UseExisting) return _selectedExistingTag != null;
+            if (_action == TagResolutionAction.CreateNew)
+            {
+                if (_useSuggestedParent && SuggestedParentTag != null) return true;
+                return _selectedCustomParentTag != null;
+            }
+            return false;
+        }
+    }
+
+    private async Task<IEnumerable<Tag>> SearchParentCandidateTagsAsync(string? value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) && _parentSuggestions.Count > 0)
+        {
+            return _parentSuggestions;
+        }
+        return await DataProvider.SearchParentCandidateTagsAsync(value, token);
+    }
+
+    private async Task<IEnumerable<Tag>> SearchExistingTagsAsync(string? value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) && _initialSuggestions.Count > 0)
+        {
+            return _initialSuggestions;
+        }
+        return await DataProvider.SearchTagsAsync(value, token);
+    }
+
+    private void Submit()
+    {
+        int? parentId = null;
+        if (_action == TagResolutionAction.CreateNew)
+        {
+            parentId = _useSuggestedParent ? SuggestedParentTag?.Id : _selectedCustomParentTag?.Id;
+        }
+
+        var decision = new TagResolutionDecision(
+            _action,
+            _action == TagResolutionAction.UseExisting ? _selectedExistingTag?.Id : null,
+            parentId,
+            TagName);
+
+        MudDialog.Close(DialogResult.Ok(decision));
+    }
+
+    private void Skip()
+    {
+        var decision = new TagResolutionDecision(
+            TagResolutionAction.Skip,
+            null,
+            null,
+            TagName);
+
+        MudDialog.Close(DialogResult.Ok(decision));
+    }
+}

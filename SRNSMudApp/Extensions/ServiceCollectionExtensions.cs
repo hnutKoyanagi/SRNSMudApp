@@ -47,6 +47,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAdminDataProvider, AdminDataProvider>();
         services.AddScoped<ITagDiagramDataProvider, TagDiagramDataProvider>();
         services.AddScoped<IUserGroupDataProvider, UserGroupDataProvider>();
+        services.AddScoped<ITagHierarchyService, TagHierarchyService>();
+        services.AddScoped<ITaggingImportDataProvider, TaggingImportDataProvider>();
 
         return services;
     }

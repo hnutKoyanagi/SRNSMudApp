@@ -23,6 +23,13 @@ public static class DbContextExtensions
                 });
             }
         }
-        _ = await ctx.SaveChangesAsync();
+        try
+        {
+            _ = await ctx.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            // 並列テスト実行時の競合挿入（既に別テストが挿入済み）は無視
+        }
     }
 }
