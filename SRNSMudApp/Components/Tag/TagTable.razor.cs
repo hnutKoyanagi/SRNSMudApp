@@ -35,6 +35,7 @@ public partial class TagTable
     [Inject] private ITagLockService TagLockService { get; set; } = null!;
 
     private string _currentUserId = "";
+    private bool _isAdmin;
     private string _tagSearch = "";
     private List<Data.Tag> _allTagsCache = [];
     private HashSet<int> _lockedTagIds = [];
@@ -45,6 +46,7 @@ public partial class TagTable
         {
             AuthenticationState authState = await AuthState;
             _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
+            _isAdmin = authState.User.IsInRole("Admin");
         }
 
         _allTagsCache = await TagTableData.GetAllTagsAsync();
@@ -160,10 +162,13 @@ public partial class TagTable
 
     private async Task EditTagAsync(Data.Tag tag)
     {
-        switch (TagTableViewModel.CanEditTag(tag, _currentUserId))
+        switch (TagTableViewModel.CanEditTag(tag, _currentUserId, IsTagLocked(tag.Id), _isAdmin))
         {
             case true:
                 await ShowTagEditDialogAsync(tag);
+                break;
+            case false when IsTagLocked(tag.Id) && !_isAdmin:
+                _ = Snackbar.Add("このタグまたはその兄弟タグはロックされているため編集できません。", Severity.Warning);
                 break;
             case false:
                 _ = Snackbar.Add("タグの作成者本人ではないため、編集する権限がありません。", Severity.Error);
@@ -197,13 +202,13 @@ public partial class TagTable
 
     private async Task DeleteTagAsync(Data.Tag tag)
     {
-        if (IsTagLocked(tag.Id))
+        if (IsTagLocked(tag.Id) && !_isAdmin)
         {
             _ = Snackbar.Add("このタグまたはその兄弟タグはロックされているため削除できません。", Severity.Warning);
             return;
         }
 
-        switch (TagTableViewModel.CanDeleteTag(tag, _currentUserId, IsTagLocked(tag.Id)))
+        switch (TagTableViewModel.CanDeleteTag(tag, _currentUserId, IsTagLocked(tag.Id), _isAdmin))
         {
             case true:
                 await ExecuteDeleteTagAsync(tag);
@@ -223,7 +228,7 @@ public partial class TagTable
     {
         try
         {
-            if (await TagTableData.DeleteTagAsync(tag.Id))
+            if (await TagTableData.DeleteTagAsync(tag.Id, _isAdmin))
             {
                 await NotifyDataChangedAsync();
                 _ = Snackbar.Add("タグを削除しました。", Severity.Success);

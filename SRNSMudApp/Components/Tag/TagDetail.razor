@@ -45,12 +45,12 @@
                     @(_isFollowing ? "フォロー解除" : "フォロー")
                 </MudButton>
             }
-            @if (_currentUserId == _tag.OwnerId)
+            @if (_currentUserId == _tag.OwnerId || _isAdmin)
             {
                 <MudSwitch T="bool" Value="@(_tag.AutoAcceptIncomingTaggingRequests)" ValueChanged="OnAutoAcceptChangedAsync"
                            Label="自動承認" Color="Color.Primary" Class="mr-2" />
                 <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Edit"
-                           OnClick="@OpenEditDialog" Disabled="@_isTagOrSiblingLocked" Class="mr-2">
+                           OnClick="@OpenEditDialog" Disabled="@(!_isAdmin && _isTagOrSiblingLocked)" Class="mr-2">
                     編集
                 </MudButton>
             }
@@ -82,9 +82,18 @@
 
         @if (_isTagOrSiblingLocked)
         {
-            <MudAlert Severity="Severity.Warning" Class="mb-4" Dense="true" Elevation="1">
-                このタグまたはその兄弟タグはロックされています。新規作成・編集・削除はできません。
-            </MudAlert>
+            @if (_isAdmin)
+            {
+                <MudAlert Severity="Severity.Info" Class="mb-4" Dense="true" Elevation="1">
+                    このタグまたはその兄弟タグはロックされています。管理者権限により操作が可能です。
+                </MudAlert>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Warning" Class="mb-4" Dense="true" Elevation="1">
+                    このタグまたはその兄弟タグはロックされています。新規作成・編集・削除はできません（管理者のみ操作可能）。
+                </MudAlert>
+            }
         }
 
         <MudCard Outlined="true" Class="mb-4 rounded-xl">

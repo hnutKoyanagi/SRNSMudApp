@@ -29,9 +29,9 @@ public interface ITagSearchQueryService
 /// <summary>タグの作成・更新を担う CQS の Command 契約。</summary>
 public interface ITagCommandService
 {
-    Task CreateTagAsync(Tag newTag);
-    Task CreateTagWithoutEmbeddingAsync(Tag newTag);
-    Task<bool> UpdateTagAsync(int tagId, string name, string? content, bool autoAcceptIncomingTaggingRequests = false, IEnumerable<int>? allowedUserGroupIds = null);
+    Task CreateTagAsync(Tag newTag, bool isAdmin = false);
+    Task CreateTagWithoutEmbeddingAsync(Tag newTag, bool isAdmin = false);
+    Task<bool> UpdateTagAsync(int tagId, string name, string? content, bool autoAcceptIncomingTaggingRequests = false, IEnumerable<int>? allowedUserGroupIds = null, bool isAdmin = false);
 }
 
 public class TagCommandService(
@@ -50,9 +50,9 @@ public class TagCommandService(
 
     [SuppressMessage("Design", "CA1031:Do not catch general exception types",
         Justification = "ユーザー入力由来の任意の例外を UI 向けメッセージに変換するため広く捕捉する")]
-    public async Task CreateTagAsync(Tag newTag)
+    public async Task CreateTagAsync(Tag newTag, bool isAdmin = false)
     {
-        if (_tagLockService != null)
+        if (_tagLockService != null && !isAdmin)
         {
             var isRestricted = await _tagLockService.IsChildCreationRestrictedAsync(newTag.ParentTagId);
             if (isRestricted)
@@ -80,9 +80,9 @@ public class TagCommandService(
     /// <inheritdoc />
     [SuppressMessage("Design", "CA1031:Do not catch general exception types",
         Justification = "ユーザー入力由来の任意の例外を UI 向けメッセージに変換するため広く捕捉する")]
-    public async Task<bool> UpdateTagAsync(int tagId, string name, string? content, bool autoAcceptIncomingTaggingRequests = false, IEnumerable<int>? allowedUserGroupIds = null)
+    public async Task<bool> UpdateTagAsync(int tagId, string name, string? content, bool autoAcceptIncomingTaggingRequests = false, IEnumerable<int>? allowedUserGroupIds = null, bool isAdmin = false)
     {
-        if (_tagLockService != null)
+        if (_tagLockService != null && !isAdmin)
         {
             var isLocked = await _tagLockService.IsTagOrSiblingLockedAsync(tagId);
             if (isLocked)
@@ -178,9 +178,9 @@ public class TagCommandService(
         }
     }
 
-    public async Task CreateTagWithoutEmbeddingAsync(Tag newTag)
+    public async Task CreateTagWithoutEmbeddingAsync(Tag newTag, bool isAdmin = false)
     {
-        if (_tagLockService != null)
+        if (_tagLockService != null && !isAdmin)
         {
             var isRestricted = await _tagLockService.IsChildCreationRestrictedAsync(newTag.ParentTagId);
             if (isRestricted)

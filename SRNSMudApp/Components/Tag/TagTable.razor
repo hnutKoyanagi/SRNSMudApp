@@ -66,12 +66,13 @@
                                        OnClick="@(() => ToggleTree(context.Id))" title="タグツリーを表示" />
 
                         @switch (!string.IsNullOrEmpty(_currentUserId) && TagTableViewModel.CanEditTag(context,
-                        _currentUserId, IsTagLocked(context.Id)))
+                        _currentUserId, IsTagLocked(context.Id), _isAdmin))
                         {
                             case true:
                                 <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
                                                OnClick="@(() => EditTagAsync(context))" title="編集" />
-                                @switch (TagTableViewModel.CanDeleteTag(context, _currentUserId, IsTagLocked(context.Id)))
+                                @switch (TagTableViewModel.CanDeleteTag(context, _currentUserId, IsTagLocked(context.Id),
+                        _isAdmin))
                                 {
                                     case true:
                                         <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"

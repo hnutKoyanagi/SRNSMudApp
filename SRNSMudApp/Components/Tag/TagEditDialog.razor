@@ -40,6 +40,7 @@
     private string _editContent = null!;
     private IReadOnlyCollection<int> _selectedGroupIds = [];
     private List<UserGroup> _myGroups = [];
+    private bool _isAdmin;
 
     protected override async Task OnInitializedAsync()
     {
@@ -55,6 +56,7 @@
         {
             var auth = await AuthState;
             currentUserId = auth.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            _isAdmin = auth.User.IsInRole("Admin");
         }
 
         currentUserId ??= Tag.OwnerId;
@@ -83,7 +85,7 @@
         try
         {
             bool updated = await TagCommandService.UpdateTagAsync(Tag.Id, _editName, _editContent,
-                Tag.AutoAcceptIncomingTaggingRequests, _selectedGroupIds);
+                Tag.AutoAcceptIncomingTaggingRequests, _selectedGroupIds, _isAdmin);
 
             switch (updated)
             {
@@ -92,7 +94,7 @@
                     MudDialog.Close(DialogResult.Ok(true));
                     break;
                 case false:
-                    Snackbar.Add("対象のタグが見つかりませんでした。", Severity.Error);
+                    Snackbar.Add("対象のタグが見つからないか、ロックされているため更新できません。", Severity.Warning);
                     MudDialog.Cancel();
                     break;
             }

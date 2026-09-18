@@ -191,6 +191,60 @@ public sealed class TagDetailAncestorLockTests : IAsyncLifetime
         _tagLockServiceMock.Verify(s => s.LockAncestorsAsync(10, It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [Fact]
+    public void WhenTagIsLocked_AndUserIsAdmin_RendersAdminInfoAlert_AndEditButtonIsEnabled()
+    {
+        var tag = new TagEntity
+        {
+            Id = 10,
+            Name = "子タグ",
+            OwnerId = "other-user",
+            CreatedDate = DateTime.UtcNow,
+            UpdatedDate = DateTime.UtcNow
+        };
+
+        var pageData = new TagDetailPageData(tag, false, [], [], [], [], []);
+        _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(10, "admin-user")).ReturnsAsync(pageData);
+        _tagLockServiceMock.Setup(s => s.AreAncestorsLockedAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        _tagLockServiceMock.Setup(s => s.IsTagOrSiblingLockedAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+
+        IRenderedComponent<TagDetail> cut = RenderTagDetail(10, "admin-user", "Admin");
+        cut.WaitForState(() => cut.Markup.Contains("子タグ"));
+
+        Assert.Contains("管理者権限により操作が可能です", cut.Markup);
+        // 管理者はオーナーでなくてもロック時でも編集ボタンが表示され、無効化(disabled)されない
+        var editButton = cut.FindAll("button").FirstOrDefault(b => b.TextContent.Contains("編集"));
+        Assert.NotNull(editButton);
+        Assert.False(editButton.HasAttribute("disabled"));
+    }
+
+    [Fact]
+    public void WhenTagIsLocked_AndUserIsNotAdmin_RendersWarningAlert_AndEditButtonIsDisabled()
+    {
+        var tag = new TagEntity
+        {
+            Id = 10,
+            Name = "子タグ",
+            OwnerId = "tag-owner",
+            CreatedDate = DateTime.UtcNow,
+            UpdatedDate = DateTime.UtcNow
+        };
+
+        var pageData = new TagDetailPageData(tag, false, [], [], [], [], []);
+        _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(10, "tag-owner")).ReturnsAsync(pageData);
+        _tagLockServiceMock.Setup(s => s.AreAncestorsLockedAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        _tagLockServiceMock.Setup(s => s.IsTagOrSiblingLockedAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+
+        IRenderedComponent<TagDetail> cut = RenderTagDetail(10, "tag-owner");
+        cut.WaitForState(() => cut.Markup.Contains("子タグ"));
+
+        Assert.Contains("新規作成・編集・削除はできません（管理者のみ操作可能）", cut.Markup);
+        // オーナーであっても非管理者は編集ボタンが無効化(disabled)される
+        var editButton = cut.FindAll("button").FirstOrDefault(b => b.TextContent.Contains("編集"));
+        Assert.NotNull(editButton);
+        Assert.True(editButton.HasAttribute("disabled"));
+    }
+
     public async Task DisposeAsync()
     {
         await _ctx.DisposeAsync();

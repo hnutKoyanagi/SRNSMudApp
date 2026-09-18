@@ -167,6 +167,16 @@ public class TagTableViewModelTests
     }
 
     [Fact]
+    public void CanEditTag_WhenLocked_AdminCanEdit()
+    {
+        var tag = CreateTag(ownerId: "user-1");
+        // 非管理者はオーナーであってもロック時は編集不可
+        Assert.False(TagTableViewModel.CanEditTag(tag, "user-1", isLocked: true, isAdmin: false));
+        // 管理者はオーナーでなくても、ロック時であっても編集可能
+        Assert.True(TagTableViewModel.CanEditTag(tag, "admin-user", isLocked: true, isAdmin: true));
+    }
+
+    [Fact]
     public void CanDeleteTag_SystemTagIsNotDeletable_EvenByOwner()
     {
         Assert.False(TagTableViewModel.CanDeleteTag(CreateTag(isSystem: true), "user-1"));
@@ -179,6 +189,18 @@ public class TagTableViewModelTests
         var tag = CreateTag(ownerId: "user-1", isSystem: false);
         Assert.False(TagTableViewModel.CanDeleteTag(tag, "user-1", isLocked: true));
         Assert.True(TagTableViewModel.CanDeleteTag(tag, "user-1", isLocked: false));
+    }
+
+    [Fact]
+    public void CanDeleteTag_WhenLocked_AdminCanDeleteNonSystemTag()
+    {
+        var tag = CreateTag(ownerId: "user-1", isSystem: false);
+        // 非管理者はロック時は削除不可
+        Assert.False(TagTableViewModel.CanDeleteTag(tag, "user-1", isLocked: true, isAdmin: false));
+        // 管理者はロック時であっても非システムタグであれば削除可能
+        Assert.True(TagTableViewModel.CanDeleteTag(tag, "admin-user", isLocked: true, isAdmin: true));
+        // 管理者であってもシステムタグは削除不可
+        Assert.False(TagTableViewModel.CanDeleteTag(CreateTag(ownerId: "user-1", isSystem: true), "admin-user", isLocked: false, isAdmin: true));
     }
 
     [Theory]

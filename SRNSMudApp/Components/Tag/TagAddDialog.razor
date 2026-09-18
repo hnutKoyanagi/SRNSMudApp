@@ -254,18 +254,20 @@
                 return;
         }
 
-        var isRestricted = await TagLockService.IsChildCreationRestrictedAsync(_parentTag.Id);
-        if (isRestricted)
-        {
-            Snackbar.Add("選択された親タグ配下（または兄弟）はロックされているため子タグを作成できません。", Severity.Warning);
-            return;
-        }
-
+        var isAdmin = false;
         string? userId = null;
         if (AuthState != null)
         {
             var authState = await AuthState;
             userId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            isAdmin = authState.User.IsInRole("Admin");
+        }
+
+        var isRestricted = await TagLockService.IsChildCreationRestrictedAsync(_parentTag.Id);
+        if (isRestricted && !isAdmin)
+        {
+            Snackbar.Add("選択された親タグ配下（または兄弟）はロックされているため子タグを作成できません。", Severity.Warning);
+            return;
         }
 
         switch (string.IsNullOrEmpty(userId))
@@ -292,7 +294,7 @@
             CachedWeight = 0
         };
 
-        await TagCommandService.CreateTagAsync(newTag);
+        await TagCommandService.CreateTagAsync(newTag, isAdmin);
 
         MudDialog.Close(DialogResult.Ok(newTag));
     }

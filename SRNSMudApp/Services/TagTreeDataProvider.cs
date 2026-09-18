@@ -25,7 +25,7 @@ public interface ITagTreeDataProvider
     /// <summary>VoteTag / ReactionTag 以外を読み込む。</summary>
     Task<List<Tag>> LoadTagsAsync();
 
-    Task<TagTreeDeleteResult> DeleteTagsAsync(string userId, IReadOnlyList<int> selectedIds);
+    Task<TagTreeDeleteResult> DeleteTagsAsync(string userId, IReadOnlyList<int> selectedIds, bool isAdmin = false);
 
     /// <summary>子タグを追加する。一意制約違反などは例外として伝搬する。</summary>
     Task AddTagAsync(Tag tag);
@@ -60,7 +60,7 @@ public class TagTreeDataProvider(
             .ToListAsync();
     }
 
-    public async Task<TagTreeDeleteResult> DeleteTagsAsync(string userId, IReadOnlyList<int> selectedIds)
+    public async Task<TagTreeDeleteResult> DeleteTagsAsync(string userId, IReadOnlyList<int> selectedIds, bool isAdmin = false)
     {
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
         await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction =
@@ -71,7 +71,7 @@ public class TagTreeDataProvider(
             List<Tag> selectedTagsFromDb = await context.Tags.Where(t => selectedIds.Contains(t.Id)).ToListAsync();
 
             var unauthorizedNames = selectedTagsFromDb
-                .Where(t => t.OwnerId != userId)
+                .Where(t => !isAdmin && t.OwnerId != userId)
                 .Select(t => t.Name)
                 .ToList();
             var systemNames = selectedTagsFromDb
@@ -79,11 +79,11 @@ public class TagTreeDataProvider(
                 .Select(t => t.Name)
                 .ToList();
             var authorizedIds = selectedTagsFromDb
-                .Where(t => t.OwnerId == userId && !t.IsSystem)
+                .Where(t => (isAdmin || t.OwnerId == userId) && !t.IsSystem)
                 .Select(t => t.Id)
                 .ToList();
 
-            if (_tagLockService != null && authorizedIds.Count > 0)
+            if (_tagLockService != null && authorizedIds.Count > 0 && !isAdmin)
             {
                 List<int> unlockedAuthorizedIds = [];
                 foreach (var id in authorizedIds)
@@ -92,6 +92,14 @@ public class TagTreeDataProvider(
                     if (!isLocked)
                     {
                         unlockedAuthorizedIds.Add(id);
+                    }
+                    else
+                    {
+                        var lockedTagName = selectedTagsFromDb.FirstOrDefault(t => t.Id == id)?.Name;
+                        if (lockedTagName != null && !unauthorizedNames.Contains(lockedTagName))
+                        {
+                            unauthorizedNames.Add(lockedTagName);
+                        }
                     }
                 }
                 authorizedIds = unlockedAuthorizedIds;
@@ -103,7 +111,7 @@ public class TagTreeDataProvider(
             if (authorizedIds.Count > 0)
             {
                 List<Tag> tagsToDelete = await context.Tags
-                    .Where(t => authorizedIds.Contains(t.Id) && t.OwnerId == userId)
+                    .Where(t => authorizedIds.Contains(t.Id))
                     .ToListAsync();
 
                 if (tagsToDelete.Count > 0)

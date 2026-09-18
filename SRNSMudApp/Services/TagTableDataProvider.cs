@@ -23,7 +23,7 @@ public interface ITagTableDataProvider
     Task<TagCardOperationResult> RemoveRelationAsync(int relationId);
 
     /// <summary>タグを削除する。存在しない場合は false。</summary>
-    Task<bool> DeleteTagAsync(int tagId);
+    Task<bool> DeleteTagAsync(int tagId, bool isAdmin = false);
 }
 
 public class TagTableDataProvider(
@@ -121,9 +121,9 @@ public class TagTableDataProvider(
         return TagCardOperationResult.Success;
     }
 
-    public async Task<bool> DeleteTagAsync(int tagId)
+    public async Task<bool> DeleteTagAsync(int tagId, bool isAdmin = false)
     {
-        if (_tagLockService != null)
+        if (_tagLockService != null && !isAdmin)
         {
             var isLocked = await _tagLockService.IsTagOrSiblingLockedAsync(tagId);
             if (isLocked)

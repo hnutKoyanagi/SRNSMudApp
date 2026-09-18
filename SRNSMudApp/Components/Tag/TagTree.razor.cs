@@ -42,6 +42,7 @@ public partial class TagTree : IAsyncDisposable
     private bool _isTreeInitialized;
     private bool _dataLoaded;
     private string? _currentUserId;
+    private bool _isAdmin;
 
     [SupplyParameterFromQuery(Name = "tagId")]
     public int? SelectedTagId { get; set; }
@@ -52,6 +53,7 @@ public partial class TagTree : IAsyncDisposable
         {
             AuthenticationState authState = await AuthState;
             _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            _isAdmin = authState.User.IsInRole("Admin");
         }
 
         await LoadDataAsync();
@@ -158,7 +160,7 @@ public partial class TagTree : IAsyncDisposable
 
         try
         {
-            TagTreeDeleteResult result = await TagTreeData.DeleteTagsAsync(_currentUserId, selectedIds);
+            TagTreeDeleteResult result = await TagTreeData.DeleteTagsAsync(_currentUserId, selectedIds, _isAdmin);
 
             if (result.UnauthorizedNames.Count > 0)
             {
@@ -200,7 +202,7 @@ public partial class TagTree : IAsyncDisposable
         }
 
         var isRestricted = await TagLockService.IsChildCreationRestrictedAsync(parentId);
-        if (isRestricted)
+        if (isRestricted && !_isAdmin)
         {
             _ = Snackbar.Add("選択された親タグ配下（または兄弟）はロックされているため子タグを作成できません。", Severity.Warning);
             return;
@@ -294,8 +296,24 @@ public partial class TagTree : IAsyncDisposable
             return;
         }
 
-        // 他人が作成したタグの場合は、直接更新せず配置変更リクエストを送信する
-        if (!string.IsNullOrEmpty(movedItem.OwnerId) && movedItem.OwnerId != _currentUserId)
+        // ロックされているタグ、または移動先が制限されている場合は、管理者以外は移動不可
+        if (!_isAdmin)
+        {
+            if (await TagLockService.IsTagOrSiblingLockedAsync(movedItem.Id))
+            {
+                await RejectTreeMoveAsync($"タグ「{movedItem.Name}」またはその兄弟タグはロックされているため移動できません。", Severity.Warning);
+                return;
+            }
+
+            if (newParentTagId.HasValue && await TagLockService.IsChildCreationRestrictedAsync(newParentTagId.Value))
+            {
+                await RejectTreeMoveAsync("移動先の親タグ配下（または兄弟）はロックされているため移動できません。", Severity.Warning);
+                return;
+            }
+        }
+
+        // 他人が作成したタグの場合は、直接更新せず配置変更リクエストを送信する（管理者は直接移動可能）
+        if (!string.IsNullOrEmpty(movedItem.OwnerId) && movedItem.OwnerId != _currentUserId && !_isAdmin)
         {
             if (string.IsNullOrEmpty(_currentUserId))
             {
