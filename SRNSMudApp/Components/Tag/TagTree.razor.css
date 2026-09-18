@@ -18,3 +18,24 @@
 ::deep .cancel-move-btn:hover {
     transform: scale(1.15);
 }
+
+::deep .locked-tag-title {
+    background-color: var(--mud-palette-grey-default, #9e9e9e);
+    color: #ffffff !important;
+    padding: 2px 8px;
+    border-radius: 4px;
+    display: inline-block;
+    font-weight: 600;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
+}
+
+::deep .locked-tag-title:hover {
+    background-color: var(--mud-palette-grey-darken1, #757575);
+    color: #ffffff !important;
+}
+
+::deep .locked-tag-node.jqtree-selected>.jqtree-element .locked-tag-title,
+::deep .locked-tag-node.jqtree-selected>.jqtree-element:hover .locked-tag-title {
+    background-color: var(--mud-palette-grey-darken1, #757575);
+    color: #ffffff !important;
+}

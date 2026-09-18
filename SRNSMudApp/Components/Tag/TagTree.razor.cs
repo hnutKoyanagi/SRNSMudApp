@@ -43,6 +43,7 @@ public partial class TagTree : IAsyncDisposable
     private bool _dataLoaded;
     private string? _currentUserId;
     private bool _isAdmin;
+    private HashSet<int> _lockedTagIds = [];
 
     [SupplyParameterFromQuery(Name = "tagId")]
     public int? SelectedTagId { get; set; }
@@ -68,6 +69,8 @@ public partial class TagTree : IAsyncDisposable
         {
             _tags = await TagTreeData.LoadTagsAsync();
             _pendingMoves = await TagTreeData.LoadPendingTagMovesAsync();
+            var allStatus = await TagLockService.GetAllTagsWithLockStatusAsync();
+            _lockedTagIds = allStatus.Where(s => s.IsLockedEffective).Select(s => s.Id).ToHashSet();
         }
         catch (Exception ex)
         {
@@ -100,7 +103,7 @@ public partial class TagTree : IAsyncDisposable
     private IEnumerable<Data.Tag> GetFilteredTags() => TagTreeViewModel.FilterTags(_tags, _searchText, _currentUserId);
 
     private string GetSerializedTreeData() =>
-        TagTreeViewModel.SerializeTreeData(GetFilteredTags(), _pendingMoves, _currentUserId);
+        TagTreeViewModel.SerializeTreeData(GetFilteredTags(), _pendingMoves, _currentUserId, _lockedTagIds);
 
     /// <summary>初期化済みの場合、jqTree 側のデータを現在のフィルタ結果で差し替える。</summary>
     private async Task ReloadTreeDataAsync()

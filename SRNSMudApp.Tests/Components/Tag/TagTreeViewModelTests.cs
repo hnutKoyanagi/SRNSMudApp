@@ -416,4 +416,39 @@ public class TagTreeViewModelTests
         Assert.Contains("\"id\":\"move-req-43\"", json);
         Assert.Contains("\"canCancel\":false", json);
     }
+
+    [Fact]
+    public void SerializeTreeData_WhenTagIsLocked_OutputsIsLockedTrue()
+    {
+        var lockedTag = NewTag(1, "LockedTag", CurrentUserId);
+        lockedTag.IsLocked = true;
+
+        var normalTag = NewTag(2, "NormalTag", CurrentUserId);
+
+        var rootTag = NewTag(3, TagEntity.RootTagName, CurrentUserId);
+
+        List<TagEntity> tags = [lockedTag, normalTag, rootTag];
+        HashSet<int> lockedTagIds = [2];
+
+        var json = TagTreeViewModel.SerializeTreeData(tags, null, CurrentUserId, lockedTagIds);
+
+        Assert.NotNull(json);
+        Assert.Contains("\"id\":1,\"name\":\"LockedTag\",\"isLocked\":true", json);
+        Assert.Contains("\"id\":2,\"name\":\"NormalTag\",\"isLocked\":true", json);
+        Assert.Contains("\"id\":3,", json);
+        Assert.Contains("\"isLocked\":true", json);
+    }
+
+    [Fact]
+    public void SerializeTreeData_WhenTagIsNotLocked_OutputsIsLockedFalse()
+    {
+        var normalTag = NewTag(1, "NormalTag", CurrentUserId);
+
+        List<TagEntity> tags = [normalTag];
+
+        var json = TagTreeViewModel.SerializeTreeData(tags, null, CurrentUserId);
+
+        Assert.NotNull(json);
+        Assert.Contains("\"id\":1,\"name\":\"NormalTag\",\"isLocked\":false", json);
+    }
 }

@@ -76,6 +76,12 @@ window.jqTreeInterop = {
                     return;
                 }
 
+                if (node.isLocked) {
+                    $li.addClass('locked-tag-node');
+                    const $title = $li.find('.jqtree-title');
+                    $title.addClass('locked-tag-title');
+                }
+
                 if (isLoggedIn) {
                     const $title = $li.find('.jqtree-title');
                     $title.before('<input type="checkbox" class="tag-checkbox" data-id="' + node.id + '" style="margin-right: 8px; cursor: pointer;" />');
