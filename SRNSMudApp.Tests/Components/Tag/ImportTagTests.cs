@@ -80,7 +80,7 @@ public sealed class ImportTagTests : IAsyncLifetime
 
         _ = _providerMock
             .Setup(p => p.ImportCsvTagsAsync("testuser", rootTag.Name, csvContent, false))
-            .ReturnsAsync(2);
+            .ReturnsAsync(new TagImportResult(2, 0));
 
         var authStateTask = Task.FromResult(BunitTestSetup.CreateAuthState("testuser"));
         IRenderedComponent<ImportTag> component = _ctx.Render<ImportTag>(p => p.AddCascadingValue(authStateTask));
@@ -134,7 +134,7 @@ public sealed class ImportTagTests : IAsyncLifetime
 
         _ = _providerMock
             .Setup(p => p.ImportCsvTagsAsync("adminuser", rootTag.Name, csvContent, true))
-            .ReturnsAsync(2);
+            .ReturnsAsync(new TagImportResult(2, 0));
 
         var authStateTask = Task.FromResult(BunitTestSetup.CreateAuthState("adminuser", "Admin"));
         IRenderedComponent<ImportTag> component = adminCtx.Render<ImportTag>(p => p.AddCascadingValue(authStateTask));

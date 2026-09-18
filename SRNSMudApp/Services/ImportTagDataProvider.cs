@@ -4,6 +4,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics.Tensors;
+using System.Text;
 using System.Text.RegularExpressions;
 
 using Microsoft.EntityFrameworkCore;
@@ -19,6 +20,16 @@ using Tag = SRNSMudApp.Data.Tag;
 namespace SRNSMudApp.Services;
 
 /// <summary>
+///     タグインポートの結果（新規作成件数、更新件数）。
+///     既存コードとの互換性のため int への暗黙の型変換（CreatedCount）をサポートする。
+/// </summary>
+public sealed record TagImportResult(int CreatedCount, int UpdatedCount)
+{
+    public static implicit operator int(TagImportResult result) => result?.CreatedCount ?? 0;
+    public int ToInt32() => CreatedCount;
+}
+
+/// <summary>
 ///     ImportTag コンポーネント用のデータアクセスを分離するインターフェース。
 ///     コンポーネントから DbContext への直接依存を断ち、単体テストでモック可能にする。
 /// </summary>
@@ -28,14 +39,14 @@ public interface IImportTagDataProvider
     Task<IReadOnlyList<Tag>> SearchUserTagsAsync(string userId, string? value, CancellationToken token = default);
 
     /// <summary>
-    ///     CSV の各行 (カンマ区切りのタグ名階層) を親タグ配下にインポートする。
+    ///     CSV / TSV の各行 (カンマまたはタブ区切りのタグ名階層) を親タグ配下にインポートする。
     /// </summary>
     /// <param name="userId">実行ユーザーID。</param>
     /// <param name="selectedParentTagName">親タグ名。</param>
-    /// <param name="csvContent">CSVデータ。</param>
+    /// <param name="csvContent">CSV/TSVデータ。</param>
     /// <param name="asSystem">true の場合、システムタグ（Owner: "system", IsSystem: true）としてインポートする。</param>
-    /// <returns>新規作成されたタグ数。</returns>
-    Task<int> ImportCsvTagsAsync(string userId, string selectedParentTagName, string csvContent, bool asSystem = false);
+    /// <returns>新規作成および更新されたタグ数の結果オブジェクト。</returns>
+    Task<TagImportResult> ImportCsvTagsAsync(string userId, string selectedParentTagName, string csvContent, bool asSystem = false);
 }
 
 public partial class ImportTagDataProvider(
@@ -119,7 +130,7 @@ public partial class ImportTagDataProvider(
 
     [SuppressMessage("Design", "CA1031:Do not catch general exception types",
         Justification = "ユーザー入力由来の任意の例外を UI 向けメッセージに変換するため広く捕捉する")]
-    public async Task<int> ImportCsvTagsAsync(
+    public async Task<TagImportResult> ImportCsvTagsAsync(
         string userId,
         string selectedParentTagName,
         string csvContent,
@@ -127,16 +138,28 @@ public partial class ImportTagDataProvider(
     {
         await using ApplicationDbContext dbContext = await _dbContextFactory.CreateDbContextAsync();
 
-        var lines = csvContent.Split(["\r\n", "\r", "\n"], StringSplitOptions.RemoveEmptyEntries);
+        List<List<string>> records = ParseCsv(csvContent);
 
         var effectiveOwnerId = asSystem ? "system" : userId;
 
-        // Load existing tags for this user / system
-        Dictionary<string, Tag> existingTags = await dbContext.Tags
+        // Load existing tags for this user / system with case-insensitive and trimmed names
+        List<Tag> loadedTags = await dbContext.Tags
             .Where(t => t.OwnerId == effectiveOwnerId)
-            .ToDictionaryAsync(t => t.Name, t => t);
+            .ToListAsync();
+
+        var existingTags = new Dictionary<string, Tag>(StringComparer.OrdinalIgnoreCase);
+        foreach (var t in loadedTags)
+        {
+            var trimmedName = t.Name.Trim();
+            _ = existingTags.TryAdd(trimmedName, t);
+            if (!existingTags.ContainsKey(t.Name))
+            {
+                existingTags[t.Name] = t;
+            }
+        }
 
         var createdCount = 0;
+        var updatedTagIds = new HashSet<int>();
 
         // Begin transaction for safety
         await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction =
@@ -144,76 +167,158 @@ public partial class ImportTagDataProvider(
 
         try
         {
-            Tag? baseParentTag = existingTags.TryGetValue(selectedParentTagName, out Tag? trackedBaseTag)
+            var trimmedParentTagName = selectedParentTagName.Trim();
+            Tag? baseParentTag = existingTags.TryGetValue(trimmedParentTagName, out Tag? trackedBaseTag)
                 ? trackedBaseTag
                 : await dbContext.Tags.FirstOrDefaultAsync(t =>
-                    (t.OwnerId == userId || t.IsSystem || t.OwnerId == "system") && t.Name == selectedParentTagName)
+                    (t.OwnerId == userId || t.IsSystem || t.OwnerId == "system") && (t.Name == trimmedParentTagName || t.Name == selectedParentTagName))
                     ?? await dbContext.Tags.FirstOrDefaultAsync(t => t.Name == Tag.RootTagName);
 
-            foreach (var line in lines)
+            foreach (var fields in records)
             {
-                var tagNames = line.Split(',').Select(t => t.Trim()).Where(t => !string.IsNullOrEmpty(t)).ToList();
-                switch (tagNames.Count)
+                List<string> tagNames;
+                var leafContent = string.Empty;
+
+                // 3列以上の場合は末尾2列を Content とし、それより前をタグ階層とする。
+                // 2列以下の場合は全列をタグ階層とし、Content は空とする。
+                if (fields.Count >= 3)
                 {
-                    case 0: continue;
-                    default:
-                        break;
+                    tagNames = fields.Take(fields.Count - 2).Where(t => !string.IsNullOrEmpty(t)).ToList();
+                    var contentCol1 = fields[^2].Trim();
+                    var contentCol2 = fields[^1].Trim();
+
+                    if (!string.IsNullOrEmpty(contentCol1) && !string.IsNullOrEmpty(contentCol2))
+                    {
+                        leafContent = $"{contentCol1}\n{contentCol2}";
+                    }
+                    else if (!string.IsNullOrEmpty(contentCol1))
+                    {
+                        leafContent = contentCol1;
+                    }
+                    else if (!string.IsNullOrEmpty(contentCol2))
+                    {
+                        leafContent = contentCol2;
+                    }
+                }
+                else
+                {
+                    tagNames = fields.Where(t => !string.IsNullOrEmpty(t)).ToList();
+                }
+
+                if (tagNames.Count == 0)
+                {
+                    continue;
                 }
 
                 Tag? currentParentTag = baseParentTag;
 
-                foreach (var tagName in tagNames)
+                for (var i = 0; i < tagNames.Count; i++)
                 {
+                    var tagName = tagNames[i].Trim();
+                    var isLeaf = i == tagNames.Count - 1;
+
                     // Validate tag name
                     if (!TagNameRegex().IsMatch(tagName))
                     {
                         throw new InvalidOperationException($"不正なタグ名が含まれています: '{tagName}'");
                     }
 
+                    // 親タグ自身が CSV の先頭列に指定されている場合はスキップして親として扱う
+                    if (i == 0 && baseParentTag != null && baseParentTag.Name.Trim().Equals(tagName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (isLeaf && !string.IsNullOrEmpty(leafContent))
+                        {
+                            if (baseParentTag.Content != leafContent)
+                            {
+                                baseParentTag.Content = leafContent;
+                                baseParentTag.UpdatedDate = DateTime.UtcNow;
+                                if (baseParentTag.Id > 0)
+                                {
+                                    _ = updatedTagIds.Add(baseParentTag.Id);
+                                }
+                            }
+                        }
+                        currentParentTag = baseParentTag;
+                        continue;
+                    }
+
                     if (!existingTags.TryGetValue(tagName, out Tag? tag))
                     {
+                        // メモリ内辞書にない場合でも、SQL Server の照合順序（末尾空白無視など）で DB に存在しないか再確認
+                        tag = await dbContext.Tags.FirstOrDefaultAsync(t =>
+                            t.OwnerId == effectiveOwnerId && t.Name == tagName);
+
+                        if (tag != null)
                         {
-                            HierarchyId? lastChildNode = currentParentTag == null
-                                ? null
-                                : await dbContext.Tags
-                                    .Where(t => t.ParentTagId == currentParentTag.Id || t.Node.GetAncestor(1) == currentParentTag.Node)
-                                    .OrderByDescending(t => t.Node)
-                                    .Select(t => (HierarchyId?)t.Node)
-                                    .FirstOrDefaultAsync();
+                            _ = existingTags.TryAdd(tagName, tag);
+                            _ = existingTags.TryAdd(tag.Name, tag);
+                        }
+                    }
 
-                            // Tag doesn't exist, create it
-                            var newTag = new Tag
-                            {
-                                Name = tagName,
-                                OwnerId = effectiveOwnerId,
-                                IsSystem = asSystem,
-                                ParentTagId = currentParentTag?.Id,
-                                Node = currentParentTag == null
-                                    ? HierarchyId.GetRoot()
-                                    : currentParentTag.Node.GetDescendant(lastChildNode, null),
-                                CreatedDate = DateTime.UtcNow,
-                                UpdatedDate = DateTime.UtcNow
-                            };
+                    if (tag == null)
+                    {
+                        HierarchyId? lastChildNode = currentParentTag == null
+                            ? null
+                            : await dbContext.Tags
+                                .Where(t => t.Node.GetAncestor(1) == currentParentTag.Node)
+                                .OrderByDescending(t => t.Node)
+                                .Select(t => (HierarchyId?)t.Node)
+                                .FirstOrDefaultAsync();
 
-                            try
-                            {
-                                ReadOnlyMemory<float> embedding = await _tagEmbeddingService.GenerateEmbeddingAsync(tagName);
-                                newTag.Embedding = embedding.ToArray();
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.LogWarning(ex, "Embedding generation failed: {Message}", ex.Message);
-                            }
+                        // Tag doesn't exist, create it
+                        var newTag = new Tag
+                        {
+                            Name = tagName,
+                            Content = isLeaf ? leafContent : string.Empty,
+                            OwnerId = effectiveOwnerId,
+                            IsSystem = asSystem,
+                            ParentTagId = currentParentTag?.Id,
+                            Node = currentParentTag == null
+                                ? HierarchyId.GetRoot()
+                                : GetSafeChildNode(currentParentTag.Node, lastChildNode),
+                            CreatedDate = DateTime.UtcNow,
+                            UpdatedDate = DateTime.UtcNow
+                        };
 
-                            _ = dbContext.Tags.Add(newTag);
+                        try
+                        {
+                            ReadOnlyMemory<float> embedding = await _tagEmbeddingService.GenerateEmbeddingAsync(tagName);
+                            newTag.Embedding = embedding.ToArray();
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Embedding generation failed: {Message}", ex.Message);
+                        }
+
+                        _ = dbContext.Tags.Add(newTag);
+                        try
+                        {
                             _ = await dbContext.SaveChangesAsync();
-
                             existingTags[tagName] = newTag;
                             currentParentTag = newTag;
                             createdCount++;
                             continue;
                         }
+                        catch (DbUpdateException ex) when (ex.InnerException is Microsoft.Data.SqlClient.SqlException sqlEx && (sqlEx.Number == 2601 || sqlEx.Number == 2627))
+                        {
+                            // 万が一同一キーの重複が発生した場合は、DBから既存タグを再取得してリカバリする
+                            dbContext.Entry(newTag).State = EntityState.Detached;
+                            tag = await dbContext.Tags.FirstOrDefaultAsync(t =>
+                                t.OwnerId == effectiveOwnerId && t.Name == tagName);
+
+                            if (tag != null)
+                            {
+                                existingTags[tagName] = tag;
+                                _ = existingTags.TryAdd(tag.Name, tag);
+                            }
+                            else
+                            {
+                                throw;
+                            }
+                        }
                     }
+
+                    var hasUpdated = false;
 
                     if (currentParentTag != null && tag.ParentTagId != currentParentTag.Id)
                     {
@@ -221,14 +326,31 @@ public partial class ImportTagDataProvider(
                         if (!IsDescendantOrSelf(tag, currentParentTag!))
                         {
                             HierarchyId? lastChildNode = await dbContext.Tags
-                                .Where(t => t.ParentTagId == currentParentTag.Id || t.Node.GetAncestor(1) == currentParentTag.Node)
+                                .Where(t => t.Node.GetAncestor(1) == currentParentTag.Node)
                                 .OrderByDescending(t => t.Node)
                                 .Select(t => (HierarchyId?)t.Node)
                                 .FirstOrDefaultAsync();
 
                             tag.ParentTagId = currentParentTag.Id;
-                            tag.Node = currentParentTag.Node.GetDescendant(lastChildNode, null);
+                            tag.Node = GetSafeChildNode(currentParentTag.Node, lastChildNode);
+                            hasUpdated = true;
                         }
+                    }
+
+                    // 既存タグが最下層タグかつ Content が指定されている場合は更新
+                    if (isLeaf && !string.IsNullOrEmpty(leafContent))
+                    {
+                        if (tag.Content != leafContent)
+                        {
+                            tag.Content = leafContent;
+                            tag.UpdatedDate = DateTime.UtcNow;
+                            hasUpdated = true;
+                        }
+                    }
+
+                    if (hasUpdated && tag.Id > 0)
+                    {
+                        _ = updatedTagIds.Add(tag.Id);
                     }
 
                     currentParentTag = tag;
@@ -238,7 +360,7 @@ public partial class ImportTagDataProvider(
             _ = await dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
-            return createdCount;
+            return new TagImportResult(createdCount, updatedTagIds.Count);
         }
         catch (Exception)
         {
@@ -249,4 +371,138 @@ public partial class ImportTagDataProvider(
 
     private static bool IsDescendantOrSelf(Tag parent, Tag target)
         => ReferenceEquals(parent, target) || parent.Id == target.Id || target.Node.IsDescendantOf(parent.Node);
+
+    /// <summary>
+    ///     親ノードの配下に安全に新しい子ノードを生成する。
+    ///     lastChildNode が直下の子（lastChildNode.GetAncestor(1) == parentNode）であるか検証し、
+    ///     不整合がある場合は parentNode.GetDescendant(null, null) にフォールバックしてエラー 24008 を防止する。
+    /// </summary>
+    internal static HierarchyId GetSafeChildNode(HierarchyId parentNode, HierarchyId? lastChildNode)
+    {
+        if (lastChildNode != null)
+        {
+            try
+            {
+                if (lastChildNode.GetAncestor(1) == parentNode)
+                {
+                    return parentNode.GetDescendant(lastChildNode, null);
+                }
+            }
+            catch (Exception ex) when (ex is Microsoft.SqlServer.Types.HierarchyIdException or InvalidOperationException or ArgumentException)
+            {
+                // 例外発生時は null, null で安全に生成
+            }
+        }
+
+        return parentNode.GetDescendant(null, null);
+    }
+
+    /// <summary>
+    ///     ダブルクォートによる囲みやエスケープ、改行を含むフィールドに対応した CSV / TSV パース。
+    ///     カンマ（,）およびタブ（\t）の区切り文字に自動対応。
+    /// </summary>
+    private static List<List<string>> ParseCsv(string csvContent)
+    {
+        var records = new List<List<string>>();
+        if (string.IsNullOrWhiteSpace(csvContent))
+        {
+            return records;
+        }
+
+        // 区切り文字の自動判定: タブが存在しカンマ以上含まれる場合はタブ区切り（TSV）と判定
+        var commaCount = 0;
+        var tabCount = 0;
+        for (var idx = 0; idx < Math.Min(csvContent.Length, 2000); idx++)
+        {
+            var ch = csvContent[idx];
+            if (ch == ',')
+            {
+                commaCount++;
+            }
+            else if (ch == '\t')
+            {
+                tabCount++;
+            }
+        }
+        var delimiter = tabCount > commaCount ? '\t' : ',';
+
+        var currentRecord = new List<string>();
+        var currentField = new StringBuilder();
+        var inQuotes = false;
+
+        for (var i = 0; i < csvContent.Length; i++)
+        {
+            var c = csvContent[i];
+
+            if (inQuotes)
+            {
+                if (c == '"')
+                {
+                    if (i + 1 < csvContent.Length && csvContent[i + 1] == '"')
+                    {
+                        currentField.Append('"');
+                        i++; // エスケープされた引用符をスキップ
+                    }
+                    else
+                    {
+                        inQuotes = false;
+                    }
+                }
+                else
+                {
+                    currentField.Append(c);
+                }
+            }
+            else
+            {
+                switch (c)
+                {
+                    case '"':
+                        inQuotes = true;
+                        break;
+                    case '\r':
+                        if (i + 1 < csvContent.Length && csvContent[i + 1] == '\n')
+                        {
+                            i++;
+                        }
+                        currentRecord.Add(currentField.ToString().Trim());
+                        currentField.Clear();
+                        if (currentRecord.Any(f => !string.IsNullOrEmpty(f)))
+                        {
+                            records.Add(currentRecord);
+                        }
+                        currentRecord = [];
+                        break;
+                    case '\n':
+                        currentRecord.Add(currentField.ToString().Trim());
+                        currentField.Clear();
+                        if (currentRecord.Any(f => !string.IsNullOrEmpty(f)))
+                        {
+                            records.Add(currentRecord);
+                        }
+                        currentRecord = [];
+                        break;
+                    default:
+                        if (c == delimiter)
+                        {
+                            currentRecord.Add(currentField.ToString().Trim());
+                            currentField.Clear();
+                        }
+                        else
+                        {
+                            currentField.Append(c);
+                        }
+                        break;
+                }
+            }
+        }
+
+        currentRecord.Add(currentField.ToString().Trim());
+        if (currentRecord.Any(f => !string.IsNullOrEmpty(f)))
+        {
+            records.Add(currentRecord);
+        }
+
+        return records;
+    }
 }
