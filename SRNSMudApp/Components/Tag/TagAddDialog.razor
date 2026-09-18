@@ -2,6 +2,7 @@
 @using SRNSMudApp.Services
 @inject ITagSearchQueryService TagSearchQueryService
 @inject ITagCommandService TagCommandService
+@inject ITagLockService TagLockService
 @inject ISnackbar Snackbar
 
 <MudDialog>
@@ -251,6 +252,13 @@
             case null:
                 Snackbar.Add("親タグを選択してください。", Severity.Warning);
                 return;
+        }
+
+        var isRestricted = await TagLockService.IsChildCreationRestrictedAsync(_parentTag.Id);
+        if (isRestricted)
+        {
+            Snackbar.Add("選択された親タグ配下（または兄弟）はロックされているため子タグを作成できません。", Severity.Warning);
+            return;
         }
 
         string? userId = null;

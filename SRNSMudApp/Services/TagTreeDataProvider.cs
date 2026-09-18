@@ -43,10 +43,13 @@ public interface ITagTreeDataProvider
     Task<Result<string>> CancelTagMoveAsync(int requestId, string currentUserId);
 }
 
-public class TagTreeDataProvider(IDbContextFactory<ApplicationDbContext> dbFactory) : ITagTreeDataProvider
+public class TagTreeDataProvider(
+    IDbContextFactory<ApplicationDbContext> dbFactory,
+    ITagLockService? tagLockService = null) : ITagTreeDataProvider
 {
     private readonly IDbContextFactory<ApplicationDbContext> _dbFactory =
         dbFactory ?? throw new ArgumentNullException(nameof(dbFactory));
+    private readonly ITagLockService? _tagLockService = tagLockService;
     public async Task<List<Tag>> LoadTagsAsync()
     {
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
@@ -79,6 +82,20 @@ public class TagTreeDataProvider(IDbContextFactory<ApplicationDbContext> dbFacto
                 .Where(t => t.OwnerId == userId && !t.IsSystem)
                 .Select(t => t.Id)
                 .ToList();
+
+            if (_tagLockService != null && authorizedIds.Count > 0)
+            {
+                List<int> unlockedAuthorizedIds = [];
+                foreach (var id in authorizedIds)
+                {
+                    var isLocked = await _tagLockService.IsTagOrSiblingLockedAsync(id);
+                    if (!isLocked)
+                    {
+                        unlockedAuthorizedIds.Add(id);
+                    }
+                }
+                authorizedIds = unlockedAuthorizedIds;
+            }
 
             var hasDeleted = false;
             var deletedCount = 0;
@@ -161,6 +178,15 @@ public class TagTreeDataProvider(IDbContextFactory<ApplicationDbContext> dbFacto
 
     public async Task AddTagAsync(Tag tag)
     {
+        if (_tagLockService != null)
+        {
+            var isRestricted = await _tagLockService.IsChildCreationRestrictedAsync(tag.ParentTagId);
+            if (isRestricted)
+            {
+                throw new InvalidOperationException("ロックされている階層またはロックされたタグの兄弟は新規作成できません。");
+            }
+        }
+
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
 
         if (tag.Name != Tag.RootTagName && !tag.ParentTagId.HasValue)

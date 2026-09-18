@@ -33,6 +33,12 @@ public class Tag : BaseEntity
     public bool IsSystem { get; set; }
 
     /// <summary>
+    ///     このタグが明示的にロックされているかどうか。
+    ///     ロックされたタグおよびその兄弟タグは作成・編集・削除が不能となる。
+    /// </summary>
+    public bool IsLocked { get; set; }
+
+    /// <summary>
     ///     このタグへのタグ付けリクエストを自動承認するかどうか。
     /// </summary>
     public bool AutoAcceptIncomingTaggingRequests { get; set; }

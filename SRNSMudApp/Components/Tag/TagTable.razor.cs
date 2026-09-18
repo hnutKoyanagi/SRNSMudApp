@@ -32,10 +32,12 @@ public partial class TagTable
     [Inject] private NavigationManager NavigationManager { get; set; } = null!;
     [Inject] private IDialogLauncher DialogLauncher { get; set; } = null!;
     [Inject] private ISnackbar Snackbar { get; set; } = null!;
+    [Inject] private ITagLockService TagLockService { get; set; } = null!;
 
     private string _currentUserId = "";
     private string _tagSearch = "";
     private List<Data.Tag> _allTagsCache = [];
+    private HashSet<int> _lockedTagIds = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -46,7 +48,16 @@ public partial class TagTable
         }
 
         _allTagsCache = await TagTableData.GetAllTagsAsync();
+        await ReloadLockStatusAsync();
     }
+
+    private async Task ReloadLockStatusAsync()
+    {
+        var allStatus = await TagLockService.GetAllTagsWithLockStatusAsync();
+        _lockedTagIds = allStatus.Where(s => s.IsLockedEffective).Select(s => s.Id).ToHashSet();
+    }
+
+    private bool IsTagLocked(int tagId) => _lockedTagIds.Contains(tagId);
 
     private bool FilterFunc(Data.Tag tag) => TagTableViewModel.FilterFunc(tag, _tagSearch);
 
@@ -186,7 +197,13 @@ public partial class TagTable
 
     private async Task DeleteTagAsync(Data.Tag tag)
     {
-        switch (TagTableViewModel.CanDeleteTag(tag, _currentUserId))
+        if (IsTagLocked(tag.Id))
+        {
+            _ = Snackbar.Add("このタグまたはその兄弟タグはロックされているため削除できません。", Severity.Warning);
+            return;
+        }
+
+        switch (TagTableViewModel.CanDeleteTag(tag, _currentUserId, IsTagLocked(tag.Id)))
         {
             case true:
                 await ExecuteDeleteTagAsync(tag);
@@ -224,6 +241,7 @@ public partial class TagTable
 
     private async Task NotifyDataChangedAsync()
     {
+        await ReloadLockStatusAsync();
         await (OnDataChanged.HasDelegate switch
         {
             true => OnDataChanged.InvokeAsync(),

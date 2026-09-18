@@ -44,6 +44,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<ItemSplitRequest> ItemSplitRequests { get; set; } = null!;
     public DbSet<TagContentProposal> TagContentProposals { get; set; } = null!;
     public DbSet<TagNameProposal> TagNameProposals { get; set; } = null!;
+    public DbSet<TagLockSetting> TagLockSettings { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

@@ -13,6 +13,7 @@
 @inject IDialogLauncher DialogLauncher
 @inject NavigationManager NavigationManager
 @inject ISnackbar Snackbar
+@inject ITagLockService TagLockService
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-5">
     @if (_tag is null)
@@ -26,6 +27,23 @@
                            OnClick="@(() => NavigationManager.NavigateTo("Item/ItemList"))" Class="mr-2" />
             <MudText Typo="Typo.h5">タグ詳細</MudText>
             <MudSpacer />
+            @if (_isAdmin && _tag.Name != Tag.RootTagName)
+            {
+                @if (_areAncestorsLocked)
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Success" StartIcon="@Icons.Material.Filled.LockOpen"
+                               OnClick="@UnlockAncestorsAsync" Class="mr-2">
+                        このTagの祖先のロックを解除する
+                    </MudButton>
+                }
+                else
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Warning" StartIcon="@Icons.Material.Filled.Lock"
+                               OnClick="@LockAncestorsAsync" Class="mr-2">
+                        このTagの祖先をロックする
+                    </MudButton>
+                }
+            }
             @if (_currentUserId is not null)
             {
                 <MudButton Variant="@(_isFollowing ? Variant.Outlined : Variant.Filled)"
@@ -40,7 +58,7 @@
                 <MudSwitch T="bool" Value="@(_tag.AutoAcceptIncomingTaggingRequests)" ValueChanged="OnAutoAcceptChangedAsync"
                            Label="自動承認" Color="Color.Primary" Class="mr-2" />
                 <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Edit"
-                           OnClick="@OpenEditDialog" Class="mr-2">
+                           OnClick="@OpenEditDialog" Disabled="@_isTagOrSiblingLocked" Class="mr-2">
                     編集
                 </MudButton>
             }
@@ -50,22 +68,32 @@
                            OnClick="@OpenRequestPermissionDialogAsync" Class="mr-2">
                     操作権限をリクエスト
                 </MudButton>
-                <MudMenu Label="編集を提案" Variant="Variant.Outlined" Color="Color.Primary"
-                         StartIcon="@Icons.Material.Filled.EditNote" EndIcon="@Icons.Material.Filled.ArrowDropDown" Class="mr-2">
-                    @if (!_tag.IsSystem && _tag.OwnerId != "system" && _tag.Name != "全て∀")
-                    {
-                        <MudMenuItem Icon="@Icons.Material.Filled.DriveFileRenameOutline" OnClick="@OpenNameProposalDialog">タグ名変更を提案
+                @if (!_isTagOrSiblingLocked)
+                {
+                    <MudMenu Label="編集を提案" Variant="Variant.Outlined" Color="Color.Primary"
+                             StartIcon="@Icons.Material.Filled.EditNote" EndIcon="@Icons.Material.Filled.ArrowDropDown" Class="mr-2">
+                        @if (!_tag.IsSystem && _tag.OwnerId != "system" && _tag.Name != "全て∀")
+                        {
+                            <MudMenuItem Icon="@Icons.Material.Filled.DriveFileRenameOutline" OnClick="@OpenNameProposalDialog">タグ名変更を提案
+                            </MudMenuItem>
+                        }
+                        <MudMenuItem Icon="@Icons.Material.Filled.EditNote" OnClick="@OpenContentProposalDialog">内容変更を提案
                         </MudMenuItem>
-                    }
-                    <MudMenuItem Icon="@Icons.Material.Filled.EditNote" OnClick="@OpenContentProposalDialog">内容変更を提案
-                    </MudMenuItem>
-                </MudMenu>
+                    </MudMenu>
+                }
             }
             <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Outlined.Report"
                        OnClick="@OpenReportDialogAsync">
                 通報
             </MudButton>
         </div>
+
+        @if (_isTagOrSiblingLocked)
+        {
+            <MudAlert Severity="Severity.Warning" Class="mb-4" Dense="true" Elevation="1">
+                このタグまたはその兄弟タグはロックされています。新規作成・編集・削除はできません。
+            </MudAlert>
+        }
 
         <MudCard Outlined="true" Class="mb-4 rounded-xl">
             <MudCardContent>
@@ -278,11 +306,15 @@
     private IReadOnlyList<TagNameProposal> _pendingNameProposals = [];
     private bool _isFollowing;
     private string? _currentUserId;
+    private bool _isAdmin;
+    private bool _areAncestorsLocked;
+    private bool _isTagOrSiblingLocked;
 
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthState!;
         _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        _isAdmin = authState.User.IsInRole("Admin");
         await LoadDataAsync();
     }
 
@@ -306,6 +338,36 @@
         _pendingRequests = data.PendingRequests;
         _pendingProposals = await TagContentProposalService.GetPendingProposalsForTagAsync(TagId);
         _pendingNameProposals = await TagNameProposalService.GetPendingProposalsForTagAsync(TagId);
+        _areAncestorsLocked = await TagLockService.AreAncestorsLockedAsync(TagId);
+        _isTagOrSiblingLocked = await TagLockService.IsTagOrSiblingLockedAsync(TagId);
+    }
+
+    private async Task LockAncestorsAsync()
+    {
+        try
+        {
+            await TagLockService.LockAncestorsAsync(TagId);
+            Snackbar.Add("このタグの祖先をロックしました。", Severity.Success);
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"祖先のロックに失敗しました: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task UnlockAncestorsAsync()
+    {
+        try
+        {
+            await TagLockService.UnlockAncestorsAsync(TagId);
+            Snackbar.Add("このタグの祖先のロックを解除しました。", Severity.Success);
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"祖先のロック解除に失敗しました: {ex.Message}", Severity.Error);
+        }
     }
 
     private async Task OpenEditDialog()

@@ -83,15 +83,16 @@ public static class TagTableViewModel
     }
 
     /// <summary>
-    ///     現在のユーザーがそのタグを編集できるかどうかを返す。
+    ///     現在のユーザーがそのタグを編集できるかどうかを返す（ロックされている場合は不可）。
     /// </summary>
-    public static bool CanEditTag(Data.Tag tag, string? currentUserId) => tag.OwnerId == currentUserId;
+    public static bool CanEditTag(Data.Tag tag, string? currentUserId, bool isLocked = false) =>
+        !isLocked && tag.OwnerId == currentUserId;
 
     /// <summary>
-    ///     現在のユーザーがそのタグを削除できるかどうかを返す（システムタグは不可）。
+    ///     現在のユーザーがそのタグを削除できるかどうかを返す（システムタグやロックされているタグは不可）。
     /// </summary>
-    public static bool CanDeleteTag(Data.Tag tag, string? currentUserId) =>
-        tag.OwnerId == currentUserId && !tag.IsSystem;
+    public static bool CanDeleteTag(Data.Tag tag, string? currentUserId, bool isLocked = false) =>
+        !isLocked && tag.OwnerId == currentUserId && !tag.IsSystem;
 
     /// <summary>
     ///     現在のユーザーがそのタグ関連付けを解除できるかどうかを返す。

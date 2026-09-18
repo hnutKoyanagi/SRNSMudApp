@@ -26,10 +26,13 @@ public interface ITagTableDataProvider
     Task<bool> DeleteTagAsync(int tagId);
 }
 
-public class TagTableDataProvider(IDbContextFactory<ApplicationDbContext> dbFactory) : ITagTableDataProvider
+public class TagTableDataProvider(
+    IDbContextFactory<ApplicationDbContext> dbFactory,
+    ITagLockService? tagLockService = null) : ITagTableDataProvider
 {
     private readonly IDbContextFactory<ApplicationDbContext> _dbFactory =
         dbFactory ?? throw new ArgumentNullException(nameof(dbFactory));
+    private readonly ITagLockService? _tagLockService = tagLockService;
     public async Task<List<Tag>> GetAllTagsAsync()
     {
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
@@ -120,6 +123,15 @@ public class TagTableDataProvider(IDbContextFactory<ApplicationDbContext> dbFact
 
     public async Task<bool> DeleteTagAsync(int tagId)
     {
+        if (_tagLockService != null)
+        {
+            var isLocked = await _tagLockService.IsTagOrSiblingLockedAsync(tagId);
+            if (isLocked)
+            {
+                return false;
+            }
+        }
+
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
         Tag? tagToDelete = await context.Tags.FindAsync(tagId);
         switch (tagToDelete)

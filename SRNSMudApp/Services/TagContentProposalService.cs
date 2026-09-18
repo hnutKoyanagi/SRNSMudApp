@@ -18,6 +18,7 @@ public class TagContentProposalService(
     IDbContextFactory<ApplicationDbContext> dbFactory,
     INotificationService notificationService,
     ITagEmbeddingService tagEmbeddingService,
+    ITagLockService? tagLockService = null,
     ILogger<TagContentProposalService>? logger = null) : ITagContentProposalService
 {
     private readonly IDbContextFactory<ApplicationDbContext> _dbFactory =
@@ -26,6 +27,7 @@ public class TagContentProposalService(
         notificationService ?? throw new ArgumentNullException(nameof(notificationService));
     private readonly ITagEmbeddingService _tagEmbeddingService =
         tagEmbeddingService ?? throw new ArgumentNullException(nameof(tagEmbeddingService));
+    private readonly ITagLockService? _tagLockService = tagLockService;
     private readonly ILogger<TagContentProposalService> _logger =
         logger ?? NullLogger<TagContentProposalService>.Instance;
 
@@ -56,6 +58,15 @@ public class TagContentProposalService(
         if (tag is null)
         {
             return Result.Fail<TagContentProposal>("対象のタグが見つかりません。");
+        }
+
+        if (_tagLockService != null)
+        {
+            var isLocked = await _tagLockService.IsTagOrSiblingLockedAsync(tagId, cancellationToken);
+            if (isLocked)
+            {
+                return Result.Fail<TagContentProposal>("ロックされているタグまたはその兄弟タグは編集提案できません。");
+            }
         }
 
         if (tag.OwnerId == requesterUserId)
@@ -134,6 +145,15 @@ public class TagContentProposalService(
         if (tag is null)
         {
             return Result.Fail<Tag>("対象のタグが見つかりません。");
+        }
+
+        if (_tagLockService != null)
+        {
+            var isLocked = await _tagLockService.IsTagOrSiblingLockedAsync(tag.Id, cancellationToken);
+            if (isLocked)
+            {
+                return Result.Fail<Tag>("ロックされているタグまたはその兄弟タグは編集できません。");
+            }
         }
 
         // 1. タグの Content 更新

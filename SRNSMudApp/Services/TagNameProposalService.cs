@@ -19,6 +19,7 @@ public partial class TagNameProposalService(
     IDbContextFactory<ApplicationDbContext> dbFactory,
     INotificationService notificationService,
     ITagEmbeddingService tagEmbeddingService,
+    ITagLockService? tagLockService = null,
     ILogger<TagNameProposalService>? logger = null) : ITagNameProposalService
 {
     private readonly IDbContextFactory<ApplicationDbContext> _dbFactory =
@@ -27,6 +28,7 @@ public partial class TagNameProposalService(
         notificationService ?? throw new ArgumentNullException(nameof(notificationService));
     private readonly ITagEmbeddingService _tagEmbeddingService =
         tagEmbeddingService ?? throw new ArgumentNullException(nameof(tagEmbeddingService));
+    private readonly ITagLockService? _tagLockService = tagLockService;
     private readonly ILogger<TagNameProposalService> _logger =
         logger ?? NullLogger<TagNameProposalService>.Instance;
 
@@ -84,6 +86,15 @@ public partial class TagNameProposalService(
         if (tag.Name == Tag.RootTagName || tag.IsSystem || tag.OwnerId == "system")
         {
             return Result.Fail<TagNameProposal>("ルートタグやシステムタグの名前変更提案はできません。");
+        }
+
+        if (_tagLockService != null)
+        {
+            var isLocked = await _tagLockService.IsTagOrSiblingLockedAsync(tagId, cancellationToken);
+            if (isLocked)
+            {
+                return Result.Fail<TagNameProposal>("ロックされているタグまたはその兄弟タグは編集提案できません。");
+            }
         }
 
         if (tag.OwnerId == requesterUserId)
@@ -171,6 +182,15 @@ public partial class TagNameProposalService(
         if (tag is null)
         {
             return Result.Fail<Tag>("対象のタグが見つかりません。");
+        }
+
+        if (_tagLockService != null)
+        {
+            var isLocked = await _tagLockService.IsTagOrSiblingLockedAsync(tag.Id, cancellationToken);
+            if (isLocked)
+            {
+                return Result.Fail<Tag>("ロックされているタグまたはその兄弟タグは編集できません。");
+            }
         }
 
         // 承認時点でも同名の他タグが存在しないか確認（ユニーク制約の衝突回避）

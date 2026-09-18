@@ -84,6 +84,7 @@ public static class BunitTestSetup
             .AddScoped<IUserGroupDataProvider, UserGroupDataProvider>()
             .AddScoped<IAdminDataProvider, AdminDataProvider>()
             .AddScoped<IItemSplitService, ItemSplitService>()
+            .AddScoped<ITagLockService, TagLockService>()
             .AddScoped<ITagNameProposalService, TagNameProposalService>()
             .AddScoped<IItemCardVoteCoordinator, ItemCardVoteCoordinator>()
             .AddScoped<IItemCardSplitCoordinator, ItemCardSplitCoordinator>()
@@ -151,6 +152,19 @@ public static class BunitTestSetup
             .AddScoped(_ => new Mock<IAdminDataProvider>().Object)
             .AddScoped(_ => new Mock<IUserDataProvider>().Object)
             .AddScoped(_ => new Mock<IContentReportService>().Object)
+            .AddScoped(_ =>
+            {
+                var mock = new Mock<ITagLockService>();
+                mock.Setup(s => s.GetAllTagsWithLockStatusAsync(It.IsAny<CancellationToken>()))
+                    .ReturnsAsync([]);
+                mock.Setup(s => s.IsTagOrSiblingLockedAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(false);
+                mock.Setup(s => s.IsChildCreationRestrictedAsync(It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(false);
+                mock.Setup(s => s.GetLockedHierarchyLevelAsync(It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(0);
+                return mock.Object;
+            })
             .AddScoped<IItemCardVoteCoordinator, ItemCardVoteCoordinator>()
             .AddScoped<IItemCardSplitCoordinator, ItemCardSplitCoordinator>()
             .AddScoped<IItemCardTagCoordinator, ItemCardTagCoordinator>();

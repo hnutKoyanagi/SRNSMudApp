@@ -37,12 +37,14 @@ public interface ITagCommandService
 public class TagCommandService(
     IDbContextFactory<ApplicationDbContext> dbFactory,
     ITagEmbeddingService tagEmbeddingService,
+    ITagLockService? tagLockService = null,
     ILogger<TagCommandService>? logger = null) : ITagCommandService
 {
     private readonly IDbContextFactory<ApplicationDbContext> _dbFactory =
         dbFactory ?? throw new ArgumentNullException(nameof(dbFactory));
     private readonly ITagEmbeddingService _tagEmbeddingService =
         tagEmbeddingService ?? throw new ArgumentNullException(nameof(tagEmbeddingService));
+    private readonly ITagLockService? _tagLockService = tagLockService;
     private readonly ILogger<TagCommandService> _logger =
         logger ?? NullLogger<TagCommandService>.Instance;
 
@@ -50,6 +52,15 @@ public class TagCommandService(
         Justification = "ユーザー入力由来の任意の例外を UI 向けメッセージに変換するため広く捕捉する")]
     public async Task CreateTagAsync(Tag newTag)
     {
+        if (_tagLockService != null)
+        {
+            var isRestricted = await _tagLockService.IsChildCreationRestrictedAsync(newTag.ParentTagId);
+            if (isRestricted)
+            {
+                throw new InvalidOperationException("ロックされている階層またはロックされたタグの兄弟は新規作成できません。");
+            }
+        }
+
         try
         {
             ReadOnlyMemory<float> embedding =
@@ -71,6 +82,16 @@ public class TagCommandService(
         Justification = "ユーザー入力由来の任意の例外を UI 向けメッセージに変換するため広く捕捉する")]
     public async Task<bool> UpdateTagAsync(int tagId, string name, string? content, bool autoAcceptIncomingTaggingRequests = false, IEnumerable<int>? allowedUserGroupIds = null)
     {
+        if (_tagLockService != null)
+        {
+            var isLocked = await _tagLockService.IsTagOrSiblingLockedAsync(tagId);
+            if (isLocked)
+            {
+                _logger.LogWarning("タグ ID {TagId} またはその兄弟がロックされているため更新できません。", tagId);
+                return false;
+            }
+        }
+
         bool nameChanged;
         await using (ApplicationDbContext context = await _dbFactory.CreateDbContextAsync())
         {
@@ -159,6 +180,15 @@ public class TagCommandService(
 
     public async Task CreateTagWithoutEmbeddingAsync(Tag newTag)
     {
+        if (_tagLockService != null)
+        {
+            var isRestricted = await _tagLockService.IsChildCreationRestrictedAsync(newTag.ParentTagId);
+            if (isRestricted)
+            {
+                throw new InvalidOperationException("ロックされている階層またはロックされたタグの兄弟は新規作成できません。");
+            }
+        }
+
         await using ApplicationDbContext dbContext = await _dbFactory.CreateDbContextAsync();
         await EnsureParentNodeAsync(dbContext, newTag);
         _ = dbContext.Tags.Add(newTag);

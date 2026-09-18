@@ -159,10 +159,26 @@ public class TagTableViewModelTests
     public void CanEditTag_OnlyForOwner(string userId, bool expected) => Assert.Equal(expected, TagTableViewModel.CanEditTag(CreateTag(ownerId: "user-1"), userId));
 
     [Fact]
+    public void CanEditTag_WhenLocked_CannotEditEvenByOwner()
+    {
+        var tag = CreateTag(ownerId: "user-1");
+        Assert.False(TagTableViewModel.CanEditTag(tag, "user-1", isLocked: true));
+        Assert.True(TagTableViewModel.CanEditTag(tag, "user-1", isLocked: false));
+    }
+
+    [Fact]
     public void CanDeleteTag_SystemTagIsNotDeletable_EvenByOwner()
     {
         Assert.False(TagTableViewModel.CanDeleteTag(CreateTag(isSystem: true), "user-1"));
         Assert.True(TagTableViewModel.CanDeleteTag(CreateTag(isSystem: false), "user-1"));
+    }
+
+    [Fact]
+    public void CanDeleteTag_WhenLocked_CannotDeleteEvenByOwner()
+    {
+        var tag = CreateTag(ownerId: "user-1", isSystem: false);
+        Assert.False(TagTableViewModel.CanDeleteTag(tag, "user-1", isLocked: true));
+        Assert.True(TagTableViewModel.CanDeleteTag(tag, "user-1", isLocked: false));
     }
 
     [Theory]

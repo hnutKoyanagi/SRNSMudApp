@@ -29,6 +29,7 @@ public partial class TagTree : IAsyncDisposable
     [Inject] private IJSRuntime JSRuntime { get; set; } = null!;
     [Inject] private IDialogLauncher DialogLauncher { get; set; } = null!;
     [Inject] private NavigationManager NavigationManager { get; set; } = null!;
+    [Inject] private ITagLockService TagLockService { get; set; } = null!;
 
     [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
 
@@ -195,6 +196,13 @@ public partial class TagTree : IAsyncDisposable
     {
         if (string.IsNullOrEmpty(_currentUserId))
         {
+            return;
+        }
+
+        var isRestricted = await TagLockService.IsChildCreationRestrictedAsync(parentId);
+        if (isRestricted)
+        {
+            _ = Snackbar.Add("選択された親タグ配下（または兄弟）はロックされているため子タグを作成できません。", Severity.Warning);
             return;
         }
 
