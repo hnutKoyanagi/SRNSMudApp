@@ -29,20 +29,9 @@
             <MudSpacer />
             @if (_isAdmin && _tag.Name != Tag.RootTagName)
             {
-                @if (_areAncestorsLocked)
-                {
-                    <MudButton Variant="Variant.Outlined" Color="Color.Success" StartIcon="@Icons.Material.Filled.LockOpen"
-                               OnClick="@UnlockAncestorsAsync" Class="mr-2">
-                        このTagの祖先のロックを解除する
-                    </MudButton>
-                }
-                else
-                {
-                    <MudButton Variant="Variant.Outlined" Color="Color.Warning" StartIcon="@Icons.Material.Filled.Lock"
-                               OnClick="@LockAncestorsAsync" Class="mr-2">
-                        このTagの祖先をロックする
-                    </MudButton>
-                }
+                <MudSwitch T="bool" Value="@_areAncestorsLocked" ValueChanged="OnToggleAncestorsLockAsync"
+                           Label="@(_areAncestorsLocked ? "このTagの祖先をロック中" : "このTagの祖先をロック")" Color="Color.Warning"
+                           Disabled="@_isTogglingAncestorsLock" Class="mr-2" />
             }
             @if (_currentUserId is not null)
             {
@@ -309,6 +298,7 @@
     private bool _isAdmin;
     private bool _areAncestorsLocked;
     private bool _isTagOrSiblingLocked;
+    private bool _isTogglingAncestorsLock;
 
     protected override async Task OnInitializedAsync()
     {
@@ -340,6 +330,31 @@
         _pendingNameProposals = await TagNameProposalService.GetPendingProposalsForTagAsync(TagId);
         _areAncestorsLocked = await TagLockService.AreAncestorsLockedAsync(TagId);
         _isTagOrSiblingLocked = await TagLockService.IsTagOrSiblingLockedAsync(TagId);
+    }
+
+    private async Task OnToggleAncestorsLockAsync(bool shouldLock)
+    {
+        if (_isTogglingAncestorsLock)
+        {
+            return;
+        }
+
+        _isTogglingAncestorsLock = true;
+        try
+        {
+            if (shouldLock)
+            {
+                await LockAncestorsAsync();
+            }
+            else
+            {
+                await UnlockAncestorsAsync();
+            }
+        }
+        finally
+        {
+            _isTogglingAncestorsLock = false;
+        }
     }
 
     private async Task LockAncestorsAsync()
