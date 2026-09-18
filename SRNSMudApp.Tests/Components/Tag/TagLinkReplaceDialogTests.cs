@@ -91,6 +91,12 @@ public sealed class TagLinkReplaceDialogTests : IAsyncLifetime
         // 適用ボタンが有効であること（スキップ選択時は適用可能）
         IElement submitButton = host.FindAll("button").First(b => b.TextContent.Trim() == "適用");
         Assert.False(submitButton.HasAttribute("disabled"));
+
+        // スキップボタンがプライマリ（Filled）であること
+        IRenderedComponent<MudButton> skipButtonComponent = host.FindComponents<MudButton>()
+            .First(b => b.Instance.ChildContent != null && b.Markup.Contains("スキップ"));
+        Assert.Equal(Color.Primary, skipButtonComponent.Instance.Color);
+        Assert.Equal(Variant.Filled, skipButtonComponent.Instance.Variant);
     }
 
     [Fact]

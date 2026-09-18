@@ -76,19 +76,12 @@ public sealed class TagResolutionDialogTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task DefaultSelection_WhenTagNameHasNoDirectMatch_PreloadsDefaultExistingTagSuggestions()
+    public async Task WhenNoCandidate_DefaultsToSkip_AndSubmitDisabled()
     {
-        // Arrange: 検索ワードに直接一致するタグがない場合でも、既存の全タグからフォールバック候補が表示されること
-        var fallbackTag1 = new SRNSMudApp.Data.Tag { Id = 1, Name = "一般タグ1", OwnerId = "system" };
-        var fallbackTag2 = new SRNSMudApp.Data.Tag { Id = 2, Name = "一般タグ2", OwnerId = "system" };
-
+        // Arrange: 検索ワードに直接一致するタグがない場合（候補がない場合）
         _ = _dataProviderMock
             .Setup(d => d.SearchTagsAsync("未知のタグ", default))
             .ReturnsAsync([]);
-
-        _ = _dataProviderMock
-            .Setup(d => d.SearchTagsAsync(null, default))
-            .ReturnsAsync([fallbackTag1, fallbackTag2]);
 
         IRenderedComponent<DialogHost> host = _ctx.Render<DialogHost>();
         IDialogService dialogService = _ctx.Services.GetRequiredService<IDialogService>();
@@ -100,16 +93,34 @@ public sealed class TagResolutionDialogTests : IAsyncLifetime
         };
 
         // Act
-        _ = await dialogService.ShowAsync<TagResolutionDialog>("未登録タグの解決", parameters);
-        host.WaitForState(() => host.Markup.Contains("一般タグ1"));
+        IDialogReference dialogRef = await dialogService.ShowAsync<TagResolutionDialog>("未登録タグの解決", parameters);
+        host.WaitForState(() => host.Markup.Contains("一致する既存タグの候補はありません"));
 
-        // Assert: 既存タグの候補がいくつか表示されていること
-        Assert.Contains("割り当て候補タグ:", host.Markup);
-        Assert.Contains("一般タグ1", host.Markup);
-        Assert.Contains("一般タグ2", host.Markup);
+        // Assert: 候補がない旨のアラートが表示されていること
+        Assert.Contains("一致する既存タグの候補はありません", host.Markup);
+        Assert.DoesNotContain("既存の別タグを割り当てる (推奨)", host.Markup);
 
+        // 決定ボタンは無効であること
         IElement submitButton = host.FindAll("button").First(b => b.TextContent.Trim() == "決定");
-        Assert.False(submitButton.HasAttribute("disabled"));
+        Assert.True(submitButton.HasAttribute("disabled"));
+
+        // スキップボタンがプライマリ（Filled）であること
+        IRenderedComponent<MudButton> skipButtonComponent = host.FindComponents<MudButton>()
+            .First(b => b.Instance.ChildContent != null && b.Markup.Contains("スキップ"));
+        Assert.Equal(Color.Primary, skipButtonComponent.Instance.Color);
+        Assert.Equal(Variant.Filled, skipButtonComponent.Instance.Variant);
+
+        // スキップボタンをクリックしてダイアログが Skip で閉じること
+        IElement skipButton = host.FindAll("button").First(b => b.TextContent.Trim() == "スキップ");
+        await host.InvokeAsync(() => skipButton.Click());
+
+        DialogResult? result = await dialogRef.Result;
+        Assert.NotNull(result);
+        Assert.False(result.Canceled);
+        Assert.IsType<TagResolutionDecision>(result.Data);
+
+        var decision = (TagResolutionDecision)result.Data;
+        Assert.Equal(TagResolutionAction.Skip, decision.Action);
     }
 
     [Fact]

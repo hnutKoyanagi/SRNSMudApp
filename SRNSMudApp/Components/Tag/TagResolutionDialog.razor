@@ -17,7 +17,7 @@
 
             <MudRadioGroup T="TagResolutionAction" @bind-Value="_action">
                 <MudRadio Value="TagResolutionAction.UseExisting" Color="Color.Secondary">
-                    既存の別タグを割り当てる (推奨)
+                    既存の別タグを割り当てる @(_hasCandidate ? "(推奨)" : "")
                 </MudRadio>
                 <MudRadio Value="TagResolutionAction.CreateNew" Color="Color.Primary">
                     新規タグとして作成する
@@ -48,6 +48,12 @@
                                 </MudChip>
                             }
                         </MudChipSet>
+                    }
+                    else
+                    {
+                        <MudAlert Severity="Severity.Normal" Dense="true" Class="mt-2">
+                            「@TagName」に一致する既存タグの候補はありません。上部の検索枠から手動で探すか、スキップ（デフォルト）してください。
+                        </MudAlert>
                     }
                 </MudPaper>
             }
@@ -113,10 +119,12 @@
         </MudStack>
     </DialogContent>
     <DialogActions>
-        <MudButton Color="Color.Default" Variant="Variant.Text" OnClick="Skip">
+        <MudButton Color="@(_hasCandidate ? Color.Default : Color.Primary)"
+                   Variant="@(_hasCandidate ? Variant.Text : Variant.Filled)" OnClick="Skip">
             スキップ
         </MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit" Disabled="@(!CanSubmit)">
+        <MudButton Color="@(_hasCandidate ? Color.Primary : Color.Default)"
+                   Variant="@(_hasCandidate ? Variant.Filled : Variant.Outlined)" OnClick="Submit" Disabled="@(!CanSubmit)">
             決定
         </MudButton>
     </DialogActions>
@@ -139,6 +147,7 @@
     private ITaggingImportDataProvider DataProvider { get; set; } = null!;
 
     private TagResolutionAction _action = TagResolutionAction.UseExisting;
+    private bool _hasCandidate = true;
     private bool _useSuggestedParent = true;
     private Tag? _selectedCustomParentTag;
     private Tag? _selectedExistingTag;
@@ -147,7 +156,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // 1. 既存タグの候補（TagNameで検索し、不足分は null (全タグ上位) で補充して常に候補を表示）
+        // 1. 既存タグの候補（TagNameで検索）
         var suggestions = new List<Tag>();
         if (!string.IsNullOrWhiteSpace(TagName))
         {
@@ -158,26 +167,20 @@
             }
         }
 
-        if (suggestions.Count < 5)
+        _hasCandidate = suggestions.Count > 0;
+
+        if (_hasCandidate)
         {
-            var defaultTags = await DataProvider.SearchTagsAsync(null);
-            if (defaultTags != null)
+            _initialSuggestions = suggestions.Take(8).ToList();
+            if (_selectedExistingTag == null && _initialSuggestions.Count > 0)
             {
-                foreach (var tag in defaultTags)
-                {
-                    if (suggestions.All(s => s.Id != tag.Id))
-                    {
-                        suggestions.Add(tag);
-                        if (suggestions.Count >= 8) break;
-                    }
-                }
+                _selectedExistingTag = _initialSuggestions[0];
             }
         }
-
-        _initialSuggestions = suggestions.Take(8).ToList();
-        if (_selectedExistingTag == null && _initialSuggestions.Count > 0)
+        else
         {
-            _selectedExistingTag = _initialSuggestions[0];
+            _initialSuggestions = [];
+            _selectedExistingTag = null;
         }
 
         // 2. 親タグ候補（1階層目以降）も同様に検索・補充
