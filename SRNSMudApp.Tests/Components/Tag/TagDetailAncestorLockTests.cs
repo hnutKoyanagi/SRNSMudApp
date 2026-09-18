@@ -57,13 +57,39 @@ public sealed class TagDetailAncestorLockTests : IAsyncLifetime
     }
 
     [Fact]
-    public void WhenAdminViewsTagDetail_AndAncestorsNotLocked_RendersUnlockToggleSwitch()
+    public void WhenNonAdminViewsTagDetail_LockSwitchesAreNotRendered()
     {
         var tag = new TagEntity
         {
             Id = 10,
             Name = "子タグ",
             OwnerId = "tag-owner",
+            CreatedDate = DateTime.UtcNow,
+            UpdatedDate = DateTime.UtcNow
+        };
+
+        var pageData = new TagDetailPageData(tag, false, [], [], [], [], []);
+        _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(10, "regular-user")).ReturnsAsync(pageData);
+        _tagLockServiceMock.Setup(s => s.AreAncestorsLockedAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        _tagLockServiceMock.Setup(s => s.IsTagOrSiblingLockedAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(false);
+
+        IRenderedComponent<TagDetail> cut = RenderTagDetail(10, "regular-user");
+
+        cut.WaitForState(() => cut.Markup.Contains("子タグ"));
+
+        Assert.DoesNotContain("このTagをロック", cut.Markup);
+        Assert.DoesNotContain("このTagの祖先をロック", cut.Markup);
+    }
+
+    [Fact]
+    public void WhenAdminViewsTagDetail_AndNotLocked_RendersUnlockToggleSwitches()
+    {
+        var tag = new TagEntity
+        {
+            Id = 10,
+            Name = "子タグ",
+            OwnerId = "tag-owner",
+            IsLocked = false,
             CreatedDate = DateTime.UtcNow,
             UpdatedDate = DateTime.UtcNow
         };
@@ -77,20 +103,19 @@ public sealed class TagDetailAncestorLockTests : IAsyncLifetime
 
         cut.WaitForState(() => cut.Markup.Contains("子タグ"));
 
+        Assert.Contains("このTagをロック", cut.Markup);
         Assert.Contains("このTagの祖先をロック", cut.Markup);
-        var switchInput = cut.Find("input[type='checkbox']");
-        Assert.NotNull(switchInput);
-        Assert.False(switchInput.HasAttribute("checked"));
     }
 
     [Fact]
-    public void WhenAdminViewsTagDetail_AndAncestorsLocked_RendersLockedToggleSwitch()
+    public void WhenAdminViewsTagDetail_AndLocked_RendersLockedToggleSwitches()
     {
         var tag = new TagEntity
         {
             Id = 10,
             Name = "子タグ",
             OwnerId = "tag-owner",
+            IsLocked = true,
             CreatedDate = DateTime.UtcNow,
             UpdatedDate = DateTime.UtcNow
         };
@@ -104,14 +129,42 @@ public sealed class TagDetailAncestorLockTests : IAsyncLifetime
 
         cut.WaitForState(() => cut.Markup.Contains("子タグ"));
 
+        Assert.Contains("このTagをロック中", cut.Markup);
         Assert.Contains("このTagの祖先をロック中", cut.Markup);
-        var switchInput = cut.Find("input[type='checkbox']");
-        Assert.NotNull(switchInput);
-        Assert.True(switchInput.HasAttribute("checked"));
     }
 
     [Fact]
-    public async Task WhenAdminTogglesSwitchOn_LockAncestorsIsCalled()
+    public async Task WhenAdminTogglesThisTagLock_ToggleTagLockIsCalled()
+    {
+        var tag = new TagEntity
+        {
+            Id = 10,
+            Name = "子タグ",
+            OwnerId = "tag-owner",
+            IsLocked = false,
+            CreatedDate = DateTime.UtcNow,
+            UpdatedDate = DateTime.UtcNow
+        };
+
+        var pageData = new TagDetailPageData(tag, false, [], [], [], [], []);
+        _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(10, "admin-user")).ReturnsAsync(pageData);
+        _tagLockServiceMock.Setup(s => s.AreAncestorsLockedAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        _tagLockServiceMock.Setup(s => s.IsTagOrSiblingLockedAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        _tagLockServiceMock.Setup(s => s.ToggleTagLockAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+
+        IRenderedComponent<TagDetail> cut = RenderTagDetail(10, "admin-user", "Admin");
+        cut.WaitForState(() => cut.Markup.Contains("子タグ"));
+
+        // First switch is "このTagをロック"
+        var switches = cut.FindAll("input[type='checkbox']");
+        var tagLockSwitch = switches[0];
+        await cut.InvokeAsync(() => tagLockSwitch.Change(true));
+
+        _tagLockServiceMock.Verify(s => s.ToggleTagLockAsync(10, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task WhenAdminTogglesAncestorsLock_LockAncestorsIsCalled()
     {
         var tag = new TagEntity
         {
@@ -130,36 +183,12 @@ public sealed class TagDetailAncestorLockTests : IAsyncLifetime
         IRenderedComponent<TagDetail> cut = RenderTagDetail(10, "admin-user", "Admin");
         cut.WaitForState(() => cut.Markup.Contains("子タグ"));
 
-        var switchInput = cut.Find("input[type='checkbox']");
-        await cut.InvokeAsync(() => switchInput.Change(true));
+        // Second switch is "このTagの祖先をロック"
+        var switches = cut.FindAll("input[type='checkbox']");
+        var ancestorLockSwitch = switches[1];
+        await cut.InvokeAsync(() => ancestorLockSwitch.Change(true));
 
         _tagLockServiceMock.Verify(s => s.LockAncestorsAsync(10, It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    [Fact]
-    public async Task WhenAdminTogglesSwitchOff_UnlockAncestorsIsCalled()
-    {
-        var tag = new TagEntity
-        {
-            Id = 10,
-            Name = "子タグ",
-            OwnerId = "tag-owner",
-            CreatedDate = DateTime.UtcNow,
-            UpdatedDate = DateTime.UtcNow
-        };
-
-        var pageData = new TagDetailPageData(tag, false, [], [], [], [], []);
-        _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(10, "admin-user")).ReturnsAsync(pageData);
-        _tagLockServiceMock.Setup(s => s.AreAncestorsLockedAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
-        _tagLockServiceMock.Setup(s => s.IsTagOrSiblingLockedAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(false);
-
-        IRenderedComponent<TagDetail> cut = RenderTagDetail(10, "admin-user", "Admin");
-        cut.WaitForState(() => cut.Markup.Contains("子タグ"));
-
-        var switchInput = cut.Find("input[type='checkbox']");
-        await cut.InvokeAsync(() => switchInput.Change(false));
-
-        _tagLockServiceMock.Verify(s => s.UnlockAncestorsAsync(10, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     public async Task DisposeAsync()

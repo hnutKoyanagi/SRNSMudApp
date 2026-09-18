@@ -29,6 +29,9 @@
             <MudSpacer />
             @if (_isAdmin && _tag.Name != Tag.RootTagName)
             {
+                <MudSwitch T="bool" Value="@_tag.IsLocked" ValueChanged="OnToggleThisTagLockAsync"
+                           Label="@(_tag.IsLocked ? "このTagをロック中" : "このTagをロック")" Color="Color.Error" Disabled="@_isTogglingTagLock"
+                           Class="mr-2" />
                 <MudSwitch T="bool" Value="@_areAncestorsLocked" ValueChanged="OnToggleAncestorsLockAsync"
                            Label="@(_areAncestorsLocked ? "このTagの祖先をロック中" : "このTagの祖先をロック")" Color="Color.Warning"
                            Disabled="@_isTogglingAncestorsLock" Class="mr-2" />
@@ -299,6 +302,7 @@
     private bool _areAncestorsLocked;
     private bool _isTagOrSiblingLocked;
     private bool _isTogglingAncestorsLock;
+    private bool _isTogglingTagLock;
 
     protected override async Task OnInitializedAsync()
     {
@@ -332,9 +336,33 @@
         _isTagOrSiblingLocked = await TagLockService.IsTagOrSiblingLockedAsync(TagId);
     }
 
+    private async Task OnToggleThisTagLockAsync(bool shouldLock)
+    {
+        if (!_isAdmin || _isTogglingTagLock || _tag is null)
+        {
+            return;
+        }
+
+        _isTogglingTagLock = true;
+        try
+        {
+            bool isLocked = await TagLockService.ToggleTagLockAsync(TagId);
+            Snackbar.Add(isLocked ? "このタグを個別ロックしました。" : "このタグの個別ロックを解除しました。", Severity.Success);
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"タグのロック操作に失敗しました: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isTogglingTagLock = false;
+        }
+    }
+
     private async Task OnToggleAncestorsLockAsync(bool shouldLock)
     {
-        if (_isTogglingAncestorsLock)
+        if (!_isAdmin || _isTogglingAncestorsLock)
         {
             return;
         }
@@ -359,6 +387,11 @@
 
     private async Task LockAncestorsAsync()
     {
+        if (!_isAdmin)
+        {
+            return;
+        }
+
         try
         {
             await TagLockService.LockAncestorsAsync(TagId);
@@ -373,6 +406,11 @@
 
     private async Task UnlockAncestorsAsync()
     {
+        if (!_isAdmin)
+        {
+            return;
+        }
+
         try
         {
             await TagLockService.UnlockAncestorsAsync(TagId);
