@@ -99,6 +99,7 @@ Components/
   ItemListFocusTests.cs
   ItemListQueryStateTests.cs
   ItemListTagSearchTests.cs
+  LinkConversionPanelTests.cs
   QuotedItemListDialogTests.cs
   TagSearchViewModelTests.cs
   TagSuggestionPanelTests.cs
@@ -186,6 +187,7 @@ Services/
  ContentReportServiceTests.cs
  ContractExecutorStrategyTests.cs
  ImportTagDataProviderTests.cs
+ InternalLinkConversionServiceTests.cs
  ItemCardDataProviderTests.cs
  ItemCardSplitCoordinatorTests.cs
  ItemCardTagCoordinatorTests.cs
@@ -201,6 +203,7 @@ Services/
  NotificationServiceTests.cs
  ReportTargetHandlerTests.cs
  ResolveContentReportHandlerTests.cs
+ StringSimilarityTests.cs
  SystemTagEnsurerTests.cs
  TagContentProposalServiceTests.cs
  TagCqsServiceTests.cs

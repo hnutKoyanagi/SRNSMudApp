@@ -20,6 +20,9 @@
                 if (node.hasAttribute('data-url')) {
                     return node.getAttribute('data-url');
                 }
+                if (node.hasAttribute('data-extract')) {
+                    return node.getAttribute('data-extract');
+                }
                 if (node.tagName === 'BR') {
                     return '\n';
                 }

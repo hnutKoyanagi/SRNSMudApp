@@ -34,4 +34,14 @@ public class ApplicationUser : IdentityUser
     ///     タグ提案の候補推薦類似度閾値（null の場合はデフォルト 0.40f）。
     /// </summary>
     public float? TagSuggestionCandidateThreshold { get; set; }
+
+    /// <summary>
+    ///     テキスト→内部リンク自動変換が有効かどうか。
+    /// </summary>
+    public bool IsLinkConversionEnabled { get; set; }
+
+    /// <summary>
+    ///     内部リンク自動変換の類似度閾値（null の場合はデフォルト 0.85f）。
+    /// </summary>
+    public float? LinkConversionThreshold { get; set; }
 }

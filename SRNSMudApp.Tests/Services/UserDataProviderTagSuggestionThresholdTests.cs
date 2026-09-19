@@ -58,4 +58,3 @@ public class UserDataProviderTagSuggestionThresholdTests : IAsyncLifetime
             => Task.FromResult(new ApplicationDbContext(options));
     }
 }
-

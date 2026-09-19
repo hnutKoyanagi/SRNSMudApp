@@ -162,6 +162,15 @@ public static class BunitTestSetup
             .AddScoped(_ => new Mock<IContentReportService>().Object)
             .AddScoped(_ =>
             {
+                var mock = new Mock<IInternalLinkConversionService>();
+                mock.Setup(s => s.DetectLinkCandidatesAsync(It.IsAny<string>(), It.IsAny<float>(), It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(new InternalLinkConversionResult([], []));
+                mock.Setup(s => s.ApplyReplacements(It.IsAny<string>(), It.IsAny<IReadOnlyList<LinkConversionCandidate>>()))
+                    .Returns((string content, IReadOnlyList<LinkConversionCandidate> _) => content);
+                return mock.Object;
+            })
+            .AddScoped(_ =>
+            {
                 var mock = new Mock<ITagLockService>();
                 mock.Setup(s => s.GetAllTagsWithLockStatusAsync(It.IsAny<CancellationToken>()))
                     .ReturnsAsync([]);

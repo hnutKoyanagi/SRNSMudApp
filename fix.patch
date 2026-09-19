@@ -1,0 +1,16 @@
+--- SRNSMudApp/wwwroot/js/tributeInterop.js
++++ SRNSMudApp/wwwroot/js/tributeInterop.js
+@@ -198,8 +198,10 @@
+             this.setCaretCharacterOffsetWithin(element, caretOffset);
+         }
+ 
+-        // Trigger sync
+-        var event = new Event('tribute-replaced', { bubbles: true });
+-        element.dispatchEvent(event);
++        if (hasChanges) {
++            // Trigger sync only if we actually modified the DOM
++            var event = new Event('tribute-replaced', { bubbles: true });
++            element.dispatchEvent(event);
++        }
+     },
+ 

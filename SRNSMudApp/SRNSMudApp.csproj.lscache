@@ -87,6 +87,7 @@ Components/
   ItemList.razor.cs
   ItemListModels.cs
   ItemListQueryState.cs
+  LinkConversionPanel.razor.cs
   QuotedItemListDialog.razor.cs
   SortEntry.cs
   TagFilterQueryCodec.cs
@@ -253,6 +254,8 @@ Migrations/
  20260918222720_AddTagLocking.Designer.cs
  20260919133000_AddTagSuggestionThresholdsToUser.cs
  20260919133000_AddTagSuggestionThresholdsToUser.Designer.cs
+ 20260919133144_AddLinkConversionSettings.cs
+ 20260919133144_AddLinkConversionSettings.Designer.cs
  ApplicationDbContextModelSnapshot.cs
 Models/
  Unions/
@@ -280,6 +283,8 @@ Models/
   TimelineTargetConverter.cs
  ContractTypes.cs
  ExternalLoginRequest.cs
+ InternalLinkConversionResult.cs
+ LinkConversionCandidate.cs
  LinkPreviewData.cs
  NotificationDto.cs
  NotificationRawData.cs
@@ -294,6 +299,7 @@ Models/
  TagSuggestion.cs
 obj/Debug/net11.0/
  .NETCoreApp,Version=v11.0.AssemblyAttributes.cs
+ EFCoreSqlServerHierarchyId.cs
  SRNSMudApp.AssemblyInfo.cs
  SRNSMudApp.GlobalUsings.g.cs
 Resources/ErrorMessages.cs
@@ -335,6 +341,7 @@ Services/
  ContractDataProvider.cs
  ContractMessages.cs
  HomeDataProvider.cs
+ IInternalLinkConversionService.cs
  IItemCardSplitCoordinator.cs
  IItemCardTagCoordinator.cs
  IItemCardVoteCoordinator.cs
@@ -347,6 +354,7 @@ Services/
  ILinkPreviewService.cs
  ImportTagDataProvider.cs
  INotificationService.cs
+ InternalLinkConversionService.cs
  ITagContentProposalService.cs
  ITagDiagramDataProvider.cs
  ITagEdgeService.cs
@@ -377,6 +385,7 @@ Services/
  LinkPreviewService.cs
  NotificationsDataProvider.cs
  NotificationService.cs
+ StringSimilarity.cs
  SystemTagEnsurer.cs
  TagCardDataProvider.cs
  TagCommandService.cs
@@ -572,6 +581,7 @@ Components/
   ItemEditDialog.razor
   ItemImport.razor
   ItemList.razor
+  LinkConversionPanel.razor
   QuotedItemListDialog.razor
   QuoteItemDialog.razor
   SortConditionEditor.razor

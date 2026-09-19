@@ -1,0 +1,11 @@
+--- SRNSMudApp.Tests/Services/InternalLinkConversionServiceTests.cs
++++ SRNSMudApp.Tests/Services/InternalLinkConversionServiceTests.cs
+@@ -126,7 +126,7 @@
+         var result = await service.DetectLinkCandidatesAsync(content, 0.85f);
+ 
+         // Assert: 短いタグ名は候補にならない
+-        Assert.True(result.IsEmpty);
++        Assert.Empty(result.AutoReplaceCandidates.Concat(result.ManualCandidates));
+     }
+ 
+     [Fact]

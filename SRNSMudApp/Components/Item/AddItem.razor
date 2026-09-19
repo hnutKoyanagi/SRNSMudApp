@@ -19,6 +19,7 @@
 @using SRNSMudApp.Models
 @inject IItemReplyService ItemReplyService
 @inject ITagSuggestionService TagSuggestionService
+@inject IInternalLinkConversionService LinkConversionService
 
 <MudStack Class="w-100 pb-2">
     @if (_newItem == null)
@@ -59,6 +60,8 @@
 
                     <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="4" Class="mt-1">
                         <MudSwitch @bind-Value="_isPrivate" Color="Color.Primary" Label="プライベートモード" Size="Size.Small" />
+                        <MudSwitch @bind-Value="_isLinkConversionEnabled" Color="Color.Info" Label="テキスト→内部リンク変換"
+                                   Size="Size.Small" data-testid="link-conversion-toggle" />
 
                         @if (_isPrivate)
                         {
@@ -97,10 +100,18 @@
                     @* コンテンツに基づく関連タグ提案パネル *@
                     <TagSuggestionPanel Suggestions="@_suggestedTags" IsLoading="@_isLoadingSuggestions"
                                         ExcludedTagIds="@(InitialTags?.Select(t => t.Id).ToList() ?? [])"
-                                        InitialStrongThreshold="@_userStrongThreshold"
-                                        InitialCandidateThreshold="@_userCandidateThreshold"
+                                        InitialStrongThreshold="@_userStrongThreshold" InitialCandidateThreshold="@_userCandidateThreshold"
                                         OnConfirmedTagIdsChanged="HandleConfirmedSuggestedTagIdsChanged"
                                         OnThresholdsChanged="HandleThresholdsChanged" />
+
+                    @* テキスト→内部リンク変換候補パネル *@
+                    @if (_isLinkConversionEnabled)
+                    {
+                        <LinkConversionPanel AutoReplaceCandidates="@_linkAutoReplaceCandidates"
+                                             ManualCandidates="@_linkManualCandidates" IsLoading="@_isLoadingLinkCandidates"
+                                             AutoReplaceThreshold="@_linkConversionThreshold"
+                                             OnThresholdChanged="HandleLinkConversionThresholdChanged" />
+                    }
 
                     @* 外部URLのプレビューカードのみ別セクションに表示 *@
                     @if (externalUrls.Count > 0)
@@ -156,6 +167,15 @@
     private float? _userStrongThreshold;
     private float? _userCandidateThreshold;
 
+    // 内部リンク変換関連フィールド
+    private bool _isLinkConversionEnabled;
+    private float _linkConversionThreshold = LinkConversionCandidate.DefaultAutoReplaceThreshold;
+    private IReadOnlyList<LinkConversionCandidate> _linkAutoReplaceCandidates = [];
+    private IReadOnlyList<LinkConversionCandidate> _linkManualCandidates = [];
+    private IReadOnlyList<LinkConversionCandidate> _confirmedLinkCandidates = [];
+    private bool _isLoadingLinkCandidates;
+    private CancellationTokenSource? _linkConversionCts;
+
     protected override async Task OnInitializedAsync()
     {
         // フォーム送信時（POST）の再読み込みで、入力済みデータを上書きしないようにガードする
@@ -194,6 +214,13 @@
                     {
                         _userCandidateThreshold = appUser.TagSuggestionCandidateThreshold.Value;
                         _currentCandidateThreshold = _userCandidateThreshold.Value;
+                    }
+
+                    // 内部リンク変換のユーザー設定を読み込む
+                    _isLinkConversionEnabled = appUser.IsLinkConversionEnabled;
+                    if (appUser.LinkConversionThreshold.HasValue)
+                    {
+                        _linkConversionThreshold = appUser.LinkConversionThreshold.Value;
                     }
                 }
             }
@@ -245,6 +272,9 @@
 
             _suggestedTags = [];
             _confirmedSuggestedTagIds.Clear();
+            _linkAutoReplaceCandidates = [];
+            _linkManualCandidates = [];
+            _confirmedLinkCandidates = [];
 
             try
             {
@@ -290,6 +320,12 @@
         _newItem!.Content = value;
         await UpdateTargetCandidatesAsync();
         _ = TriggerTagSuggestionsAsync(value);
+
+        // 内部リンク変換が有効な場合、候補検出もトリガーする
+        if (_isLinkConversionEnabled)
+        {
+            _ = TriggerLinkCandidateDetectionAsync(value);
+        }
     }
 
     private void HandleConfirmedSuggestedTagIdsChanged(IReadOnlyCollection<int> tagIds)
@@ -365,7 +401,91 @@
         }
     }
 
-    
+    /// <summary>
+    /// テキスト中の内部リンク候補を検出する（デバウンス 500ms）。
+    /// タグ提案と同様のキャンセル制御パターン。
+    /// </summary>
+    private async Task TriggerLinkCandidateDetectionAsync(string content)
+    {
+        if (_linkConversionCts != null)
+        {
+            await _linkConversionCts.CancelAsync();
+            _linkConversionCts.Dispose();
+            _linkConversionCts = null;
+        }
+
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            _linkAutoReplaceCandidates = [];
+            _linkManualCandidates = [];
+            _confirmedLinkCandidates = [];
+            _isLoadingLinkCandidates = false;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        _linkConversionCts = new CancellationTokenSource();
+        var token = _linkConversionCts.Token;
+
+        try
+        {
+            _isLoadingLinkCandidates = true;
+            await InvokeAsync(StateHasChanged);
+
+            // デバウンス 500ms（タグ提案より長めに設定し、DB負荷を抑える）
+            await Task.Delay(500, token);
+
+            var result = await LinkConversionService.DetectLinkCandidatesAsync(
+                content, _linkConversionThreshold, token);
+
+            if (!token.IsCancellationRequested)
+            {
+                var allCandidates = result.AutoReplaceCandidates.Concat(result.ManualCandidates).ToList();
+                await JS.InvokeVoidAsync("tributeInterop.applyLinkCandidates", "add-item-textarea", allCandidates);
+                
+                // パネルの表示状態のために保存（UIで設定パネルを出すなど）
+                _linkAutoReplaceCandidates = result.AutoReplaceCandidates;
+                _linkManualCandidates = result.ManualCandidates;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // キャンセルは正常動作
+        }
+        finally
+        {
+            if (!token.IsCancellationRequested)
+            {
+                _isLoadingLinkCandidates = false;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 内部リンク変換の閾値変更時のハンドラー。
+    /// ユーザー設定を永続化し、候補を再検出する。
+    /// </summary>
+    private async Task HandleLinkConversionThresholdChanged(float threshold)
+    {
+        _linkConversionThreshold = threshold;
+
+        var authState = await AuthenticationStateTask;
+        var userId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!string.IsNullOrEmpty(userId))
+        {
+            await UserDataProvider.UpdateLinkConversionSettingsAsync(userId, _isLinkConversionEnabled, threshold);
+        }
+
+        if (!string.IsNullOrWhiteSpace(_newItem?.Content))
+        {
+            await TriggerLinkCandidateDetectionAsync(_newItem.Content);
+        }
+    }
+
+
+
+
     private void HandleTargetToggled(string userId, bool isSelected)
     {
         _hasManuallyModifiedTargets = true;
@@ -509,6 +629,11 @@
         if (_suggestionCts != null)
         {
             try { await _suggestionCts.CancelAsync(); _suggestionCts.Dispose(); } catch { }
+        }
+
+        if (_linkConversionCts != null)
+        {
+            try { await _linkConversionCts.CancelAsync(); _linkConversionCts.Dispose(); } catch { }
         }
 
         if (_objRef != null)

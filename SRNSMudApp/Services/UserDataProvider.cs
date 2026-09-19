@@ -76,6 +76,9 @@ public interface IUserDataProvider
 
     /// <summary>ユーザーのタグ提案類似度閾値設定を更新する。</summary>
     Task UpdateTagSuggestionThresholdsAsync(string userId, float strongThreshold, float candidateThreshold);
+
+    /// <summary>ユーザーの内部リンク自動変換設定を更新する。</summary>
+    Task UpdateLinkConversionSettingsAsync(string userId, bool isEnabled, float threshold);
 }
 
 public class UserDataProvider(
@@ -332,6 +335,18 @@ public class UserDataProvider(
         {
             user.TagSuggestionStrongThreshold = strongThreshold;
             user.TagSuggestionCandidateThreshold = candidateThreshold;
+            _ = await dbContext.SaveChangesAsync();
+        }
+    }
+
+    public async Task UpdateLinkConversionSettingsAsync(string userId, bool isEnabled, float threshold)
+    {
+        await using ApplicationDbContext dbContext = await _dbFactory.CreateDbContextAsync();
+        ApplicationUser? user = await dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        if (user is not null)
+        {
+            user.IsLinkConversionEnabled = isEnabled;
+            user.LinkConversionThreshold = threshold;
             _ = await dbContext.SaveChangesAsync();
         }
     }

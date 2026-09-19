@@ -203,11 +203,9 @@ window.tributeInterop = {
             this.setCaretCharacterOffsetWithin(element, caretOffset);
         }
 
-        if (hasChanges) {
-            // Trigger sync only if we actually modified the DOM
-            var event = new Event('tribute-replaced', { bubbles: true });
-            element.dispatchEvent(event);
-        }
+        // Trigger sync
+        var event = new Event('tribute-replaced', { bubbles: true });
+        element.dispatchEvent(event);
     },
 
     init: function (elementId, dotNetHelper) {

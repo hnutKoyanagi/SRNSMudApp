@@ -1,0 +1,50 @@
+@namespace SRNSMudApp.Components.Item
+@using SRNSMudApp.Models
+
+@if (IsLoading || HasAnyCandidates || _showSettings)
+{
+    <MudPaper Class="link-conversion-panel pa-3 my-2" Elevation="0" Outlined="true" data-testid="link-conversion-panel">
+        <MudStack Spacing="2">
+            @* ヘッダー部 *@
+            <div class="d-flex align-center justify-space-between">
+                <div class="d-flex align-center gap-2">
+                    <MudIcon Icon="@Icons.Material.Filled.Link" Size="Size.Small" Color="Color.Info" />
+                    <MudText Typo="Typo.subtitle2" Class="fw-bold">内部リンク変換</MudText>
+                    @if (IsLoading)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Info" />
+                    }
+                </div>
+                <div class="d-flex align-center">
+                    <MudTooltip Text="自動置換の類似度閾値を調整">
+                        <MudIconButton Icon="@Icons.Material.Filled.Tune" Size="Size.Small"
+                                       Color="@(_showSettings ? Color.Primary : Color.Default)" OnClick="ToggleSettings"
+                                       data-testid="toggle-link-conversion-settings-button" />
+                    </MudTooltip>
+                </div>
+            </div>
+
+            @* 閾値調整設定エリア *@
+            <MudPaper Class="pa-2 rounded bg-transparent" Elevation="0">
+                <MudStack Spacing="1">
+                    <div class="d-flex align-center justify-space-between">
+                        <MudText Typo="Typo.caption" Class="fw-bold">自動置換の類似度閾値（ユーザーごとに保存）</MudText>
+                        <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="ResetThreshold" Color="Color.Secondary"
+                                   data-testid="reset-link-conversion-threshold-button">
+                            デフォルトに戻す
+                        </MudButton>
+                    </div>
+                    <MudText Typo="Typo.caption">
+                        自動置換の閾値: <strong>@($"{AutoReplaceThreshold:P0}")</strong>
+                    </MudText>
+                    <MudSlider T="float" Value="@AutoReplaceThreshold" ValueChanged="@OnThresholdSliderChanged" Min="0.50f"
+                               Max="1.0f" Step="0.05f" Color="Color.Info" data-testid="link-conversion-threshold-slider" />
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        値を高くすると完全一致に近い候補のみ自動置換され、低くするとより多くの候補が自動置換されます。テキストエリア内で候補をクリックしても確定できます。
+                    </MudText>
+                </MudStack>
+            </MudPaper>
+        </MudStack>
+    </MudPaper>
+}
+
