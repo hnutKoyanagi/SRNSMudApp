@@ -1,0 +1,149 @@
+version=2.2
+
+# This file caches language service data to improve the performance of C# Dev Kit.
+# It is not intended for manual editing. It can safely be deleted and will be
+# regenerated automatically. For more information, see https://aka.ms/lscache
+#
+# To control where cache files are stored, use the following VS Code setting:
+#   "dotnet.projectsystem.cacheInProjectFolder": true
+
+[project]
+project=SRNSMudApp.Client.csproj
+language=C#
+primary
+lastDtbSucceeded
+
+[properties]
+AssemblyName=SRNSMudApp.Client
+BaseIntermediateOutputPath=<PATH>obj/
+BaseOutputPath=bin/
+MaxSupportedLangVersion=15.0
+OutputType=exe
+ProjectAssetsFile=<PATH>obj/project.assets.json
+RootNamespace=SRNSMudApp.Client
+TargetFramework=net11.0
+TargetFrameworkIdentifier=.NETCoreApp
+TargetFrameworkVersion=v11.0
+TargetPath=<PATH>bin/Debug/net11.0/SRNSMudApp.Client.dll
+TargetRefPath=<PATH>obj/Debug/net11.0/ref/SRNSMudApp.Client.dll
+TemporaryDependencyNodeTargetIdentifier=net11.0
+
+[commandLineArguments]
+/noconfig
+/unsafe-
+/checked-
+/nowarn:1701,1702,CS1591,IL2121,1701,1702,8002
+/fullpaths
+/nostdlib+
+/errorreport:prompt
+/warn:11
+/doc:obj/Debug/net11.0/SRNSMudApp.Client.xml
+/define:TRACE;DEBUG;NET;NET11_0;NETCOREAPP;NET5_0_OR_GREATER;NET6_0_OR_GREATER;NET7_0_OR_GREATER;NET8_0_OR_GREATER;NET9_0_OR_GREATER;NET10_0_OR_GREATER;NET11_0_OR_GREATER;NETCOREAPP1_0_OR_GREATER;NETCOREAPP1_1_OR_GREATER;NETCOREAPP2_0_OR_GREATER;NETCOREAPP2_1_OR_GREATER;NETCOREAPP2_2_OR_GREATER;NETCOREAPP3_0_OR_GREATER;NETCOREAPP3_1_OR_GREATER
+/highentropyva+
+/nullable:enable
+/features:"InterceptorsNamespaces=;Microsoft.AspNetCore.Http.Generated;Microsoft.Extensions.Validation.Generated"
+/debug+
+/debug:portable
+/filealign:512
+/optimize-
+/out:obj/Debug/net11.0/SRNSMudApp.Client.dll
+/refout:obj/Debug/net11.0/refint/SRNSMudApp.Client.dll
+/target:exe
+/warnaserror-
+/utf8output
+/deterministic+
+/langversion:15.0
+/features:use-roslyn-tokenizer=true
+/warnaserror+:NU1605,SYSLIB0011
+
+[sourceFiles]
+obj/Debug/net11.0/
+ .NETCoreApp,Version=v11.0.AssemblyAttributes.cs
+ SRNSMudApp.Client.AssemblyInfo.cs
+ SRNSMudApp.Client.GlobalUsings.g.cs
+Program.cs
+
+[frameworkPacks]
+Microsoft.NETCore.App.Ref
+
+[metadataReferences]
+<NUGET>/
+ extensions.mudblazor.staticinput/4.1.0/lib/net10.0/MudBlazor.StaticInput.dll
+ microsoft.aspnetcore.authorization/11.0.0-rc.1.26425.128/lib/net11.0/Microsoft.AspNetCore.Authorization.dll
+ microsoft.aspnetcore.components.authorization/11.0.0-rc.1.26425.128/lib/net11.0/Microsoft.AspNetCore.Components.Authorization.dll
+ microsoft.aspnetcore.components.forms/11.0.0-rc.1.26425.128/lib/net11.0/Microsoft.AspNetCore.Components.Forms.dll
+ microsoft.aspnetcore.components.web/11.0.0-rc.1.26425.128/lib/net11.0/Microsoft.AspNetCore.Components.Web.dll
+ microsoft.aspnetcore.components.webassembly.authentication/11.0.0-rc.1.26425.128/lib/net11.0/Microsoft.AspNetCore.Components.WebAssembly.Authentication.dll
+ microsoft.aspnetcore.components.webassembly/11.0.0-rc.1.26425.128/lib/net11.0/Microsoft.AspNetCore.Components.WebAssembly.dll
+ microsoft.aspnetcore.components/11.0.0-rc.1.26425.128/lib/net11.0/Microsoft.AspNetCore.Components.dll
+ microsoft.aspnetcore.http.abstractions/2.3.9/lib/netstandard2.0/Microsoft.AspNetCore.Http.Abstractions.dll
+ microsoft.aspnetcore.http.features/2.3.0/lib/netstandard2.0/Microsoft.AspNetCore.Http.Features.dll
+ microsoft.aspnetcore.metadata/11.0.0-rc.1.26425.128/lib/net11.0/Microsoft.AspNetCore.Metadata.dll
+ microsoft.extensions.configuration.binder/11.0.0-rc.1.26425.128/lib/net11.0/Microsoft.Extensions.Configuration.Binder.dll
+ microsoft.extensions.configuration.environmentvariables/11.0.0-rc.1.26425.128/lib/net11.0/Microsoft.Extensions.Configuration.EnvironmentVariables.dll
+ microsoft.extensions.configuration.fileextensions/11.0.0-rc.1.26425.128/lib/net11.0/Microsoft.Extensions.Configuration.FileExtensions.dll
+ microsoft.extensions.configuration.json/11.0.0-rc.1.26425.128/lib/net11.0/Microsoft.Extensions.Configuration.Json.dll
+ microsoft.extensions.configuration/11.0.0-rc.1.26425.128/lib/net11.0/Microsoft.Extensions.Configuration.dll
+ microsoft.extensions.dependencyinjection/11.0.0-rc.1.26425.128/lib/net11.0/Microsoft.Extensions.DependencyInjection.dll
+ microsoft.extensions.diagnostics/11.0.0-rc.1.26425.128/lib/net11.0/Microsoft.Extensions.Diagnostics.dll
+ microsoft.extensions.fileproviders.physical/11.0.0-rc.1.26425.128/lib/net11.0/Microsoft.Extensions.FileProviders.Physical.dll
+ microsoft.extensions.filesystemglobbing/11.0.0-rc.1.26425.128/lib/net11.0/Microsoft.Extensions.FileSystemGlobbing.dll
+ microsoft.extensions.localization.abstractions/11.0.0-rc.1.26425.128/lib/net11.0/Microsoft.Extensions.Localization.Abstractions.dll
+ microsoft.extensions.localization/10.0.1/lib/net10.0/Microsoft.Extensions.Localization.dll
+ microsoft.extensions.logging/11.0.0-rc.1.26425.128/lib/net11.0/Microsoft.Extensions.Logging.dll
+ microsoft.extensions.options.configurationextensions/11.0.0-rc.1.26425.128/lib/net11.0/Microsoft.Extensions.Options.ConfigurationExtensions.dll
+ microsoft.extensions.validation/11.0.0-rc.1.26425.128/lib/net11.0/Microsoft.Extensions.Validation.dll
+ microsoft.jsinterop.webassembly/11.0.0-rc.1.26425.128/lib/net11.0/Microsoft.JSInterop.WebAssembly.dll
+ microsoft.jsinterop/11.0.0-rc.1.26425.128/lib/net11.0/Microsoft.JSInterop.dll
+ mudblazor/9.1.0/lib/net10.0/MudBlazor.dll
+
+[sdkAnalyzerPacks]
+Microsoft.NET.ILLink.Tasks
+
+[analyzerReferences]
+<NETSDK>/Sdks/
+ Microsoft.NET.Sdk/
+  analyzers/
+   Microsoft.CodeAnalysis.CSharp.NetAnalyzers.dll
+   Microsoft.CodeAnalysis.NetAnalyzers.dll
+  codestyle/cs/
+   Microsoft.CodeAnalysis.CodeStyle.dll
+   Microsoft.CodeAnalysis.CodeStyle.Fixes.dll
+   Microsoft.CodeAnalysis.CSharp.CodeStyle.dll
+   Microsoft.CodeAnalysis.CSharp.CodeStyle.Fixes.dll
+ Microsoft.NET.Sdk.Razor/source-generators/
+  Microsoft.AspNetCore.Razor.Utilities.Shared.dll
+  Microsoft.CodeAnalysis.Razor.Compiler.dll
+<NUGET>/
+ microsoft.aspnetcore.components.analyzers/11.0.0-rc.1.26425.128/analyzers/dotnet/cs/Microsoft.AspNetCore.Components.Analyzers.dll
+ microsoft.extensions.validation/11.0.0-rc.1.26425.128/analyzers/dotnet/cs/Microsoft.Extensions.Validation.ValidationsGenerator.dll
+ mudblazor/9.1.0/analyzers/dotnet/cs/
+  MudBlazor.Analyzers.CodeFixes.dll
+  MudBlazor.Analyzers.dll
+
+[sdkAnalyzerConfigPolicy]
+Microsoft.NET.Sdk/analyzers|AnalysisLevelSuffix=All
+Microsoft.NET.Sdk/codestyle/cs|AnalysisLevelSuffix=All
+
+[analyzerConfigFiles]
+../.editorconfig
+obj/Debug/net11.0/SRNSMudApp.Client.GeneratedMSBuildEditorConfig.editorconfig
+
+[additionalFiles]
+Pages/Auth.razor
+RedirectToLogin.razor
+_Imports.razor
+
+[projectReferences]
+
+[capabilities]
+AspNetCore
+CrossPlatformExecutable
+DotNetCoreRazor
+DotNetCoreWeb
+NativeAOT
+Pack
+PublishTrimmed
+SupportsHotReload
+Web
+WebAssembly
