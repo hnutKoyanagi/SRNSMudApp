@@ -1,0 +1,16 @@
+.tag-suggestion-panel {
+    border-radius: var(--mud-default-borderradius);
+    background-color: var(--mud-palette-background-grey);
+    transition: all 0.2s ease-in-out;
+}
+
+.bg-surface-variant {
+    background-color: var(--mud-palette-surface);
+    border: 1px solid var(--mud-palette-lines-default);
+}
+
+.tag-score-badge {
+    font-size: 0.75rem;
+    opacity: 0.8;
+    font-variant-numeric: tabular-nums;
+}

@@ -1,0 +1,131 @@
+@namespace SRNSMudApp.Components.Item
+@using SRNSMudApp.Models
+
+@if (IsLoading || HasAnySuggestions || _showSettings)
+{
+    <MudPaper Class="tag-suggestion-panel pa-3 my-2" Elevation="0" Outlined="true" data-testid="tag-suggestion-panel">
+        <MudStack Spacing="2">
+            @* ヘッダー部 *@
+            <div class="d-flex align-center justify-space-between">
+                <div class="d-flex align-center gap-2">
+                    <MudIcon Icon="@Icons.Material.Filled.AutoAwesome" Size="Size.Small" Color="Color.Primary" />
+                    <MudText Typo="Typo.subtitle2" Class="fw-bold">関連タグの提案</MudText>
+                    @if (IsLoading)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Primary" />
+                    }
+                </div>
+                <div class="d-flex align-center">
+                    <MudTooltip Text="類似度閾値を調整">
+                        <MudIconButton Icon="@Icons.Material.Filled.Tune" Size="Size.Small"
+                                       Color="@(_showSettings ? Color.Primary : Color.Default)" OnClick="ToggleSettings"
+                                       data-testid="toggle-threshold-settings-button" />
+                    </MudTooltip>
+                </div>
+            </div>
+
+            @* 閾値調整設定エリア *@
+            @if (_showSettings)
+            {
+                <MudPaper Class="pa-3 rounded bg-surface-variant" Elevation="0">
+                    <MudStack Spacing="1">
+                        <div class="d-flex align-center justify-space-between">
+                            <MudText Typo="Typo.caption" Class="fw-bold">類似度判定の閾値設定</MudText>
+                            <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="ResetThresholds"
+                                       Color="Color.Secondary">
+                                デフォルトに戻す
+                            </MudButton>
+                        </div>
+                        <MudGrid Spacing="2">
+                            <MudItem xs="12" sm="6">
+                                <MudText Typo="Typo.caption">
+                                    自動関連付けの閾値: <strong>@($"{StrongThreshold:P0}")</strong>
+                                </MudText>
+                                <MudSlider T="float" Value="@StrongThreshold" ValueChanged="@OnStrongThresholdChanged"
+                                           Min="0.0f" Max="1.0f" Step="0.05f" Color="Color.Primary"
+                                           data-testid="strong-threshold-slider" />
+                            </MudItem>
+                            <MudItem xs="12" sm="6">
+                                <MudText Typo="Typo.caption">
+                                    候補推薦の閾値: <strong>@($"{CandidateThreshold:P0}")</strong>
+                                </MudText>
+                                <MudSlider T="float" Value="@CandidateThreshold" ValueChanged="@OnCandidateThresholdChanged"
+                                           Min="0.0f" Max="1.0f" Step="0.05f" Color="Color.Secondary"
+                                           data-testid="candidate-threshold-slider" />
+                            </MudItem>
+                        </MudGrid>
+                    </MudStack>
+                </MudPaper>
+            }
+
+            @* 強い関連付けを持つタグ（保存時に自動関連付け） *@
+            <MudStack Spacing="1">
+                <div class="d-flex align-center gap-1">
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" Color="Color.Success" />
+                    <MudText Typo="Typo.caption" Class="fw-bold">
+                        自動で関連付けられるタグ (@_strongTags.Count)
+                    </MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        — 保存時にアイテムへ自動付与されます
+                    </MudText>
+                </div>
+
+                @if (_strongTags.Count > 0)
+                {
+                    <div class="d-flex flex-wrap align-center gap-1" data-testid="strong-tags-container">
+                        @foreach (var tag in _strongTags)
+                        {
+                            <MudChip T="string" Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small"
+                                     OnClose="@(() => RemoveStrongTag(tag))" CloseIcon="@Icons.Material.Filled.Close"
+                                     data-testid="@($"strong-tag-chip-{tag.TagId}")">
+                                <span>@tag.TagName</span>
+                                <span class="tag-score-badge ml-1">@($"{tag.Score:P0}")</span>
+                            </MudChip>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="pl-1 fst-italic">
+                        強い関連を持つタグはありません
+                    </MudText>
+                }
+            </MudStack>
+
+            @* 候補として推薦するタグ（追加ボタンで自動関連付けに昇格） *@
+            <MudStack Spacing="1" Class="mt-1">
+                <div class="d-flex align-center gap-1">
+                    <MudIcon Icon="@Icons.Material.Filled.Lightbulb" Size="Size.Small" Color="Color.Warning" />
+                    <MudText Typo="Typo.caption" Class="fw-bold">
+                        候補タグ (@_candidateTags.Count)
+                    </MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        — ＋ボタンを押すと自動関連付けタグに追加されます
+                    </MudText>
+                </div>
+
+                @if (_candidateTags.Count > 0)
+                {
+                    <div class="d-flex flex-wrap align-center gap-1" data-testid="candidate-tags-container">
+                        @foreach (var tag in _candidateTags)
+                        {
+                            <MudChip T="string" Color="Color.Default" Variant="Variant.Outlined" Size="Size.Small"
+                                     OnClick="@(() => PromoteCandidateTag(tag))" data-testid="@($"candidate-tag-chip-{tag.TagId}")">
+                                <MudIcon Icon="@Icons.Material.Filled.Add" Size="Size.Small" Class="mr-1" Color="Color.Primary" />
+                                <span>@tag.TagName</span>
+                                <span class="tag-score-badge ml-1">@($"{tag.Score:P0}")</span>
+                            </MudChip>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="pl-1 fst-italic">
+                        候補タグはありません
+                    </MudText>
+                }
+            </MudStack>
+        </MudStack>
+    </MudPaper>
+}
+

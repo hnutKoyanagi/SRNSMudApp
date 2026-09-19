@@ -18,6 +18,7 @@
 @inject ILogger<AddItem> Logger
 @using SRNSMudApp.Models
 @inject IItemReplyService ItemReplyService
+@inject ITagSuggestionService TagSuggestionService
 
 <MudStack Class="w-100 pb-2">
     @if (_newItem == null)
@@ -93,6 +94,12 @@
                         </MudExpansionPanels>
                     }
 
+                    @* コンテンツに基づく関連タグ提案パネル *@
+                    <TagSuggestionPanel Suggestions="@_suggestedTags" IsLoading="@_isLoadingSuggestions"
+                                        ExcludedTagIds="@(InitialTags?.Select(t => t.Id).ToList() ?? [])"
+                                        OnConfirmedTagIdsChanged="HandleConfirmedSuggestedTagIdsChanged"
+                                        OnThresholdsChanged="HandleThresholdsChanged" />
+
                     @* 外部URLのプレビューカードのみ別セクションに表示 *@
                     @if (externalUrls.Count > 0)
                     {
@@ -138,6 +145,12 @@
     private HashSet<string> _unselectedTargetUserIds = [];
     private int? _selectedGroupId;
     private IReadOnlyList<Data.UserGroup> _userGroups = [];
+
+    private IReadOnlyList<SuggestedTag> _suggestedTags = [];
+    private HashSet<int> _confirmedSuggestedTagIds = [];
+    private bool _isLoadingSuggestions;
+    private CancellationTokenSource? _suggestionCts;
+    private float _currentCandidateThreshold = SuggestedTag.DefaultCandidateThreshold;
 
     protected override async Task OnInitializedAsync()
     {
@@ -198,8 +211,11 @@
                 }).ToList();
             }
 
+            var initialIds = InitialTags?.Select(t => t.Id) ?? [];
+            var allTagIds = initialIds.Concat(_confirmedSuggestedTagIds).Distinct().ToList();
+
             await ItemCardData.CreateItemAsync(
-                _newItem, InitialTags?.Select(t => t.Id).ToList());
+                _newItem, allTagIds);
 
             _newItem = new Data.Item
             {
@@ -208,6 +224,9 @@
                 IsPrivate = _isPrivate,
                 TargetUserGroupId = _isPrivate ? _selectedGroupId : null
             };
+
+            _suggestedTags = [];
+            _confirmedSuggestedTagIds.Clear();
 
             try
             {
@@ -252,7 +271,72 @@
     {
         _newItem!.Content = value;
         await UpdateTargetCandidatesAsync();
+        _ = TriggerTagSuggestionsAsync(value);
     }
+
+    private void HandleConfirmedSuggestedTagIdsChanged(IReadOnlyCollection<int> tagIds)
+    {
+        _confirmedSuggestedTagIds = [.. tagIds];
+    }
+
+    private async Task HandleThresholdsChanged((float Strong, float Candidate) thresholds)
+    {
+        _currentCandidateThreshold = thresholds.Candidate;
+        if (!string.IsNullOrWhiteSpace(_newItem?.Content))
+        {
+            await TriggerTagSuggestionsAsync(_newItem.Content);
+        }
+    }
+
+    private async Task TriggerTagSuggestionsAsync(string content)
+    {
+        if (_suggestionCts != null)
+        {
+            await _suggestionCts.CancelAsync();
+            _suggestionCts.Dispose();
+            _suggestionCts = null;
+        }
+
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            _suggestedTags = [];
+            _confirmedSuggestedTagIds.Clear();
+            _isLoadingSuggestions = false;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        _suggestionCts = new CancellationTokenSource();
+        var token = _suggestionCts.Token;
+
+        try
+        {
+            _isLoadingSuggestions = true;
+            await InvokeAsync(StateHasChanged);
+
+            // デバウンス 350ms
+            await Task.Delay(350, token);
+
+            var suggestions = await TagSuggestionService.SuggestTagsAsync(content, _currentCandidateThreshold, token);
+            if (!token.IsCancellationRequested)
+            {
+                _suggestedTags = suggestions;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // キャンセルは正常動作
+        }
+        finally
+        {
+            if (!token.IsCancellationRequested)
+            {
+                _isLoadingSuggestions = false;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+    }
+
     
     private void HandleTargetToggled(string userId, bool isSelected)
     {
@@ -394,6 +478,11 @@
     /// </summary>
     public async ValueTask DisposeAsync()
     {
+        if (_suggestionCts != null)
+        {
+            try { await _suggestionCts.CancelAsync(); _suggestionCts.Dispose(); } catch { }
+        }
+
         if (_objRef != null)
         {
             try { await JS.InvokeVoidAsync("tributeInterop.destroy", "add-item-textarea"); } catch { }

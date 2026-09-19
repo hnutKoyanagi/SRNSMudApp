@@ -123,6 +123,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IItemCardSplitCoordinator, ItemCardSplitCoordinator>();
         services.AddScoped<IItemCardTagCoordinator, ItemCardTagCoordinator>();
 
+        // タグ提案サービス
+        services.AddScoped<ITagSuggestionService, TagSuggestionService>();
+
         // 通報対象 Strategy (IReportTargetHandler) および Factory の登録
         services.AddScoped<IReportTargetHandler, ItemReportTargetHandler>();
         services.AddScoped<IReportTargetHandler, TagReportTargetHandler>();

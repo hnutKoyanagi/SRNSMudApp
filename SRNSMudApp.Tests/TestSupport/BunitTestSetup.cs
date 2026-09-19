@@ -88,7 +88,8 @@ public static class BunitTestSetup
             .AddScoped<ITagNameProposalService, TagNameProposalService>()
             .AddScoped<IItemCardVoteCoordinator, ItemCardVoteCoordinator>()
             .AddScoped<IItemCardSplitCoordinator, ItemCardSplitCoordinator>()
-            .AddScoped<IItemCardTagCoordinator, ItemCardTagCoordinator>();
+            .AddScoped<IItemCardTagCoordinator, ItemCardTagCoordinator>()
+            .AddScoped<ITagSuggestionService, TagSuggestionService>();
     }
 
     /// <summary>
@@ -142,6 +143,13 @@ public static class BunitTestSetup
             .AddScoped(_ => new Mock<IBountyDataProvider>().Object)
             .AddScoped(_ => new Mock<IPublicOfferDataProvider>().Object)
             .AddScoped(_ => new Mock<IContractLookupDataProvider>().Object)
+            .AddScoped(_ =>
+            {
+                var mock = new Mock<ITagSuggestionService>();
+                mock.Setup(s => s.SuggestTagsAsync(It.IsAny<string>(), It.IsAny<float>(), It.IsAny<CancellationToken>()))
+                    .ReturnsAsync([]);
+                return mock.Object;
+            })
             .AddScoped(_ =>
             {
                 var mock = new Mock<IUserGroupDataProvider>();

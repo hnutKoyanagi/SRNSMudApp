@@ -283,6 +283,40 @@ public sealed class AddItemTests : IAsyncLifetime
             It.IsAny<IReadOnlyCollection<int>?>()), Times.Once);
     }
 
+    [Fact]
+    public void Save_WithConfirmedSuggestedTags_IncludesBothInitialAndSuggestedTagIds()
+    {
+        var tagSuggestionMock = new Mock<ITagSuggestionService>();
+        tagSuggestionMock
+            .Setup(s => s.SuggestTagsAsync(It.IsAny<string>(), It.IsAny<float>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new SRNSMudApp.Models.SuggestedTag(42, "C#", 0.90f)]);
+
+        _ctx.Services.AddScoped(_ => tagSuggestionMock.Object);
+
+        IReadOnlyCollection<int>? capturedTagIds = null;
+        _ = _itemCardDataMock
+            .Setup(d => d.CreateItemAsync(It.IsAny<SRNSMudApp.Data.Item>(), It.IsAny<IReadOnlyCollection<int>?>()))
+            .Callback<SRNSMudApp.Data.Item, IReadOnlyCollection<int>?>((_, tagIds) => capturedTagIds = tagIds)
+            .Returns(Task.CompletedTask);
+
+        var initialTag = new SRNSMudApp.Data.Tag { Id = 7, Name = "InitialTag", OwnerId = ExistingUserId };
+
+        IRenderedComponent<AddItem> cut = _ctx.Render<AddItem>(parameters => parameters
+            .Add(p => p.InitialTags, [initialTag]));
+
+        cut.WaitForState(() => cut.FindAll("form").Count > 0);
+        cut.Find("textarea").Input("C# に関するメモ");
+
+        // 提案パネルにタグが表示されるまで待機
+        cut.WaitForState(() => cut.FindAll("[data-testid='strong-tag-chip-42']").Count > 0);
+
+        cut.Find("form").Submit();
+
+        Assert.NotNull(capturedTagIds);
+        Assert.Contains(7, capturedTagIds);   // InitialTag
+        Assert.Contains(42, capturedTagIds);  // 自動提案タグ
+    }
+
     public async Task DisposeAsync()
     {
         await _ctx.DisposeAsync();
