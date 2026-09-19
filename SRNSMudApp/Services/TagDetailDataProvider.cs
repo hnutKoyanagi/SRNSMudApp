@@ -31,12 +31,18 @@ public interface ITagDetailDataProvider
 
     /// <summary>タグのフォロー状態を切り替え、切替後の状態を返す。</summary>
     Task<bool> ToggleFollowAsync(int tagId, string currentUserId);
+
+    /// <summary>タグを削除する。削除に成功した場合は true を返す。</summary>
+    Task<bool> DeleteTagAsync(int tagId, bool isAdmin = false);
 }
 
-public class TagDetailDataProvider(IDbContextFactory<ApplicationDbContext> dbFactory) : ITagDetailDataProvider
+public class TagDetailDataProvider(
+    IDbContextFactory<ApplicationDbContext> dbFactory,
+    ITagLockService? tagLockService = null) : ITagDetailDataProvider
 {
     private readonly IDbContextFactory<ApplicationDbContext> _dbFactory =
         dbFactory ?? throw new ArgumentNullException(nameof(dbFactory));
+    private readonly ITagLockService? _tagLockService = tagLockService;
     public async Task<TagDetailPageData> GetTagDetailAsync(int tagId, string? currentUserId)
     {
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
@@ -146,6 +152,30 @@ public class TagDetailDataProvider(IDbContextFactory<ApplicationDbContext> dbFac
                     _ = await context.SaveChangesAsync();
                     return true;
                 }
+        }
+    }
+
+    public async Task<bool> DeleteTagAsync(int tagId, bool isAdmin = false)
+    {
+        if (_tagLockService != null && !isAdmin)
+        {
+            var isLocked = await _tagLockService.IsTagOrSiblingLockedAsync(tagId);
+            if (isLocked)
+            {
+                return false;
+            }
+        }
+
+        await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
+        Tag? tagToDelete = await context.Tags.FindAsync(tagId);
+        switch (tagToDelete)
+        {
+            case not null:
+                _ = context.Tags.Remove(tagToDelete);
+                _ = await context.SaveChangesAsync();
+                return true;
+            default:
+                return false;
         }
     }
 }

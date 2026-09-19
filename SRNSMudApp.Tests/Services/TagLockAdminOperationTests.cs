@@ -199,4 +199,40 @@ public class TagLockAdminOperationTests : IAsyncLifetime
             Assert.Null(reloaded);
         }
     }
+
+    [Fact]
+    public async Task TagDetailDataProvider_DeleteTagAsync_WhenLocked_AdminSucceeds_NonAdminFails()
+    {
+        var (dbContext, dbFactory, lockServiceMock, _, tid) = CreateScope();
+        await using (dbContext)
+        {
+            var userId = $"u_{tid}";
+            await dbContext.SeedUsersAsync(userId);
+
+            var tag = new Tag
+            {
+                Name = $"DetailDelTag_{tid}",
+                OwnerId = userId
+            };
+            dbContext.Tags.Add(tag);
+            await dbContext.SaveChangesAsync();
+
+            lockServiceMock.Setup(s => s.IsTagOrSiblingLockedAsync(tag.Id, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(true);
+
+            var sut = new TagDetailDataProvider(dbFactory, lockServiceMock.Object);
+
+            // 非管理者は削除失敗 (false)
+            var nonAdminResult = await sut.DeleteTagAsync(tag.Id, isAdmin: false);
+            Assert.False(nonAdminResult);
+
+            // 管理者は削除成功 (true)
+            var adminResult = await sut.DeleteTagAsync(tag.Id, isAdmin: true);
+            Assert.True(adminResult);
+
+            dbContext.ChangeTracker.Clear();
+            var reloaded = await dbContext.Tags.FindAsync(tag.Id);
+            Assert.Null(reloaded);
+        }
+    }
 }

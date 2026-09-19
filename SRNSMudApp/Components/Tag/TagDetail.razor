@@ -53,6 +53,14 @@
                            OnClick="@OpenEditDialog" Disabled="@(!_isAdmin && _isTagOrSiblingLocked)" Class="mr-2">
                     編集
                 </MudButton>
+                @if (!_tag.IsSystem && _tag.Name != Tag.RootTagName)
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.Delete"
+                               OnClick="@DeleteTagAsync" Disabled="@(!_isAdmin && _isTagOrSiblingLocked)" Class="mr-2"
+                               data-testid="delete-tag-button">
+                        削除
+                    </MudButton>
+                }
             }
             else if (_currentUserId is not null)
             {
@@ -450,6 +458,54 @@
         if (result is { Canceled: false })
         {
             await LoadDataAsync();
+        }
+    }
+
+    private async Task DeleteTagAsync()
+    {
+        if (_tag is null)
+        {
+            return;
+        }
+
+        if (_isTagOrSiblingLocked && !_isAdmin)
+        {
+            _ = Snackbar.Add("このタグまたはその兄弟タグはロックされているため削除できません。", Severity.Warning);
+            return;
+        }
+
+        if (!TagTableViewModel.CanDeleteTag(_tag, _currentUserId, _isTagOrSiblingLocked, _isAdmin))
+        {
+            _ = Snackbar.Add("システムタグ、または権限のないタグは削除できません。", Severity.Error);
+            return;
+        }
+
+        var parameters = new DialogParameters<ConfirmDeleteDialog>
+        {
+            { x => x.ContentText, $"タグ「{_tag.Name}」を削除してもよろしいですか？この操作は取り消せません。" }
+        };
+
+        var dialog = await DialogLauncher.ShowAsync<ConfirmDeleteDialog>("タグの削除", parameters);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false })
+        {
+            try
+            {
+                if (await TagDetailData.DeleteTagAsync(_tag.Id, _isAdmin))
+                {
+                    _ = Snackbar.Add($"タグ「{_tag.Name}」を削除しました。", Severity.Success);
+                    NavigationManager.NavigateTo("Item/ItemList");
+                }
+                else
+                {
+                    _ = Snackbar.Add("対象のタグが既に削除されているか、ロックされているため削除できません。", Severity.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                _ = Snackbar.Add($"エラーが発生しました: {ex.Message}", Severity.Error);
+            }
         }
     }
 

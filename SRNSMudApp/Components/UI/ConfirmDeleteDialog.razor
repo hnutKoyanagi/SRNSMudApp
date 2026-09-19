@@ -1,0 +1,23 @@
+@using MudBlazor
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body1">@ContentText</MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">キャンセル</MudButton>
+        <MudButton Color="Color.Error" Variant="Variant.Filled" OnClick="Submit" data-testid="confirm-delete-button">削除
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter] public string ContentText { get; set; } = "削除してもよろしいですか？この操作は取り消せません。";
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void Submit() => MudDialog.Close(DialogResult.Ok(true));
+}
+

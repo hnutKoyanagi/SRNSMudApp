@@ -62,6 +62,7 @@ internal static class IdentityComponentsEndpointRouteBuilderExtensions
             [FromServices] UserManager<ApplicationUser> userManager,
             [FromServices] SignInManager<ApplicationUser> signInManager,
             [FromServices] IWebHostEnvironment env,
+            [FromForm] bool? enableAdmin,
             [FromForm] string? returnUrl) =>
         {
             if (!env.IsDevelopment())
@@ -75,9 +76,22 @@ internal static class IdentityComponentsEndpointRouteBuilderExtensions
                 return Results.Unauthorized();
             }
 
-            if (!await userManager.IsInRoleAsync(user, "Admin"))
+            // 指定がない場合は後方互換性のため true（Admin付与）とする
+            bool makeAdmin = enableAdmin ?? true;
+
+            if (makeAdmin)
             {
-                _ = await userManager.AddToRoleAsync(user, "Admin");
+                if (!await userManager.IsInRoleAsync(user, "Admin"))
+                {
+                    _ = await userManager.AddToRoleAsync(user, "Admin");
+                }
+            }
+            else
+            {
+                if (await userManager.IsInRoleAsync(user, "Admin"))
+                {
+                    _ = await userManager.RemoveFromRoleAsync(user, "Admin");
+                }
             }
 
             await signInManager.RefreshSignInAsync(user);
