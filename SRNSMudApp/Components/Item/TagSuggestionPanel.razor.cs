@@ -54,22 +54,28 @@ public partial class TagSuggestionPanel : ComponentBase
 
     private bool _showSettings;
     private IReadOnlyList<SuggestedTag> _previousSuggestions = [];
+    private IReadOnlyCollection<int> _previousExcludedTagIds = [];
+    private HashSet<int> _lastNotifiedConfirmedIds = [];
 
     private bool HasAnySuggestions => _strongTags.Count > 0 || _candidateTags.Count > 0;
 
     protected override async Task OnParametersSetAsync()
     {
-        // 提案リストのインスタンスが変わった、または除外タグが変わった場合に再分類
-        if (!ReferenceEquals(_previousSuggestions, Suggestions))
+        bool suggestionsChanged = !ReferenceEquals(_previousSuggestions, Suggestions);
+        bool excludedChanged = !ReferenceEquals(_previousExcludedTagIds, ExcludedTagIds)
+                               && !_previousExcludedTagIds.SequenceEqual(ExcludedTagIds);
+
+        if (suggestionsChanged || excludedChanged)
         {
             _previousSuggestions = Suggestions;
-            // 新しい提案テキストになった場合は手動操作をリセット
-            _manuallyPromotedTagIds.Clear();
-            _manuallyRemovedTagIds.Clear();
-            await ReclassifyAndNotifyAsync();
-        }
-        else
-        {
+            _previousExcludedTagIds = ExcludedTagIds;
+
+            if (suggestionsChanged)
+            {
+                _manuallyPromotedTagIds.Clear();
+                _manuallyRemovedTagIds.Clear();
+            }
+
             await ReclassifyAndNotifyAsync();
         }
     }
@@ -180,10 +186,14 @@ public partial class TagSuggestionPanel : ComponentBase
             }
         }
 
-        if (OnConfirmedTagIdsChanged.HasDelegate)
+        var confirmedIds = _strongTags.Select(t => t.TagId).ToHashSet();
+        if (!_lastNotifiedConfirmedIds.SetEquals(confirmedIds))
         {
-            var confirmedIds = _strongTags.Select(t => t.TagId).ToList();
-            await OnConfirmedTagIdsChanged.InvokeAsync(confirmedIds);
+            _lastNotifiedConfirmedIds = confirmedIds;
+            if (OnConfirmedTagIdsChanged.HasDelegate)
+            {
+                await OnConfirmedTagIdsChanged.InvokeAsync(confirmedIds.ToList());
+            }
         }
     }
 }

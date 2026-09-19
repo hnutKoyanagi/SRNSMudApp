@@ -26,6 +26,7 @@ public sealed class AddItemTests : IAsyncLifetime
     private readonly Mock<IItemCardDataProvider> _itemCardDataMock = new();
     private readonly Mock<IUserDataProvider> _userDataProviderMock = new();
     private readonly Mock<ITagSearchQueryService> _tagSearchMock = new();
+    private readonly Mock<ITagSuggestionService> _tagSuggestionMock = new();
 
     public AddItemTests()
     {
@@ -40,6 +41,11 @@ public sealed class AddItemTests : IAsyncLifetime
 
         _ = _ctx.Services.AddScoped(_ => _userDataProviderMock.Object);
         _ = _ctx.Services.AddScoped(_ => _tagSearchMock.Object);
+
+        _tagSuggestionMock
+            .Setup(s => s.SuggestTagsAsync(It.IsAny<string>(), It.IsAny<float>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        _ = _ctx.Services.AddScoped(_ => _tagSuggestionMock.Object);
 
         _ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         _ = _ctx.Render<MudPopoverProvider>();
@@ -286,12 +292,9 @@ public sealed class AddItemTests : IAsyncLifetime
     [Fact]
     public void Save_WithConfirmedSuggestedTags_IncludesBothInitialAndSuggestedTagIds()
     {
-        var tagSuggestionMock = new Mock<ITagSuggestionService>();
-        tagSuggestionMock
+        _tagSuggestionMock
             .Setup(s => s.SuggestTagsAsync(It.IsAny<string>(), It.IsAny<float>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([new SRNSMudApp.Models.SuggestedTag(42, "C#", 0.90f)]);
-
-        _ctx.Services.AddScoped(_ => tagSuggestionMock.Object);
 
         IReadOnlyCollection<int>? capturedTagIds = null;
         _ = _itemCardDataMock
@@ -312,9 +315,12 @@ public sealed class AddItemTests : IAsyncLifetime
 
         cut.Find("form").Submit();
 
-        Assert.NotNull(capturedTagIds);
-        Assert.Contains(7, capturedTagIds);   // InitialTag
-        Assert.Contains(42, capturedTagIds);  // 自動提案タグ
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(capturedTagIds);
+            Assert.Contains(7, capturedTagIds);   // InitialTag
+            Assert.Contains(42, capturedTagIds);  // 自動提案タグ
+        });
     }
 
     public async Task DisposeAsync()
