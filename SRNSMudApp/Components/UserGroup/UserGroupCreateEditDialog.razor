@@ -8,21 +8,20 @@
         <MudTextField T="string" @bind-Value="_name" Label="グループ名" Variant="Variant.Outlined" Class="mb-4"
                       AutoFocus="true" Required="true" RequiredError="グループ名は必須です" MaxLength="100" />
 
-        <MudTextField T="string" @bind-Value="_description" Label="説明" Variant="Variant.Outlined" Lines="3"
-                      MaxLines="5" MaxLength="500" />
+        <MudTextField T="string" @bind-Value="_description" Label="説明" Variant="Variant.Outlined" Lines="3" MaxLines="5"
+                      MaxLength="500" />
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="@Cancel">キャンセル</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="@SaveAsync" Disabled="@_isSaving">
-            @switch (_isSaving)
+            @if (_isSaving)
             {
-                case true:
-                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-                    <span>保存中...</span>
-                    break;
-                case false:
-                    <span>保存</span>
-                    break;
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>保存中...</span>
+            }
+            else
+            {
+                <span>保存</span>
             }
         </MudButton>
     </DialogActions>
@@ -94,4 +93,3 @@
         }
     }
 }
-

@@ -10,82 +10,76 @@
     <DialogContent>
         <div class="d-flex flex-column pa-2" style="max-height: 50vh; overflow-y: auto;">
 
-            @switch (CanApprove(TaggingRequest))
+            @if (CanApprove(TaggingRequest))
             {
-                case true:
-                    <div class="d-flex justify-end mb-2">
-                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
-                                   OnClick="ApproveRequestAsync" Class="mr-2">
-                            承認
-                        </MudButton>
-                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
-                                   StartIcon="@Icons.Material.Filled.ThumbDown" OnClick="RejectRequestAsync">
-                            却下
-                        </MudButton>
-                    </div>
-                    break;
+                <div class="d-flex justify-end mb-2">
+                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
+                               OnClick="ApproveRequestAsync" Class="mr-2">
+                        承認
+                    </MudButton>
+                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
+                               StartIcon="@Icons.Material.Filled.ThumbDown" OnClick="RejectRequestAsync">
+                        却下
+                    </MudButton>
+                </div>
             }
 
             <!-- 親リクエスト (スレッドの開始点) -->
-            @switch (TaggingRequest.RequestItem)
+            @if (TaggingRequest.RequestItem is not null)
             {
-                case not null:
-                    <div class="mb-4">
-                        <ItemCard Item="TaggingRequest.RequestItem" CurrentUserId="@_currentUserId" AllTags="_allTags"
-                                  AllTagRelationsToTags="_allTagRelationsToTags" />
-                    </div>
-                    break;
-                case null:
-                    <div class="d-flex mb-1">
-                        <MudAvatar Size="Size.Medium" Class="mr-3" Color="Color.Primary">
-                            @(TaggingRequest.Owner?.UserName?.FirstOrDefault().ToString() ?? "?")
-                        </MudAvatar>
-                        <div class="flex-grow-1">
-                            <div class="d-flex align-baseline">
-                                <MudText Typo="Typo.subtitle2" Class="mr-2">
-                                    <b>@TaggingRequest.Owner?.UserName</b>
-                                </MudText>
-                                <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">
-                                    @TaggingRequest.CreatedDate.ToLocalTime().ToString("g")
-                                </MudText>
-                            </div>
-                            <MudText Typo="Typo.body1" Class="mt-1">
-                                @switch (TaggingRequest.RequestType)
-                                {
-                                    case TaggingRequestType.Add:
-                                        <span>このアイテムに <b>@TaggingRequest.RequestedTag?.Name</b> を追加するリクエストをしました。</span>
-                                        break;
-                                    default:
-                                        <span>このアイテムから <b>@TaggingRequest.RequestedTag?.Name</b> を削除するリクエストをしました。</span>
-                                        break;
-                                }
+                <div class="mb-4">
+                    <ItemCard Item="TaggingRequest.RequestItem" CurrentUserId="@_currentUserId" AllTags="_allTags"
+                              AllTagRelationsToTags="_allTagRelationsToTags" />
+                </div>
+            }
+            else
+            {
+                <div class="d-flex mb-1">
+                    <MudAvatar Size="Size.Medium" Class="mr-3" Color="Color.Primary">
+                        @(TaggingRequest.Owner?.UserName?.FirstOrDefault().ToString() ?? "?")
+                    </MudAvatar>
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-baseline">
+                            <MudText Typo="Typo.subtitle2" Class="mr-2">
+                                <b>@TaggingRequest.Owner?.UserName</b>
+                            </MudText>
+                            <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">
+                                @TaggingRequest.CreatedDate.ToLocalTime().ToString("g")
                             </MudText>
                         </div>
+                        <MudText Typo="Typo.body1" Class="mt-1">
+                            @if (TaggingRequest.RequestType == TaggingRequestType.Add)
+                            {
+                                <span>このアイテムに <b>@TaggingRequest.RequestedTag?.Name</b> を追加するリクエストをしました。</span>
+                            }
+                            else
+                            {
+                                <span>このアイテムから <b>@TaggingRequest.RequestedTag?.Name</b> を削除するリクエストをしました。</span>
+                            }
+                        </MudText>
                     </div>
-                    break;
+                </div>
             }
 
             <!-- リプライツリー -->
             <div class="ml-5 pl-5" style="border-left: 2px solid var(--mud-palette-lines-default);">
-                @switch (Replies)
+                @if (Replies.Count > 0)
                 {
-                    case { Count: > 0 }:
-                        @foreach (var reply in Replies)
-                        {
-                            <div class="mb-4 mt-3 position-relative">
-                                <div class="position-absolute" style="left: -30px; top: 10px; z-index: 1;">
-                                    <MudAvatar Size="Size.Small" Style="border: 3px solid var(--mud-palette-background);"
-                                               Color="Color.Secondary">
-                                        @(reply.Owner?.UserName?.FirstOrDefault().ToString() ?? "?")
-                                    </MudAvatar>
-                                </div>
-                                <div class="flex-grow-1">
-                                    <ItemCard Item="reply" CurrentUserId="@_currentUserId" AllTags="_allTags"
-                                              AllTagRelationsToTags="_allTagRelationsToTags" />
-                                </div>
+                    @foreach (var reply in Replies)
+                    {
+                        <div class="mb-4 mt-3 position-relative">
+                            <div class="position-absolute" style="left: -30px; top: 10px; z-index: 1;">
+                                <MudAvatar Size="Size.Small" Style="border: 3px solid var(--mud-palette-background);"
+                                           Color="Color.Secondary">
+                                    @(reply.Owner?.UserName?.FirstOrDefault().ToString() ?? "?")
+                                </MudAvatar>
                             </div>
-                        }
-                        break;
+                            <div class="flex-grow-1">
+                                <ItemCard Item="reply" CurrentUserId="@_currentUserId" AllTags="_allTags"
+                                          AllTagRelationsToTags="_allTagRelationsToTags" />
+                            </div>
+                        </div>
+                    }
                 }
             </div>
 
@@ -108,27 +102,25 @@
 
     [Parameter] public TaggingRequestEntity TaggingRequest { get; set; } = null!;
 
-    private List<Item> Replies { get; set; } = new();
+    private List<Item> Replies { get; set; } = [];
     private string _newReplyMessage = string.Empty;
     private bool _isSubmitting;
     private string? _currentUserId;
-    private List<Tag> _allTags = new();
-    private List<TagRelationToTag> _allTagRelationsToTags = new();
+    private List<Tag> _allTags = [];
+    private List<TagRelationToTag> _allTagRelationsToTags = [];
 
     [CascadingParameter] private Task<AuthenticationState> AuthenticationStateTask { get; set; } = default!;
 
     protected override async Task OnInitializedAsync()
     {
         // パラメータとして渡されたリクエストの既存リプライをセット
-        Replies = TaggingRequest.Replies?.OrderBy(r => r.CreatedDate).ToList() ?? new List<Item>();
+        Replies = TaggingRequest.Replies?.OrderBy(r => r.CreatedDate).ToList() ?? [];
 
         var authState = await AuthenticationStateTask;
         var user = authState.User;
-        switch (user.Identity?.IsAuthenticated)
+        if (user.Identity?.IsAuthenticated == true)
         {
-            case true:
-                _currentUserId = user.FindFirst(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
-                break;
+            _currentUserId = user.FindFirst(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
         }
 
         (List<Tag> allTags, List<TagRelationToTag> relations) = await HomeData.GetTagsAndRelationsAsync();
@@ -138,9 +130,9 @@
 
     private async Task SubmitReplyAsync()
     {
-        switch (string.IsNullOrWhiteSpace(_newReplyMessage) || string.IsNullOrEmpty(_currentUserId))
+        if (string.IsNullOrWhiteSpace(_newReplyMessage) || string.IsNullOrEmpty(_currentUserId))
         {
-            case true: return;
+            return;
         }
 
         _isSubmitting = true;
@@ -148,20 +140,15 @@
         try
         {
             var newReply = await ItemReplyService.AddReplyToRequestAsync(TaggingRequest.Id, _currentUserId, _newReplyMessage);
-
-            switch (newReply)
+            if (newReply is not null)
             {
-                case not null:
-                    Replies.Add(newReply);
-                    _newReplyMessage = string.Empty;
+                Replies.Add(newReply);
+                _newReplyMessage = string.Empty;
 
-                    switch (TaggingRequest.Replies.Contains(newReply))
-                    {
-                        case false:
-                            TaggingRequest.Replies.Add(newReply);
-                            break;
-                    }
-                    break;
+                if (!TaggingRequest.Replies.Contains(newReply))
+                {
+                    TaggingRequest.Replies.Add(newReply);
+                }
             }
         }
         finally
@@ -177,9 +164,9 @@
 
     private async Task ApproveRequestAsync()
     {
-        switch (_currentUserId)
+        if (_currentUserId is null)
         {
-            case null: return;
+            return;
         }
 
         if (await RequestActions.ApproveAsync(TaggingRequest.Id, _currentUserId))
@@ -190,9 +177,9 @@
 
     private async Task RejectRequestAsync()
     {
-        switch (_currentUserId)
+        if (_currentUserId is null)
         {
-            case null: return;
+            return;
         }
 
         if (await RequestActions.RejectViaDialogAsync(TaggingRequest.Id, _currentUserId))

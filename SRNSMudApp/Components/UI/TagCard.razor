@@ -10,43 +10,35 @@
             <VoteButtons Score="TagCardViewModel.GetTagScore(Tag)"
                          IsUpvoted="TagCardViewModel.IsTagUpvoted(Tag, CurrentUserGoodTagId, CurrentUserId)"
                          IsDownvoted="TagCardViewModel.IsTagDownvoted(Tag, CurrentUserBadTagId, CurrentUserId)"
-                         OnUpvoteClicked="UpvoteTagAsync"
-                         OnDownvoteClicked="DownvoteTagAsync"/>
+                         OnUpvoteClicked="UpvoteTagAsync" OnDownvoteClicked="DownvoteTagAsync" />
 
             <div class="flex-1">
                 <div class="d-flex justify-space-between align-start">
                     <div>
                         <div class="resource-name">
-                            <MudLink Href="@($"/TagDetail/{Tag.Id}")" Typo="Typo.subtitle1"
-                                     Class="resource-link">
-                                <MudIcon Icon="@Icons.Material.Filled.LocalOffer" Size="Size.Small"
-                                         Class="mr-1"/>
+                            <MudLink Href="@($"/TagDetail/{Tag.Id}")" Typo="Typo.subtitle1" Class="resource-link">
+                                <MudIcon Icon="@Icons.Material.Filled.LocalOffer" Size="Size.Small" Class="mr-1" />
                                 @Tag.Name
                             </MudLink>
                         </div>
-                        @switch (string.IsNullOrEmpty(Tag.Content))
+                        @if (!string.IsNullOrEmpty(Tag.Content))
                         {
-                            case false:
-                                <MudText Typo="Typo.body2" Class="mb-2">@Tag.Content</MudText>
-                                break;
+                            <MudText Typo="Typo.body2" Class="mb-2">@Tag.Content</MudText>
                         }
-                        <MudText Typo="Typo.caption" Color="Color.Secondary"
-                                 Class="mb-2 d-block">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2 d-block">
                             作成者:
-                            @switch (string.IsNullOrEmpty(Tag.OwnerId))
+                            @if (!string.IsNullOrEmpty(Tag.OwnerId))
                             {
-                                case false:
-                                    <span @onclick:stopPropagation="true">
-                                        <MudLink Href="@($"/User/UserDetail/{Tag.OwnerId}")"
-                                                 Color="Color.Inherit"
-                                                 Underline="Underline.Hover">
-                                            @(Tag.Owner?.UserName)
-                                        </MudLink>
-                                    </span>
-                                    break;
-                                case true:
-                                    @(Tag.Owner?.UserName ?? "不明")
-                                    break;
+                                <span @onclick:stopPropagation="true">
+                                    <MudLink Href="@($"/User/UserDetail/{Tag.OwnerId}")" Color="Color.Inherit"
+                                             Underline="Underline.Hover">
+                                        @(Tag.Owner?.UserName)
+                                    </MudLink>
+                                </span>
+                            }
+                            else
+                            {
+                                @(Tag.Owner?.UserName ?? "不明")
                             }
                         </MudText>
                     </div>
@@ -75,52 +67,37 @@
                         var chipId = $"tag-tagchip-{Tag.Id}-{tagId}";
                         var isActive = _activePopoverTagId == tagId && _activePopoverChipKey == chipId;
 
-                        <TagCardChip Relation="tr"
-                                     Display="chip"
-                                     HighlightEvent="highlightEvent"
-                                     ChipId="@chipId"
-                                     IsActive="@isActive"
-                                     AllTags="@AllTags"
+                        <TagCardChip Relation="tr" Display="chip" HighlightEvent="highlightEvent" ChipId="@chipId"
+                                     IsActive="@isActive" AllTags="@AllTags"
                                      OnRemoveRelation="@(() => RemoveTagToTagRelationAsync(tr))"
                                      OnAddTagToTag="@(() => OnAddTagToTagClicked(tr.Tag))"
                                      OnNavigate="@(() => NavigationManager.NavigateTo($"/TagDetail/{tagId}"))"
                                      OnDecreaseWeight="@(() => UpdateTagToTagWeightAsync(tr, -1))"
                                      OnIncreaseWeight="@(() => UpdateTagToTagWeightAsync(tr, 1))"
                                      OnEditWeight="@(() => EditTagToTagWeightAsync(tr))"
-                                     OnToggleTree="@(() => ToggleTagTreePopover(tagId, chipId))"
-                                     OnCloseTree="ClosePopover"
+                                     OnToggleTree="@(() => ToggleTagTreePopover(tagId, chipId))" OnCloseTree="ClosePopover"
                                      OnSwapTag="@(newTagId => ChangeTagTagAsync(tr, newTagId))"
-                                     OnAddChildTag="OnAddChildTagFromTree"/>
+                                     OnAddChildTag="OnAddChildTagFromTree" />
                     }
 
-                    @switch (display.HasManyTags)
+                    @if (display.HasManyTags)
                     {
-                        case true:
-                            @switch (_areTagsExpanded)
-                            {
-                                case true:
-                                    <MudChip T="string" Size="Size.Small"
-                                             OnClick="@ToggleTagTagExpand"
-                                             Class="more-chip">
-                                        閉じる
-                                    </MudChip>
-                                    break;
-                                case false:
-                                    <MudChip T="string" Size="Size.Small"
-                                             OnClick="@ToggleTagTagExpand"
-                                             Class="more-chip">
-                                        +@display.HiddenCount more
-                                    </MudChip>
-                                    break;
-                            }
-                            break;
+                        @if (_areTagsExpanded)
+                        {
+                            <MudChip T="string" Size="Size.Small" OnClick="@ToggleTagTagExpand" Class="more-chip">
+                                閉じる
+                            </MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Size="Size.Small" OnClick="@ToggleTagTagExpand" Class="more-chip">
+                                +@display.HiddenCount more
+                            </MudChip>
+                        }
                     }
 
-                    <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline"
-                                   Size="Size.Small"
-                                   Color="Color.Primary"
-                                   OnClick="@(() => OnAddTagToTagClicked(Tag))"
-                                   title="タグを追加"/>
+                    <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small"
+                                   Color="Color.Primary" OnClick="@(() => OnAddTagToTagClicked(Tag))" title="タグを追加" />
                 </MudStack>
             </div>
         </div>

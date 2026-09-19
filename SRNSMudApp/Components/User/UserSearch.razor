@@ -8,14 +8,9 @@
 <MudContainer MaxWidth="MaxWidth.Small" Class="mt-10">
     <MudText Typo="Typo.h5" GutterBottom="true">ユーザー検索</MudText>
 
-    <MudAutocomplete T="ApplicationUser"
-                     Label="ユーザーを検索"
-                     @bind-Value="SelectedUser"
-                     SearchFunc="@SearchUsersAsync"
-                     ToStringFunc="@(user => user == null ? null : user.UserName)"
-                     Placeholder="ユーザー名を入力..."
-                     ResetValueOnEmptyText="true"
-                     Clearable="true">
+    <MudAutocomplete T="ApplicationUser" Label="ユーザーを検索" @bind-Value="SelectedUser" SearchFunc="@SearchUsersAsync"
+                     ToStringFunc="@(user => user == null ? null : user.UserName)" Placeholder="ユーザー名を入力..."
+                     ResetValueOnEmptyText="true" Clearable="true">
 
         <ItemTemplate Context="user">
             <div class="d-flex flex-column">
@@ -30,21 +25,18 @@
         </NoItemsTemplate>
     </MudAutocomplete>
 
-    @switch (SelectedUser)
+    @if (SelectedUser is not null)
     {
-        case not null:
-            <MudCard Class="mt-4">
-                <MudCardContent>
-                    <MudText>選択されたユーザー: <strong>@SelectedUser.UserName</strong></MudText>
-                </MudCardContent>
-                <MudCardActions>
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                               Href="@($"/User/UserDetail/{SelectedUser.Id}")">
-                        詳細を見る
-                    </MudButton>
-                </MudCardActions>
-            </MudCard>
-            break;
+        <MudCard Class="mt-4">
+            <MudCardContent>
+                <MudText>選択されたユーザー: <strong>@SelectedUser.UserName</strong></MudText>
+            </MudCardContent>
+            <MudCardActions>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="@($"/User/UserDetail/{SelectedUser.Id}")">
+                    詳細を見る
+                </MudButton>
+            </MudCardActions>
+        </MudCard>
     }
 </MudContainer>
 

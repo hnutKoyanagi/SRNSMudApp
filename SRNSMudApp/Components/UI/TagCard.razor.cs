@@ -286,9 +286,9 @@ public partial class TagCard : IAsyncDisposable
         {
             case { Canceled: false, Data: int newWeight }:
                 {
-                    switch (TagCardViewModel.HasWeightChange(relation.Weight, newWeight))
+                    if (!TagCardViewModel.HasWeightChange(relation.Weight, newWeight))
                     {
-                        case false: return;
+                        return;
                     }
 
                     TagCardOperationResult opResult =
@@ -310,9 +310,9 @@ public partial class TagCard : IAsyncDisposable
 
     private async Task ChangeTagTagAsync(TagRelationToTag oldRelation, int newTagId)
     {
-        switch (TagCardViewModel.IsSameTagChange(oldRelation.TagId, newTagId))
+        if (TagCardViewModel.IsSameTagChange(oldRelation.TagId, newTagId))
         {
-            case true: return;
+            return;
         }
 
         if (!TagCardViewModel.IsRelationOwner(oldRelation.OwnerId, CurrentUserId))

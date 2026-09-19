@@ -20,18 +20,12 @@ public sealed class UserManagementTests : IAsyncLifetime
 {
     private readonly BunitContext _ctx = new();
     private readonly Mock<IUserDataProvider> _userDataMock = new();
-    private readonly Mock<UserManager<ApplicationUser>> _userManagerMock;
 
     public UserManagementTests()
     {
         _ctx.Services.AddMudServices().AddMockSrnsServices();
         _ctx.Services.AddAuth("test-user-id", "Admin");
         _ctx.Services.AddScoped(_ => _userDataMock.Object);
-
-        var storeMock = new Mock<IUserStore<ApplicationUser>>();
-        _userManagerMock = new Mock<UserManager<ApplicationUser>>(storeMock.Object, null!, null!, null!, null!,
-            null!, null!, null!, null!);
-        _ctx.Services.AddScoped(_ => _userManagerMock.Object);
 
         _ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         _ = _ctx.Render<MudPopoverProvider>();
@@ -46,10 +40,9 @@ public sealed class UserManagementTests : IAsyncLifetime
 
         _ = _userDataMock.Setup(d => d.GetAllUsersAsync())
             .ReturnsAsync([targetUser]);
-
-        _ = _userManagerMock.Setup(u => u.IsInRoleAsync(It.IsAny<ApplicationUser>(), "Admin")).ReturnsAsync(false);
-        _ = _userManagerMock.Setup(u => u.FindByIdAsync("user1")).ReturnsAsync(targetUser);
-        _ = _userManagerMock.Setup(u => u.AddToRoleAsync(It.IsAny<ApplicationUser>(), "Admin"))
+        _ = _userDataMock.Setup(d => d.IsUserInRoleAsync(It.IsAny<ApplicationUser>(), "Admin"))
+            .ReturnsAsync(false);
+        _ = _userDataMock.Setup(d => d.UpdateUserAdminRoleAsync("user1", true))
             .ReturnsAsync(IdentityResult.Success);
 
         IRenderedComponent<UserManagement> component = _ctx.Render<UserManagement>();
@@ -64,7 +57,7 @@ public sealed class UserManagementTests : IAsyncLifetime
         IElement mudSwitch = targetRow.QuerySelector("input[type='checkbox']")!;
         mudSwitch.Change(true);
 
-        component.WaitForAssertion(() => _userManagerMock.Verify(u => u.AddToRoleAsync(It.IsAny<ApplicationUser>(), "Admin"), Times.Once));
+        component.WaitForAssertion(() => _userDataMock.Verify(d => d.UpdateUserAdminRoleAsync("user1", true), Times.Once));
     }
 
     public async Task DisposeAsync()

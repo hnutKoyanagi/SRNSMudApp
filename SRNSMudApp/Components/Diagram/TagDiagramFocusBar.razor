@@ -9,7 +9,8 @@
         <div class="d-flex flex-wrap align-center gap-2">
             @* 始点タグ (Tag 1) *@
             <div class="d-flex align-center gap-1">
-                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled" Class="font-weight-bold">
+                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled"
+                         Class="font-weight-bold">
                     ① 始点
                 </MudChip>
                 <MudText Typo="Typo.subtitle2" Class="font-weight-bold">
@@ -18,9 +19,10 @@
                 <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Filled">
                     W: @FocusedTag.CachedWeight
                 </MudChip>
-                <MudTooltip Text="@(GetChildTagsCount(FocusedTag.Id) > 0 ? $"子タグ ({GetChildTagsCount(FocusedTag.Id)}件) を画面上に表示" : "子タグはありません")">
-                    <MudIconButton Icon="@Icons.Material.Filled.SubdirectoryArrowRight" Size="Size.Small" Color="Color.Warning"
-                                   Class="pa-0 ml-1" Title="子タグを画面上に表示"
+                <MudTooltip
+                    Text="@(GetChildTagsCount(FocusedTag.Id) > 0 ? $"子タグ ({GetChildTagsCount(FocusedTag.Id)}件) を画面上に表示" : "子タグはありません")">
+                    <MudIconButton Icon="@Icons.Material.Filled.SubdirectoryArrowRight" Size="Size.Small"
+                                   Color="Color.Warning" Class="pa-0 ml-1" Title="子タグを画面上に表示"
                                    Disabled="@(GetChildTagsCount(FocusedTag.Id) == 0)"
                                    OnClick="() => OnShowChildNodes.InvokeAsync(FocusedTag)" />
                 </MudTooltip>
@@ -31,11 +33,11 @@
                 <MudPopover Open="@_isFocusTreeOpen" AnchorOrigin="Origin.BottomCenter" TransformOrigin="Origin.TopCenter"
                             OverflowBehavior="OverflowBehavior.FlipAlways" Class="tree-popover" Paper="false">
                     <TagTreePopoverContent TargetTag="@FocusedTag" AllTags="@AllTags" EnableSwap="false" EnableExpand="true"
-                                           EnableNavigation="true" OnTagClick="HandleFocusFromTree"
-                                           EnableAddChild="true" OnAddChildTag="tag => OnAddChildTag.InvokeAsync(tag)" />
+                                           EnableNavigation="true" OnTagClick="HandleFocusFromTree" EnableAddChild="true"
+                                           OnAddChildTag="tag => OnAddChildTag.InvokeAsync(tag)" />
                 </MudPopover>
-                <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" Color="Color.Default"
-                               Class="pa-0" Title="始点タグを解除" OnClick="() => OnClearFirstTag.InvokeAsync()" />
+                <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" Color="Color.Default" Class="pa-0"
+                               Title="始点タグを解除" OnClick="() => OnClearFirstTag.InvokeAsync()" />
             </div>
 
             @* 向き / 反転 (Swap) ボタン *@
@@ -64,24 +66,26 @@
                     <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Filled">
                         W: @SecondFocusedTag.CachedWeight
                     </MudChip>
-                    <MudTooltip Text="@(GetChildTagsCount(SecondFocusedTag.Id) > 0 ? $"子タグ ({GetChildTagsCount(SecondFocusedTag.Id)}件) を画面上に表示" : "子タグはありません")">
+                    <MudTooltip
+                        Text="@(GetChildTagsCount(SecondFocusedTag.Id) > 0 ? $"子タグ ({GetChildTagsCount(SecondFocusedTag.Id)}件) を画面上に表示" : "子タグはありません")">
                         <MudIconButton Icon="@Icons.Material.Filled.SubdirectoryArrowRight" Size="Size.Small" Color="Color.Info"
-                                       Class="pa-0 ml-1" Title="子タグを画面上に表示"
-                                       Disabled="@(GetChildTagsCount(SecondFocusedTag.Id) == 0)"
+                                       Class="pa-0 ml-1" Title="子タグを画面上に表示" Disabled="@(GetChildTagsCount(SecondFocusedTag.Id) == 0)"
                                        OnClick="() => OnShowChildNodes.InvokeAsync(SecondFocusedTag)" />
                     </MudTooltip>
                     <MudIconButton Icon="@Icons.Material.Filled.AccountTree" Size="Size.Small" Color="Color.Default"
-                                   Class="pa-0 ml-1" Title="終点タグのツリーを表示" OnClick="() => _isSecondFocusTreeOpen = !_isSecondFocusTreeOpen" />
-                    <MudOverlay Visible="@_isSecondFocusTreeOpen" OnClick="@(() => _isSecondFocusTreeOpen = false)" AutoClose="true"
-                                DarkBackground="false" />
-                    <MudPopover Open="@_isSecondFocusTreeOpen" AnchorOrigin="Origin.BottomCenter" TransformOrigin="Origin.TopCenter"
-                                OverflowBehavior="OverflowBehavior.FlipAlways" Class="tree-popover" Paper="false">
-                        <TagTreePopoverContent TargetTag="@SecondFocusedTag" AllTags="@AllTags" EnableSwap="false" EnableExpand="true"
-                                               EnableNavigation="true" OnTagClick="HandleFocusFromTree"
-                                               EnableAddChild="true" OnAddChildTag="tag => OnAddChildTag.InvokeAsync(tag)" />
+                                   Class="pa-0 ml-1" Title="終点タグのツリーを表示"
+                                   OnClick="() => _isSecondFocusTreeOpen = !_isSecondFocusTreeOpen" />
+                    <MudOverlay Visible="@_isSecondFocusTreeOpen" OnClick="@(() => _isSecondFocusTreeOpen = false)"
+                                AutoClose="true" DarkBackground="false" />
+                    <MudPopover Open="@_isSecondFocusTreeOpen" AnchorOrigin="Origin.BottomCenter"
+                                TransformOrigin="Origin.TopCenter" OverflowBehavior="OverflowBehavior.FlipAlways" Class="tree-popover"
+                                Paper="false">
+                        <TagTreePopoverContent TargetTag="@SecondFocusedTag" AllTags="@AllTags" EnableSwap="false"
+                                               EnableExpand="true" EnableNavigation="true" OnTagClick="HandleFocusFromTree" EnableAddChild="true"
+                                               OnAddChildTag="tag => OnAddChildTag.InvokeAsync(tag)" />
                     </MudPopover>
-                    <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" Color="Color.Default"
-                                   Class="pa-0" Title="終点タグを解除" OnClick="() => OnClearSecondTag.InvokeAsync()" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" Color="Color.Default" Class="pa-0"
+                                   Title="終点タグを解除" OnClick="() => OnClearSecondTag.InvokeAsync()" />
                 </div>
             }
             else
@@ -91,9 +95,9 @@
                         ② 終点: 未選択
                     </MudChip>
                     <div style="min-width: 220px; max-width: 280px;">
-                        <TagAutocomplete Value="SecondFocusedTag" ValueChanged="tag => OnSecondTagFocusedFromSearch.InvokeAsync(tag)"
-                                         Label="2つ目のタグを検索 (終点)" Placeholder="タグ名で検索..."
-                                         Variant="Variant.Outlined" Dense="true" Margin="Margin.Dense" />
+                        <TagAutocomplete Value="SecondFocusedTag"
+                                         ValueChanged="tag => OnSecondTagFocusedFromSearch.InvokeAsync(tag)" Label="2つ目のタグを検索 (終点)"
+                                         Placeholder="タグ名で検索..." Variant="Variant.Outlined" Dense="true" Margin="Margin.Dense" />
                     </div>
                 </div>
             }
@@ -105,7 +109,9 @@
                 var existingEdge = GetExistingEdgeBetween(FocusedTag.Id, SecondFocusedTag.Id);
                 @if (existingEdge != null)
                 {
-                    <MudChip T="string" Size="Size.Small" Color="@(existingEdge.SourceTagId == FocusedTag.Id ? Color.Info : Color.Warning)" Variant="Variant.Outlined">
+                    <MudChip T="string" Size="Size.Small"
+                             Color="@(existingEdge.SourceTagId == FocusedTag.Id ? Color.Info : Color.Warning)"
+                             Variant="Variant.Outlined">
                         @(existingEdge.SourceTagId == FocusedTag.Id ? "既存 Edge あり (①→②)" : "逆方向 Edge あり (②→①)")
                     </MudChip>
                     <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
@@ -123,7 +129,8 @@
             else
             {
                 <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small"
-                           StartIcon="@Icons.Material.Filled.AddLink" OnClick="() => OnOpenCreateEdgeDialog.InvokeAsync((FocusedTag, null))"
+                           StartIcon="@Icons.Material.Filled.AddLink"
+                           OnClick="() => OnOpenCreateEdgeDialog.InvokeAsync((FocusedTag, null))"
                            Disabled="@string.IsNullOrEmpty(CurrentUserId)">
                     このタグから Edge 作成
                 </MudButton>
@@ -175,10 +182,9 @@
     }
 
     private int GetChildTagsCount(int tagId) =>
-        AllTags.Count(t => t.ParentTagId == tagId);
+        TagDiagramFocusBarViewModel.GetChildTagsCount(AllTags, tagId);
 
     private TagEdge? GetExistingEdgeBetween(int tagId1, int tagId2) =>
-        Edges.FirstOrDefault(e =>
-            (e.SourceTagId == tagId1 && e.TargetTagId == tagId2) ||
-            (e.SourceTagId == tagId2 && e.TargetTagId == tagId1));
+        TagDiagramFocusBarViewModel.GetExistingEdgeBetween(Edges, tagId1, tagId2);
 }
+

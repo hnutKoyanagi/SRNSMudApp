@@ -4,8 +4,8 @@
 @inject IDialogLauncher DialogLauncher
 @inject ITaggingRequestActions RequestActions
 <MudTable T="TaggingRequestEntity" Items="[.. Requests.Where(r => r.Status != TradeStatus.Rejected)]" Hover="true"
-          Breakpoint="Breakpoint.Sm" Elevation="0"
-          @bind-SelectedItem="SelectedRequest" OnRowClick="OnRowClicked" RowClassFunc="SelectedRowClassFunc">
+          Breakpoint="Breakpoint.Sm" Elevation="0" @bind-SelectedItem="SelectedRequest" OnRowClick="OnRowClicked"
+          RowClassFunc="SelectedRowClassFunc">
     <HeaderContent>
         <MudTh>タイプ</MudTh>
         <MudTh>対象アイテム</MudTh>
@@ -40,28 +40,23 @@
                        OnClick="@(() => OpenThreadDialog(context))" Class="mr-2">
                 詳細・スレッド
             </MudButton>
-            @switch (CanApprove(context))
+            @if (CanApprove(context))
             {
-                case true:
-                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
-                               data-testid="tagging-request-approve"
-                               OnClick="@(() => ApproveRequestAsync(context))" Class="mr-2">
-                        承認
-                    </MudButton>
-                    break;
+                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
+                           data-testid="tagging-request-approve" OnClick="@(() => ApproveRequestAsync(context))" Class="mr-2">
+                    承認
+                </MudButton>
             }
-            @switch (RejectButtonTemplate)
+            @if (RejectButtonTemplate is not null)
             {
-                case not null:
-                    @RejectButtonTemplate(context)
-                    break;
-                case null when CanApprove(context):
-                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
-                               data-testid="tagging-request-reject"
-                               StartIcon="@Icons.Material.Filled.ThumbDown" OnClick="@(() => RejectRequestAsync(context))">
-                        却下
-                    </MudButton>
-                    break;
+                @RejectButtonTemplate(context)
+            }
+            else if (CanApprove(context))
+            {
+                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
+                           data-testid="tagging-request-reject" OnClick="@(() => RejectRequestAsync(context))">
+                    却下
+                </MudButton>
             }
         </MudTd>
     </RowTemplate>
@@ -108,9 +103,9 @@
 
     private async Task ApproveRequestAsync(TaggingRequestEntity request)
     {
-        switch (_currentUserId)
+        if (_currentUserId is null)
         {
-            case null: return;
+            return;
         }
 
         if (await RequestActions.ApproveAsync(request.Id, _currentUserId))
@@ -121,9 +116,9 @@
 
     private async Task RejectRequestAsync(TaggingRequestEntity request)
     {
-        switch (_currentUserId)
+        if (_currentUserId is null)
         {
-            case null: return;
+            return;
         }
 
         if (await RequestActions.RejectViaDialogAsync(request.Id, _currentUserId))
@@ -142,11 +137,9 @@
         var dialog = await DialogLauncher.ShowAsync<TaggingRequestThreadDialog>("リクエストスレッド", parameters, options);
         var result = await dialog.Result;
 
-        switch (result)
+        if (result is { Canceled: false })
         {
-            case { Canceled: false }:
-                await OnRequestChanged.InvokeAsync();
-                break;
+            await OnRequestChanged.InvokeAsync();
         }
     }
 

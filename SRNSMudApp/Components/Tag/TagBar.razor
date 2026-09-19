@@ -9,17 +9,13 @@
         <MudChip T="string" Size="Size.Small" Class="ma-0"
                  Style="background: #EEEDFE; color: #26215C; font-weight: 500; font-size: 0.75rem;">
             <span>@tag.Name</span>
-            @switch (string.IsNullOrEmpty(tag.OwnerName))
+            @if (!string.IsNullOrEmpty(tag.OwnerName))
             {
-                case false:
-                    <span class="ml-1" style="color: #26215C; opacity: 0.85; font-size: 0.7rem;">(@tag.OwnerName)</span>
-                    break;
+                <span class="ml-1" style="color: #26215C; opacity: 0.85; font-size: 0.7rem;">(@tag.OwnerName)</span>
             }
-            @switch (tag.Weight != 0)
+            @if (tag.Weight != 0)
             {
-                case true:
-                    <span class="ml-1 font-weight-bold" style="color: #26215C; font-size: 0.7rem;">@tag.Weight</span>
-                    break;
+                <span class="ml-1 font-weight-bold" style="color: #26215C; font-size: 0.7rem;">@tag.Weight</span>
             }
         </MudChip>
     }

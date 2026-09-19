@@ -31,16 +31,14 @@
             var allUrls = ItemCardViewModel.ExtractUrls(_editContent ?? "");
             var externalUrls = allUrls.Where(u => !u.StartsWith("/")).ToList();
         }
-        @switch (externalUrls.Count > 0)
+        @if (externalUrls.Count > 0)
         {
-            case true:
-                <MudStack Spacing="2" Class="mt-2">
-                    @foreach (var url in externalUrls.Take(3))
-                    {
-                        <SRNSMudApp.Components.UI.UrlPreviewCard Url="@url" LoadPreview="@PreviewService.GetPreviewAsync" />
-                    }
-                </MudStack>
-                break;
+            <MudStack Spacing="2" Class="mt-2">
+                @foreach (var url in externalUrls.Take(3))
+                {
+                    <SRNSMudApp.Components.UI.UrlPreviewCard Url="@url" LoadPreview="@PreviewService.GetPreviewAsync" />
+                }
+            </MudStack>
         }
     </DialogContent>
     <DialogActions>
@@ -50,7 +48,7 @@
 </MudDialog>
 
 @code {
-    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
 
     [Parameter] public Item Item { get; set; } = null!;
 
@@ -131,25 +129,23 @@
 
     private async Task SaveAsync()
     {
-        switch (string.IsNullOrWhiteSpace(_editContent))
+        if (string.IsNullOrWhiteSpace(_editContent))
         {
-            case true:
-                Snackbar.Add("内容は空にできません。", Severity.Warning);
-                return;
+            Snackbar.Add("内容は空にできません。", Severity.Warning);
+            return;
         }
 
         try
         {
             bool updated = await ItemCardData.UpdateItemContentAsync(Item.Id, _editContent);
-            switch (updated)
+            if (updated)
             {
-                case true:
-                    MudDialog.Close(DialogResult.Ok(true));
-                    break;
-                case false:
-                    Snackbar.Add("対象のアイテムが見つかりませんでした。", Severity.Error);
-                    MudDialog.Cancel();
-                    break;
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+            else
+            {
+                Snackbar.Add("対象のアイテムが見つかりませんでした。", Severity.Error);
+                MudDialog.Cancel();
             }
         }
         catch (Exception ex)

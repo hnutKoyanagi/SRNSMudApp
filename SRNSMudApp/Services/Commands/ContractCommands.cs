@@ -18,11 +18,14 @@ public sealed record CreateTriggerContractCommand(TaggingRequestEntity TriggerCo
 public sealed class CreatePublicOfferCommandHandler(IDbContextFactory<ApplicationDbContext> dbFactory)
     : CommandHandlerBase<CreatePublicOfferCommand, Result<bool>>
 {
+    private readonly IDbContextFactory<ApplicationDbContext> _dbFactory =
+        dbFactory ?? throw new ArgumentNullException(nameof(dbFactory));
+
     protected override async Task<Result<bool>> ExecuteAsync(
         CreatePublicOfferCommand command,
         CancellationToken cancellationToken)
     {
-        await using ApplicationDbContext dbContext = await dbFactory.CreateDbContextAsync(cancellationToken);
+        await using ApplicationDbContext dbContext = await _dbFactory.CreateDbContextAsync(cancellationToken);
         _ = dbContext.PublicTradeOffers!.Add(command.Offer);
         _ = await dbContext.SaveChangesAsync(cancellationToken);
         return Result.Ok();
@@ -33,11 +36,14 @@ public sealed class CreatePublicOfferCommandHandler(IDbContextFactory<Applicatio
 public sealed class CreateBountyCommandHandler(IDbContextFactory<ApplicationDbContext> dbFactory)
     : CommandHandlerBase<CreateBountyCommand, Result<bool>>
 {
+    private readonly IDbContextFactory<ApplicationDbContext> _dbFactory =
+        dbFactory ?? throw new ArgumentNullException(nameof(dbFactory));
+
     protected override async Task<Result<bool>> ExecuteAsync(
         CreateBountyCommand command,
         CancellationToken cancellationToken)
     {
-        await using ApplicationDbContext dbContext = await dbFactory.CreateDbContextAsync(cancellationToken);
+        await using ApplicationDbContext dbContext = await _dbFactory.CreateDbContextAsync(cancellationToken);
         _ = dbContext.TaggingRequestEntities.Add(command.Bounty);
         _ = await dbContext.SaveChangesAsync(cancellationToken);
         return Result.Ok();
@@ -48,11 +54,14 @@ public sealed class CreateBountyCommandHandler(IDbContextFactory<ApplicationDbCo
 public sealed class CreateTriggerContractCommandHandler(IDbContextFactory<ApplicationDbContext> dbFactory)
     : CommandHandlerBase<CreateTriggerContractCommand, Result<bool>>
 {
+    private readonly IDbContextFactory<ApplicationDbContext> _dbFactory =
+        dbFactory ?? throw new ArgumentNullException(nameof(dbFactory));
+
     protected override async Task<Result<bool>> ExecuteAsync(
         CreateTriggerContractCommand command,
         CancellationToken cancellationToken)
     {
-        await using ApplicationDbContext dbContext = await dbFactory.CreateDbContextAsync(cancellationToken);
+        await using ApplicationDbContext dbContext = await _dbFactory.CreateDbContextAsync(cancellationToken);
         _ = dbContext.TaggingRequestEntities.Add(command.TriggerContract);
         _ = await dbContext.SaveChangesAsync(cancellationToken);
         return Result.Ok();

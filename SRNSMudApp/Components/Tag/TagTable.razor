@@ -1,57 +1,44 @@
 @using System.Security.Claims
 @using SRNSMudApp.Services
 
-@switch (ShowHeader)
+@if (ShowHeader)
 {
-    case true:
-        <div class="d-flex justify-space-between align-center mb-4">
-            @switch (ShowCreateButton)
-            {
-                case true:
-                    <MudButton Href="/Tag/AddTag" Variant="Variant.Filled" Color="Color.Primary">
-                        Create New Tag
-                    </MudButton>
-                    break;
-                case false:
-                    <div></div>
-                    break;
-            }
+    <div class="d-flex justify-space-between align-center mb-4">
+        @if (ShowCreateButton)
+        {
+            <MudButton Href="/Tag/AddTag" Variant="Variant.Filled" Color="Color.Primary">
+                Create New Tag
+            </MudButton>
+        }
+        else
+        {
+            <div></div>
+        }
 
-            <MudAutocomplete T="string" @bind-Value="_tagSearch" SearchFunc="@SearchTags" Placeholder="Search tags..."
-                             Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium"
-                             Class="mt-0 search-input" ResetValueOnEmptyText="true" CoerceText="true" CoerceValue="true" Clearable="true" />
-        </div>
-        break;
-    case false:
-        break;
+        <MudAutocomplete T="string" @bind-Value="_tagSearch" SearchFunc="@SearchTags" Placeholder="Search tags..."
+                         Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium"
+                         Class="mt-0 search-input" ResetValueOnEmptyText="true" CoerceText="true" CoerceValue="true" Clearable="true" />
+    </div>
 }
 
 <MudTable Items="@Tags" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@(Tags == null)"
           LoadingProgressColor="Color.Info" Filter="FilterFunc">
     <HeaderContent>
-        @switch (OnRemoveTag.HasDelegate)
+        @if (OnRemoveTag.HasDelegate)
         {
-            case true:
-                <MudTh></MudTh>
-                break;
-            case false:
-                break;
+            <MudTh></MudTh>
         }
         <MudTh>Tag</MudTh>
         <MudTh>Attached Tags</MudTh>
         <MudTh>Content</MudTh>
     </HeaderContent>
     <RowTemplate>
-        @switch (OnRemoveTag.HasDelegate)
+        @if (OnRemoveTag.HasDelegate)
         {
-            case true:
-                <MudTd DataLabel="Remove">
-                    <MudIconButton Icon="@Icons.Material.Filled.LinkOff" Color="Color.Error" Size="Size.Small"
-                                   OnClick="@(() => OnRemoveTag.InvokeAsync(context))" title="タグ付けを解除" />
-                </MudTd>
-                break;
-            case false:
-                break;
+            <MudTd DataLabel="Remove">
+                <MudIconButton Icon="@Icons.Material.Filled.LinkOff" Color="Color.Error" Size="Size.Small"
+                               OnClick="@(() => OnRemoveTag.InvokeAsync(context))" title="タグ付けを解除" />
+            </MudTd>
         }
         <MudTd DataLabel="Tag">
             <BaseTagChip ChipId="@($"tag-table-chip-{context.Id}")" TagName="@context.Name"
@@ -65,25 +52,17 @@
                         <MudIconButton Icon="@Icons.Material.Filled.AccountTree" Size="Size.Small"
                                        OnClick="@(() => ToggleTree(context.Id))" title="タグツリーを表示" />
 
-                        @switch (!string.IsNullOrEmpty(_currentUserId) && TagTableViewModel.CanEditTag(context,
-                        _currentUserId, IsTagLocked(context.Id), _isAdmin))
+                        @if (!string.IsNullOrEmpty(_currentUserId) && TagTableViewModel.CanEditTag(context,
+                            _currentUserId, IsTagLocked(context.Id), _isAdmin))
                         {
-                            case true:
-                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                                               OnClick="@(() => EditTagAsync(context))" title="編集" />
-                                @switch (TagTableViewModel.CanDeleteTag(context, _currentUserId, IsTagLocked(context.Id),
-                        _isAdmin))
-                                {
-                                    case true:
-                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
-                                                       OnClick="@(() => DeleteTagAsync(context))" title="削除" />
-                                        break;
-                                    case false:
-                                        break;
-                                }
-                                break;
-                            case false:
-                                break;
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                           OnClick="@(() => EditTagAsync(context))" title="編集" />
+                            @if (TagTableViewModel.CanDeleteTag(context, _currentUserId, IsTagLocked(context.Id),
+                                _isAdmin))
+                            {
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                               OnClick="@(() => DeleteTagAsync(context))" title="削除" />
+                            }
                         }
                     </div>
                 </ActionContent>
@@ -112,16 +91,12 @@
                                  OnClose="@(_ => RemoveTagToTagRelationAsync(tr))"
                                  OnClick="@(() => NavigationManager.NavigateTo($"/TagDetail/{tr.Tag?.Id}"))" />
                 }
-                @switch (attachedDisplay.HasManyTags)
+                @if (attachedDisplay.HasManyTags)
                 {
-                    case true:
-                        <MudChip T="string" Size="Size.Small" Variant="Variant.Filled"
-                                 OnClick="@(() => ToggleTagExpand(context.Id))" Class="tag-chip-more">
-                            @attachedDisplay.ToggleLabel
-                        </MudChip>
-                        break;
-                    case false:
-                        break;
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Filled"
+                             OnClick="@(() => ToggleTagExpand(context.Id))" Class="tag-chip-more">
+                        @attachedDisplay.ToggleLabel
+                    </MudChip>
                 }
             </MudStack>
         </MudTd>

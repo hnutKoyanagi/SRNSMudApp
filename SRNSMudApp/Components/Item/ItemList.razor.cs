@@ -24,7 +24,7 @@ public sealed partial class ItemList : IDisposable
     // ===== ソート用ステート =====
     private readonly List<SortCondition> _sortConditions = [];
 
-    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
     private string? _currentUserId;
 
     [Inject] private IItemListDataProvider ListData { get; set; } = null!;

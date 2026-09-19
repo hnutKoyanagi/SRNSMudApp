@@ -19,7 +19,7 @@ namespace SRNSMudApp.Components.Tag;
 /// </summary>
 public partial class TagTable
 {
-    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
 
     [Parameter] public IEnumerable<Data.Tag>? Tags { get; set; }
     [Parameter] public IReadOnlyDictionary<int, int>? OverrideWeights { get; set; }
@@ -73,13 +73,9 @@ public partial class TagTable
 
     private void ToggleTagExpand(int tagId)
     {
-        switch (_expandedTagIds.Remove(tagId))
+        if (!_expandedTagIds.Remove(tagId))
         {
-            case false:
-                _ = _expandedTagIds.Add(tagId);
-                break;
-            case true:
-                break;
+            _ = _expandedTagIds.Add(tagId);
         }
     }
 
@@ -88,11 +84,7 @@ public partial class TagTable
 
     private void ToggleTree(int tagId)
     {
-        _activeTreeTagId = (_activeTreeTagId == tagId) switch
-        {
-            true => null,
-            false => tagId
-        };
+        _activeTreeTagId = _activeTreeTagId == tagId ? null : tagId;
     }
 
     private async Task OnAddTagToTagClicked(Data.Tag targetTag)
@@ -130,14 +122,13 @@ public partial class TagTable
 
     private async Task RemoveTagToTagRelationAsync(TagRelationToTag relation)
     {
-        switch (TagTableViewModel.CanRemoveRelation(relation, _currentUserId))
+        if (TagTableViewModel.CanRemoveRelation(relation, _currentUserId))
         {
-            case true:
-                await ExecuteRemoveTagToTagRelationAsync(relation);
-                break;
-            case false:
-                _ = Snackbar.Add("関連付けの作成者本人ではないため、解除する権限がありません。", Severity.Error);
-                break;
+            await ExecuteRemoveTagToTagRelationAsync(relation);
+        }
+        else
+        {
+            _ = Snackbar.Add("関連付けの作成者本人ではないため、解除する権限がありません。", Severity.Error);
         }
     }
 
@@ -162,17 +153,17 @@ public partial class TagTable
 
     private async Task EditTagAsync(Data.Tag tag)
     {
-        switch (TagTableViewModel.CanEditTag(tag, _currentUserId, IsTagLocked(tag.Id), _isAdmin))
+        if (TagTableViewModel.CanEditTag(tag, _currentUserId, IsTagLocked(tag.Id), _isAdmin))
         {
-            case true:
-                await ShowTagEditDialogAsync(tag);
-                break;
-            case false when IsTagLocked(tag.Id) && !_isAdmin:
-                _ = Snackbar.Add("このタグまたはその兄弟タグはロックされているため編集できません。", Severity.Warning);
-                break;
-            case false:
-                _ = Snackbar.Add("タグの作成者本人ではないため、編集する権限がありません。", Severity.Error);
-                break;
+            await ShowTagEditDialogAsync(tag);
+        }
+        else if (IsTagLocked(tag.Id) && !_isAdmin)
+        {
+            _ = Snackbar.Add("このタグまたはその兄弟タグはロックされているため編集できません。", Severity.Warning);
+        }
+        else
+        {
+            _ = Snackbar.Add("タグの作成者本人ではないため、編集する権限がありません。", Severity.Error);
         }
     }
 
@@ -184,13 +175,9 @@ public partial class TagTable
         IDialogReference dialog = await DialogLauncher.ShowAsync<TagEditDialog>("タグの編集", parameters, options);
         DialogResult? result = await dialog.Result;
 
-        switch (result)
+        if (result is { Canceled: false })
         {
-            case { Canceled: false }:
-                await ExecutePostEditTagAsync();
-                break;
-            default:
-                break;
+            await ExecutePostEditTagAsync();
         }
     }
 
@@ -208,17 +195,17 @@ public partial class TagTable
             return;
         }
 
-        switch (TagTableViewModel.CanDeleteTag(tag, _currentUserId, IsTagLocked(tag.Id), _isAdmin))
+        if (TagTableViewModel.CanDeleteTag(tag, _currentUserId, IsTagLocked(tag.Id), _isAdmin))
         {
-            case true:
-                await ExecuteDeleteTagAsync(tag);
-                break;
-            case false when tag.IsSystem:
-                _ = Snackbar.Add("システムタグは削除できません。", Severity.Error);
-                break;
-            case false:
-                _ = Snackbar.Add("タグの作成者本人ではないため、削除する権限がありません。", Severity.Error);
-                break;
+            await ExecuteDeleteTagAsync(tag);
+        }
+        else if (tag.IsSystem)
+        {
+            _ = Snackbar.Add("システムタグは削除できません。", Severity.Error);
+        }
+        else
+        {
+            _ = Snackbar.Add("タグの作成者本人ではないため、削除する権限がありません。", Severity.Error);
         }
     }
 
@@ -247,10 +234,9 @@ public partial class TagTable
     private async Task NotifyDataChangedAsync()
     {
         await ReloadLockStatusAsync();
-        await (OnDataChanged.HasDelegate switch
+        if (OnDataChanged.HasDelegate)
         {
-            true => OnDataChanged.InvokeAsync(),
-            false => Task.CompletedTask
-        });
+            await OnDataChanged.InvokeAsync();
+        }
     }
 }

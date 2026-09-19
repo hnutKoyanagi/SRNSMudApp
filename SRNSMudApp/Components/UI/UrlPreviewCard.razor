@@ -25,76 +25,68 @@
         </MudCard>
         break;
     case Loaded<LinkPreviewData> loaded when loaded.Data.IsSuccess && Url.StartsWith("/"):
-        @switch (loaded.Data.Tags is { Count: > 0 })
+        @if (loaded.Data.Tags is { Count: > 0 })
         {
-            case true:
-                <MudTooltip Placement="Placement.Top" Arrow="true">
-                    <ChildContent>
-                        <span @onclick="NavigateToUrl" data-testid="internal-link-preview-pill" class="cursor-pointer px-1 mx-1 rounded"
-                              style="background-color: var(--mud-palette-action-default-hover); color: var(--mud-palette-primary);">
-                            @(loaded.Data.DisplayText ?? loaded.Data.Description)
-                        </span>
-                    </ChildContent>
-                    <TooltipContent>
-                        <TagBar Tags="@loaded.Data.Tags" />
-                    </TooltipContent>
-                </MudTooltip>
-                break;
-            case false:
-                <span @onclick="NavigateToUrl" data-testid="internal-link-preview-pill" class="cursor-pointer px-1 mx-1 rounded"
-                      style="background-color: var(--mud-palette-action-default-hover); color: var(--mud-palette-primary);">
-                    @(loaded.Data.DisplayText ?? loaded.Data.Description)
-                </span>
-                break;
+            <MudTooltip Placement="Placement.Top" Arrow="true">
+                <ChildContent>
+                    <span @onclick="NavigateToUrl" data-testid="internal-link-preview-pill" class="cursor-pointer px-1 mx-1 rounded"
+                          style="background-color: var(--mud-palette-action-default-hover); color: var(--mud-palette-primary);">
+                        @(loaded.Data.DisplayText ?? loaded.Data.Description)
+                    </span>
+                </ChildContent>
+                <TooltipContent>
+                    <TagBar Tags="@loaded.Data.Tags" />
+                </TooltipContent>
+            </MudTooltip>
+        }
+        else
+        {
+            <span @onclick="NavigateToUrl" data-testid="internal-link-preview-pill" class="cursor-pointer px-1 mx-1 rounded"
+                  style="background-color: var(--mud-palette-action-default-hover); color: var(--mud-palette-primary);">
+                @(loaded.Data.DisplayText ?? loaded.Data.Description)
+            </span>
         }
         break;
     case Loaded<LinkPreviewData> loaded when loaded.Data.IsSuccess:
         <MudCard Outlined="true" Class="mt-2 mb-2 rounded-lg preview-card" @onclick="NavigateToUrl">
             <div class="d-flex flex-row">
-                @switch (string.IsNullOrEmpty(loaded.Data.ImageUrl))
+                @if (!string.IsNullOrEmpty(loaded.Data.ImageUrl))
                 {
-                    case false:
-                        <div class="preview-img-container">
-                            <MudImage Src="@loaded.Data.ImageUrl" Alt="Preview Image" ObjectFit="ObjectFit.Cover" Width="120"
-                                      Height="120" Class="preview-img" />
-                        </div>
-                        break;
+                    <div class="preview-img-container">
+                        <MudImage Src="@loaded.Data.ImageUrl" Alt="Preview Image" ObjectFit="ObjectFit.Cover" Width="120"
+                                  Height="120" Class="preview-img" />
+                    </div>
                 }
                 <MudCardContent Class="pa-3 d-flex flex-column justify-center preview-content">
                     <MudText Typo="Typo.subtitle2" Class="preview-title">
                         @loaded.Data.Title
                     </MudText>
-                    @switch (string.IsNullOrEmpty(_selectedText), string.IsNullOrEmpty(loaded.Data.Description))
+                    @if (!string.IsNullOrEmpty(_selectedText))
                     {
-                        case (false, _):
-                            <div class="preview-highlight">
-                                <div class="d-flex align-center highlight-header">
-                                    <MudIcon Icon="@Icons.Material.Filled.FormatQuote" Size="Size.Small" Class="highlight-icon" />
-                                    <MudText Typo="Typo.caption" Class="highlight-title">
-                                        選択テキスト
-                                    </MudText>
-                                </div>
-                                <MudText Typo="Typo.caption" Color="Color.Primary" Class="highlight-text">
-                                    @_selectedText
+                        <div class="preview-highlight">
+                            <div class="d-flex align-center highlight-header">
+                                <MudIcon Icon="@Icons.Material.Filled.FormatQuote" Size="Size.Small" Class="highlight-icon" />
+                                <MudText Typo="Typo.caption" Class="highlight-title">
+                                    選択テキスト
                                 </MudText>
                             </div>
-                            break;
-                        case (true, false):
-                            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="preview-description">
-                                @loaded.Data.Description
+                            <MudText Typo="Typo.caption" Color="Color.Primary" Class="highlight-text">
+                                @_selectedText
                             </MudText>
-                            break;
+                        </div>
+                    }
+                    else if (!string.IsNullOrEmpty(loaded.Data.Description))
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="preview-description">
+                            @loaded.Data.Description
+                        </MudText>
                     }
                     <div class="d-flex align-center mt-2">
                         <MudIcon Icon="@Icons.Material.Filled.Language" Size="Size.Small" Color="Color.Secondary"
                                  Class="mr-1 site-icon" />
                         <MudText Typo="Typo.caption" Color="Color.Secondary" Class="site-name">
-                            @(string.IsNullOrEmpty(loaded.Data.SiteName) switch
-                            {
-                                false => loaded.Data.SiteName,
-                                true => new
-                    Uri(loaded.Data.Url).Host
-                            })
+                            @(!string.IsNullOrEmpty(loaded.Data.SiteName) ? loaded.Data.SiteName : new
+                    Uri(loaded.Data.Url).Host)
                         </MudText>
                     </div>
                 </MudCardContent>
@@ -117,18 +109,17 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        switch (string.IsNullOrWhiteSpace(Url))
+        if (string.IsNullOrWhiteSpace(Url))
         {
-            case true: return;
+            return;
         }
 
         _selectedText = UrlPreviewCardViewModel.ExtractTextFragment(Url);
 
-        switch (LoadPreview)
+        if (LoadPreview is null)
         {
-            case null:
-                _state = new Empty("プレビュー取得デリゲート未設定");
-                return;
+            _state = new Empty("プレビュー取得デリゲート未設定");
+            return;
         }
 
         _state = new Loading();
@@ -141,18 +132,16 @@
 
     private async Task NavigateToUrl()
     {
-        switch (string.IsNullOrEmpty(Url))
+        if (!string.IsNullOrEmpty(Url))
         {
-            case false:
-                try
-                {
-                    await JS.InvokeVoidAsync("open", Url, "_blank");
-                }
-                catch (Exception)
-                {
-                    // ignored
-                }
-                break;
+            try
+            {
+                await JS.InvokeVoidAsync("open", Url, "_blank");
+            }
+            catch (Exception)
+            {
+                // ignored
+            }
         }
     }
 }

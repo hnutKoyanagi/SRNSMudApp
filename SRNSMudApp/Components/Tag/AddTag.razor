@@ -36,7 +36,7 @@
 </EditForm>
 
 @code {
-    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
 
     private InputModel Input { get; } = new();
 
@@ -49,29 +49,24 @@
     private async Task AddTagAsync()
     {
         Console.WriteLine($"[DEBUG] AddTagAsync started! Input.Name='{Input.Name}'");
-        var authState = await AuthState!;
+        var authState = await AuthStateTask;
         var user = authState.User;
         string? userId = null;
         ApplicationUser? currentUser = null;
 
-        switch (user.Identity is { IsAuthenticated: true })
+        if (user.Identity is { IsAuthenticated: true })
         {
-            case true:
-                userId = user.FindFirst(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
-                switch (string.IsNullOrEmpty(userId))
-                {
-                    case false:
-                        currentUser = await UserData.FindUserByIdAsync(userId!);
-                        break;
-                }
-                break;
+            userId = user.FindFirst(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+            if (!string.IsNullOrEmpty(userId))
+            {
+                currentUser = await UserData.FindUserByIdAsync(userId);
+            }
         }
 
-        switch (currentUser)
+        if (currentUser is null)
         {
-            case null:
-                Snackbar.Add("ユーザーが見つかりません。", Severity.Error);
-                return;
+            Snackbar.Add("ユーザーが見つかりません。", Severity.Error);
+            return;
         }
 
         var tag = new Tag

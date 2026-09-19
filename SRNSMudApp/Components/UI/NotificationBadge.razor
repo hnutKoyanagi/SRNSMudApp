@@ -4,15 +4,13 @@
 @inject INotificationService NotificationService
 @inject NavigationManager NavigationManager
 
-@switch (_userId)
+@if (_userId is not null)
 {
-    case not null:
-        <MudBadge Content="_unreadCount" Color="Color.Error" Overlap="true" Visible="@(_unreadCount > 0)"
-                  data-testid="appbar-notifications-badge">
-            <MudIconButton Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit" Href="notifications"
-                           aria-label="notifications" />
-        </MudBadge>
-        break;
+    <MudBadge Content="_unreadCount" Color="Color.Error" Overlap="true" Visible="@(_unreadCount > 0)"
+              data-testid="appbar-notifications-badge">
+        <MudIconButton Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit" Href="notifications"
+                       aria-label="notifications" />
+    </MudBadge>
 }
 
 @code {
@@ -63,28 +61,25 @@
     {
         var authState = await AuthenticationStateTask;
         var user = authState.User;
-        switch (user.Identity?.IsAuthenticated)
+        if (user.Identity?.IsAuthenticated == true)
         {
-            case true:
-                _userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                switch (_userId)
+            _userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (_userId is not null)
+            {
+                if (IsNotificationsPage())
                 {
-                    case not null:
-                        if (IsNotificationsPage())
-                        {
-                            _unreadCount = 0;
-                        }
-                        else
-                        {
-                            _unreadCount = await NotificationService.GetUnreadCountAsync(_userId);
-                        }
-                        break;
+                    _unreadCount = 0;
                 }
-                break;
-            default:
-                _userId = null;
-                _unreadCount = 0;
-                break;
+                else
+                {
+                    _unreadCount = await NotificationService.GetUnreadCountAsync(_userId);
+                }
+            }
+        }
+        else
+        {
+            _userId = null;
+            _unreadCount = 0;
         }
     }
 

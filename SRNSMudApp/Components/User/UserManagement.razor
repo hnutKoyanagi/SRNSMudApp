@@ -1,8 +1,6 @@
 @page "/User/Management"
-@using Microsoft.AspNetCore.Identity
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = "Admin")]
-@inject UserManager<ApplicationUser> UserManager
 @using SRNSMudApp.Services
 @inject IUserDataProvider UserData
 @inject ISnackbar Snackbar
@@ -11,31 +9,30 @@
     <MudText Typo="Typo.h4" GutterBottom="true">ユーザー管理</MudText>
     <MudText Typo="Typo.body1" Class="mb-4">管理者（Admin）権限の付与・剥奪を行います。</MudText>
 
-    @switch (_users)
+    @if (_users is null)
     {
-        case null:
-            <MudProgressCircular Indeterminate="true"/>
-            break;
-        case not null:
-            <MudTable Items="@_users" Hover="true" Dense="true" Elevation="3">
-                <HeaderContent>
-                    <MudTh>ID</MudTh>
-                    <MudTh>Email (Username)</MudTh>
-                    <MudTh>Admin権限</MudTh>
-                </HeaderContent>
-                <RowTemplate>
-                    <MudTd DataLabel="ID">@context.User.Id</MudTd>
-                    <MudTd DataLabel="Email">@context.User.UserName</MudTd>
-                    <MudTd DataLabel="Admin権限">
-                        <MudSwitch T="bool" Value="@context.IsAdmin" ValueChanged="@(val => ToggleAdminAsync(context, val))"
-                                   Color="Color.Primary"/>
-                    </MudTd>
-                </RowTemplate>
-                <PagerContent>
-                    <MudTablePager/>
-                </PagerContent>
-            </MudTable>
-            break;
+        <MudProgressCircular Indeterminate="true" />
+    }
+    else
+    {
+        <MudTable Items="@_users" Hover="true" Dense="true" Elevation="3">
+            <HeaderContent>
+                <MudTh>ID</MudTh>
+                <MudTh>Email (Username)</MudTh>
+                <MudTh>Admin権限</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="ID">@context.User.Id</MudTd>
+                <MudTd DataLabel="Email">@context.User.UserName</MudTd>
+                <MudTd DataLabel="Admin権限">
+                    <MudSwitch T="bool" Value="@context.IsAdmin" ValueChanged="@(val => ToggleAdminAsync(context, val))"
+                               Color="Color.Primary" />
+                </MudTd>
+            </RowTemplate>
+            <PagerContent>
+                <MudTablePager />
+            </PagerContent>
+        </MudTable>
     }
 </MudContainer>
 
@@ -60,7 +57,7 @@
         List<UserViewModel> vms = [];
         foreach (var u in users)
         {
-            var isAdmin = await UserManager.IsInRoleAsync(u, "Admin");
+            var isAdmin = await UserData.IsUserInRoleAsync(u, "Admin");
             vms.Add(new UserViewModel { User = u, IsAdmin = isAdmin });
         }
 
@@ -69,35 +66,23 @@
 
     private async Task ToggleAdminAsync(UserViewModel vm, bool newIsAdmin)
     {
-        switch (vm.IsAdmin == newIsAdmin)
+        if (vm.IsAdmin == newIsAdmin)
         {
-            case true: return;
+            return;
         }
 
-        // Fetch fresh user instance via UserManager to ensure proper tracking and avoid concurrency issues
-        var user = await UserManager.FindByIdAsync(vm.User.Id);
-        switch (user)
+        var result = await UserData.UpdateUserAdminRoleAsync(vm.User.Id, newIsAdmin);
+
+        if (result.Succeeded)
         {
-            case null:
-                Snackbar.Add("ユーザーが見つかりません。", Severity.Error);
-                return;
+            vm.IsAdmin = newIsAdmin;
+            Snackbar.Add(newIsAdmin ? $"{vm.User.UserName} にAdmin権限を付与しました。" : $"{vm.User.UserName} のAdmin権限を剥奪しました。",
+Severity.Success);
         }
-
-        var result = newIsAdmin
-            ? await UserManager.AddToRoleAsync(user, "Admin")
-            : await UserManager.RemoveFromRoleAsync(user, "Admin");
-
-        switch (result.Succeeded)
+        else
         {
-            case true:
-                vm.IsAdmin = newIsAdmin;
-                Snackbar.Add(newIsAdmin ? $"{user.UserName} にAdmin権限を付与しました。" : $"{user.UserName} のAdmin権限を剥奪しました。", Severity.Success);
-                break;
-            case false:
-                var errors = string.Join(", ", result.Errors.Select(e => e.Description));
-                Snackbar.Add($"権限の変更に失敗しました: {errors}", Severity.Error);
-                break;
+            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+            Snackbar.Add($"権限の変更に失敗しました: {errors}", Severity.Error);
         }
     }
-
 }

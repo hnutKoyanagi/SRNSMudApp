@@ -193,12 +193,7 @@
     private IReadOnlyList<TagLockItemDto> _tags = [];
 
     private IEnumerable<TagLockItemDto> FilteredTags =>
-        string.IsNullOrWhiteSpace(_searchString)
-            ? _tags
-            : _tags.Where(t =>
-                t.Name.Contains(_searchString, StringComparison.OrdinalIgnoreCase) ||
-                (t.ParentTagName?.Contains(_searchString, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                (t.OwnerUserName?.Contains(_searchString, StringComparison.OrdinalIgnoreCase) ?? false));
+        TagManagementViewModel.FilterTags(_tags, _searchString);
 
     protected override async Task OnInitializedAsync()
     {

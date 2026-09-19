@@ -26,7 +26,7 @@ namespace SRNSMudApp.Components.UI;
 /// </summary>
 public partial class ResourceList : IAsyncDisposable
 {
-    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
 
     [Parameter] public IEnumerable<Data.Item> Items { get; set; } = [];
     [Parameter] public IEnumerable<Data.Tag> Tags { get; set; } = [];
@@ -64,7 +64,7 @@ public partial class ResourceList : IAsyncDisposable
         _focusTagId = state.FocusTagId;
         _focusItemId = state.FocusItemId;
 
-        AuthenticationState authState = await AuthState!;
+        AuthenticationState authState = await AuthState;
         _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
         await FetchTagsAsync();
     }
@@ -88,22 +88,18 @@ public partial class ResourceList : IAsyncDisposable
     private async Task NotifyChangedAsync()
     {
         await FetchTagsAsync();
-        switch (OnDataChanged.HasDelegate)
+        if (OnDataChanged.HasDelegate)
         {
-            case true:
-                await OnDataChanged.InvokeAsync();
-                break;
+            await OnDataChanged.InvokeAsync();
         }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        switch (!_hasScrolledToFocus && (Items.Any() || Tags.Any()))
+        if (!_hasScrolledToFocus && (Items.Any() || Tags.Any()))
         {
-            case true:
-                _hasScrolledToFocus = true;
-                await ScrollToFocusTargetAsync();
-                break;
+            _hasScrolledToFocus = true;
+            await ScrollToFocusTargetAsync();
         }
     }
 
@@ -111,11 +107,9 @@ public partial class ResourceList : IAsyncDisposable
     private async Task ScrollToFocusTargetAsync()
     {
         var selector = ResourceListViewModel.GetFocusSelector(_focusTagId, _focusItemId);
-        switch (selector)
+        if (selector is not null)
         {
-            case not null:
-                await TryScrollAsync(selector);
-                break;
+            await TryScrollAsync(selector);
         }
     }
 
@@ -137,9 +131,9 @@ public partial class ResourceList : IAsyncDisposable
 
     private void SetFocusTag(int tagId)
     {
-        switch (_focusTagId == tagId)
+        if (_focusTagId == tagId)
         {
-            case true: return;
+            return;
         }
         _focusTagId = tagId;
         _focusItemId = null;
@@ -148,9 +142,9 @@ public partial class ResourceList : IAsyncDisposable
 
     private void SetFocusItem(int itemId)
     {
-        switch (_focusItemId == itemId)
+        if (_focusItemId == itemId)
         {
-            case true: return;
+            return;
         }
         _focusItemId = itemId;
         _focusTagId = null;
@@ -163,9 +157,9 @@ public partial class ResourceList : IAsyncDisposable
         Justification = "URL更新失敗時は何もしない")]
     private async void UpdateFocusUrl()
     {
-        switch (EnableUrlUpdate)
+        if (!EnableUrlUpdate)
         {
-            case false: return;
+            return;
         }
 
         try

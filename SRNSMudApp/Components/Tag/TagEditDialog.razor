@@ -30,7 +30,7 @@
 
 @code {
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
-    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
 
     // TagList.razor から渡される Tag パラメータ
     [Parameter] public Tag Tag { get; set; } = null!;
@@ -51,13 +51,9 @@
         var initialGroups = Tag.AutoApproveUserGroups.Select(g => g.UserGroupId).ToHashSet();
         _selectedGroupIds = initialGroups;
 
-        string? currentUserId = null;
-        if (AuthState is not null)
-        {
-            var auth = await AuthState;
-            currentUserId = auth.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            _isAdmin = auth.User.IsInRole("Admin");
-        }
+        var auth = await AuthStateTask;
+        string? currentUserId = auth.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        _isAdmin = auth.User.IsInRole("Admin");
 
         currentUserId ??= Tag.OwnerId;
 
@@ -75,11 +71,10 @@
 
     private async Task SaveAsync()
     {
-        switch (string.IsNullOrWhiteSpace(_editName))
+        if (string.IsNullOrWhiteSpace(_editName))
         {
-            case true:
-                Snackbar.Add("タグ名は空にできません。", Severity.Warning);
-                return;
+            Snackbar.Add("タグ名は空にできません。", Severity.Warning);
+            return;
         }
 
         try
@@ -87,16 +82,14 @@
             bool updated = await TagCommandService.UpdateTagAsync(Tag.Id, _editName, _editContent,
                 Tag.AutoAcceptIncomingTaggingRequests, _selectedGroupIds, _isAdmin);
 
-            switch (updated)
+            if (updated)
             {
-                // 成功した場合はダイアログを閉じ、結果として true を返す
-                case true:
-                    MudDialog.Close(DialogResult.Ok(true));
-                    break;
-                case false:
-                    Snackbar.Add("対象のタグが見つからないか、ロックされているため更新できません。", Severity.Warning);
-                    MudDialog.Cancel();
-                    break;
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+            else
+            {
+                Snackbar.Add("対象のタグが見つからないか、ロックされているため更新できません。", Severity.Warning);
+                MudDialog.Cancel();
             }
         }
         catch (Exception ex)

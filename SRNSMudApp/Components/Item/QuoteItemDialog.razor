@@ -23,16 +23,14 @@
             @{
                 var urls = ItemCardViewModel.ExtractUrls(_content);
             }
-            @switch (urls.Any())
+            @if (urls.Any())
             {
-                case true:
-                    <MudStack Spacing="2">
-                        @foreach (var url in urls.Take(3))
-                        {
-                            <UrlPreviewCard Url="@url" LoadPreview="@PreviewService.GetPreviewAsync" />
-                        }
-                    </MudStack>
-                    break;
+                <MudStack Spacing="2">
+                    @foreach (var url in urls.Take(3))
+                    {
+                        <UrlPreviewCard Url="@url" LoadPreview="@PreviewService.GetPreviewAsync" />
+                    }
+                </MudStack>
             }
 
             @* 引用元のアイテムプレビュー *@
@@ -46,15 +44,14 @@
         <MudButton OnClick="Cancel">キャンセル</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync"
                    Disabled="@(string.IsNullOrWhiteSpace(_content) || _isSubmitting)" data-testid="quote-item-submit-button">
-            @switch (_isSubmitting)
+            @if (_isSubmitting)
             {
-                case true:
-                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-1" />
-                    <span>投稿中...</span>
-                    break;
-                case false:
-                    <span>引用して投稿</span>
-                    break;
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-1" />
+                <span>投稿中...</span>
+            }
+            else
+            {
+                <span>引用して投稿</span>
             }
         </MudButton>
     </DialogActions>
@@ -113,4 +110,3 @@
         }
     }
 }
-

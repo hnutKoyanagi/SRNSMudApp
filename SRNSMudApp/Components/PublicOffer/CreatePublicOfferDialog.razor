@@ -27,7 +27,7 @@
 
 @code {
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
-    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
 
     private MudForm? _form;
     private bool _isValid;
@@ -38,8 +38,8 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var authState = await AuthState!;
-        _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
+        var authState = await AuthStateTask;
+        _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
     }
 
     private async Task<IEnumerable<Tag>> SearchMyTags(string? value, CancellationToken token)
@@ -50,9 +50,9 @@
     private async Task Submit()
     {
         await _form!.ValidateAsync();
-        switch (!_isValid || _selectedTag == null)
+        if (!_isValid || _selectedTag is null)
         {
-            case true: return;
+            return;
         }
 
         var offer = new PublicTradeOffer
@@ -73,5 +73,4 @@
     {
         MudDialog.Cancel();
     }
-
 }

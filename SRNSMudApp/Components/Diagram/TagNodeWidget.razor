@@ -80,21 +80,19 @@
     private async Task ToggleTree()
     {
         _isTreeOpen = !_isTreeOpen;
-        switch (_isTreeOpen)
+        if (_isTreeOpen)
         {
-            case true:
-                await Task.Yield();
-                try
-                {
-                    await JS.InvokeVoidAsync("contentOverflowHelper.scrollToElement", ".tag-tree-popover-content #tag-tree-current-line");
-                }
-                catch (JSException)
-                {
-                }
-                catch (InvalidOperationException)
-                {
-                }
-                break;
+            await Task.Yield();
+            try
+            {
+                await JS.InvokeVoidAsync("contentOverflowHelper.scrollToElement", ".tag-tree-popover-content #tag-tree-current-line");
+            }
+            catch (JSException)
+            {
+            }
+            catch (InvalidOperationException)
+            {
+            }
         }
     }
 

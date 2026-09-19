@@ -25,81 +25,76 @@
                     <MudTabPanel Text="詳細 (Details)">
                         <div class="item-thread-container mb-6">
                             @* ===== 1. 親方向 (Ancestors / Parents) ===== *@
-                            @switch (data.Ancestors.Count > 0)
+                            @if (data.Ancestors.Count > 0)
                             {
-                                case true:
-                                    <div class="ancestors-thread mb-2">
-                                        <MudText Typo="Typo.caption" Color="Color.Secondary"
-                                                 Class="mb-1 d-block font-weight-bold">
-                                            スレッドの親アイテム
-                                        </MudText>
-                                        @switch (data.Ancestors.Count > AncestorsThreshold && !_isAncestorsExpanded)
+                                <div class="ancestors-thread mb-2">
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary"
+                                             Class="mb-1 d-block font-weight-bold">
+                                        スレッドの親アイテム
+                                    </MudText>
+                                    @if (data.Ancestors.Count > AncestorsThreshold && !_isAncestorsExpanded)
+                                    {
+                                        @* 先頭（最古）アイテム *@
+                                        <div class="ancestor-card-container position-relative">
+                                            <SRNSMudApp.Components.UI.ItemCard Item="@data.Ancestors[0]" AllTags="@_allTags"
+                                                                               AllTagRelationsToTags="@_allTagRelationsToTags" CurrentUserId="@_currentUserId"
+                                                                               CurrentUserGoodTagId="@_currentUserGoodTagId"
+                                                                               CurrentUserBadTagId="@_currentUserBadTagId"
+                                                                               CurrentUserShinjiTagId="@_currentUserShinjiTagId"
+                                                                               CurrentUserZenTagId="@_currentUserZenTagId"
+                                                                               CurrentUserBiTagId="@_currentUserBiTagId"
+                                                                               OnEnsureSystemTags="EnsureSystemTagsExistAsync" OnDataChanged="LoadDataAsync"
+                                                                               EnableNavigation="true" />
+                                            <div class="thread-vertical-line my-1 ml-6"
+                                                 style="width: 2px; height: 16px; background-color: var(--mud-palette-divider);">
+                                            </div>
+                                        </div>
+                                        @* 中間折りたたみ展開ボタン *@
+                                        <div class="d-flex align-center my-2 pl-3">
+                                            <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small"
+                                                       StartIcon="@Icons.Material.Filled.UnfoldMore"
+                                                       OnClick="@(() => _isAncestorsExpanded = true)"
+                                                       data-testid="expand-ancestors-btn">
+                                                前の返信をもっと見る (@(data.Ancestors.Count - 2) 件)
+                                            </MudButton>
+                                        </div>
+                                        @* 直前親アイテム *@
+                                        <div class="ancestor-card-container position-relative">
+                                            <SRNSMudApp.Components.UI.ItemCard Item="@data.Ancestors[^1]" AllTags="@_allTags"
+                                                                               AllTagRelationsToTags="@_allTagRelationsToTags" CurrentUserId="@_currentUserId"
+                                                                               CurrentUserGoodTagId="@_currentUserGoodTagId"
+                                                                               CurrentUserBadTagId="@_currentUserBadTagId"
+                                                                               CurrentUserShinjiTagId="@_currentUserShinjiTagId"
+                                                                               CurrentUserZenTagId="@_currentUserZenTagId"
+                                                                               CurrentUserBiTagId="@_currentUserBiTagId"
+                                                                               OnEnsureSystemTags="EnsureSystemTagsExistAsync" OnDataChanged="LoadDataAsync"
+                                                                               EnableNavigation="true" />
+                                            <div class="thread-vertical-line my-1 ml-6"
+                                                 style="width: 2px; height: 16px; background-color: var(--mud-palette-divider);">
+                                            </div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var ancestor in data.Ancestors)
                                         {
-                                            case true:
-                                                @* 先頭（最古）アイテム *@
-                                                <div class="ancestor-card-container position-relative">
-                                                    <SRNSMudApp.Components.UI.ItemCard Item="@data.Ancestors[0]" AllTags="@_allTags"
-                                                                                       AllTagRelationsToTags="@_allTagRelationsToTags" CurrentUserId="@_currentUserId"
-                                                                                       CurrentUserGoodTagId="@_currentUserGoodTagId"
-                                                                                       CurrentUserBadTagId="@_currentUserBadTagId"
-                                                                                       CurrentUserShinjiTagId="@_currentUserShinjiTagId"
-                                                                                       CurrentUserZenTagId="@_currentUserZenTagId"
-                                                                                       CurrentUserBiTagId="@_currentUserBiTagId"
-                                                                                       OnEnsureSystemTags="EnsureSystemTagsExistAsync" OnDataChanged="LoadDataAsync"
-                                                                                       EnableNavigation="true" />
-                                                    <div class="thread-vertical-line my-1 ml-6"
-                                                         style="width: 2px; height: 16px; background-color: var(--mud-palette-divider);">
-                                                    </div>
+                                            <div class="ancestor-card-container position-relative">
+                                                <SRNSMudApp.Components.UI.ItemCard Item="@ancestor" AllTags="@_allTags"
+                                                                                   AllTagRelationsToTags="@_allTagRelationsToTags" CurrentUserId="@_currentUserId"
+                                                                                   CurrentUserGoodTagId="@_currentUserGoodTagId"
+                                                                                   CurrentUserBadTagId="@_currentUserBadTagId"
+                                                                                   CurrentUserShinjiTagId="@_currentUserShinjiTagId"
+                                                                                   CurrentUserZenTagId="@_currentUserZenTagId"
+                                                                                   CurrentUserBiTagId="@_currentUserBiTagId"
+                                                                                   OnEnsureSystemTags="EnsureSystemTagsExistAsync" OnDataChanged="LoadDataAsync"
+                                                                                   EnableNavigation="true" />
+                                                <div class="thread-vertical-line my-1 ml-6"
+                                                     style="width: 2px; height: 16px; background-color: var(--mud-palette-divider);">
                                                 </div>
-                                                @* 中間折りたたみ展開ボタン *@
-                                                <div class="d-flex align-center my-2 pl-3">
-                                                    <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small"
-                                                               StartIcon="@Icons.Material.Filled.UnfoldMore"
-                                                               OnClick="@(() => _isAncestorsExpanded = true)"
-                                                               data-testid="expand-ancestors-btn">
-                                                        前の返信をもっと見る (@(data.Ancestors.Count - 2) 件)
-                                                    </MudButton>
-                                                </div>
-                                                @* 直前親アイテム *@
-                                                <div class="ancestor-card-container position-relative">
-                                                    <SRNSMudApp.Components.UI.ItemCard Item="@data.Ancestors[^1]" AllTags="@_allTags"
-                                                                                       AllTagRelationsToTags="@_allTagRelationsToTags" CurrentUserId="@_currentUserId"
-                                                                                       CurrentUserGoodTagId="@_currentUserGoodTagId"
-                                                                                       CurrentUserBadTagId="@_currentUserBadTagId"
-                                                                                       CurrentUserShinjiTagId="@_currentUserShinjiTagId"
-                                                                                       CurrentUserZenTagId="@_currentUserZenTagId"
-                                                                                       CurrentUserBiTagId="@_currentUserBiTagId"
-                                                                                       OnEnsureSystemTags="EnsureSystemTagsExistAsync" OnDataChanged="LoadDataAsync"
-                                                                                       EnableNavigation="true" />
-                                                    <div class="thread-vertical-line my-1 ml-6"
-                                                         style="width: 2px; height: 16px; background-color: var(--mud-palette-divider);">
-                                                    </div>
-                                                </div>
-                                                break;
-                                            case false:
-                                                @foreach (var ancestor in data.Ancestors)
-                                                {
-                                                    <div class="ancestor-card-container position-relative">
-                                                        <SRNSMudApp.Components.UI.ItemCard Item="@ancestor" AllTags="@_allTags"
-                                                                                           AllTagRelationsToTags="@_allTagRelationsToTags" CurrentUserId="@_currentUserId"
-                                                                                           CurrentUserGoodTagId="@_currentUserGoodTagId"
-                                                                                           CurrentUserBadTagId="@_currentUserBadTagId"
-                                                                                           CurrentUserShinjiTagId="@_currentUserShinjiTagId"
-                                                                                           CurrentUserZenTagId="@_currentUserZenTagId"
-                                                                                           CurrentUserBiTagId="@_currentUserBiTagId"
-                                                                                           OnEnsureSystemTags="EnsureSystemTagsExistAsync" OnDataChanged="LoadDataAsync"
-                                                                                           EnableNavigation="true" />
-                                                        <div class="thread-vertical-line my-1 ml-6"
-                                                             style="width: 2px; height: 16px; background-color: var(--mud-palette-divider);">
-                                                        </div>
-                                                    </div>
-                                                }
-                                                break;
+                                            </div>
                                         }
-                                    </div>
-                                    break;
-                                case false:
-                                    break;
+                                    }
+                                </div>
                             }
 
                             @* ===== 2. 兄弟方向および選択中アイテム (Siblings & Focused Item in Chronological Order) ===== *@
@@ -126,21 +121,16 @@
                             }
                             <div class="thread-replies-timeline d-flex flex-column gap-3">
                                 @* 過去兄弟の折りたたみ展開ボタン *@
-                                @switch (earlierSiblings.Count > EarlierSiblingsThreshold &&
-                                !_isEarlierSiblingsExpanded)
+                                @if (earlierSiblings.Count > EarlierSiblingsThreshold && !_isEarlierSiblingsExpanded)
                                 {
-                                    case true:
-                                        <div class="d-flex justify-center my-1">
-                                            <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small"
-                                                       StartIcon="@Icons.Material.Filled.KeyboardDoubleArrowUp"
-                                                       OnClick="@(() => _isEarlierSiblingsExpanded = true)"
-                                                       data-testid="expand-earlier-siblings-btn">
-                                                過去の兄弟リプライをもっと見る (@(earlierSiblings.Count - EarlierSiblingsThreshold) 件)
-                                            </MudButton>
-                                        </div>
-                                        break;
-                                    case false:
-                                        break;
+                                    <div class="d-flex justify-center my-1">
+                                        <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small"
+                                                   StartIcon="@Icons.Material.Filled.KeyboardDoubleArrowUp"
+                                                   OnClick="@(() => _isEarlierSiblingsExpanded = true)"
+                                                   data-testid="expand-earlier-siblings-btn">
+                                            過去の兄弟リプライをもっと見る (@(earlierSiblings.Count - EarlierSiblingsThreshold) 件)
+                                        </MudButton>
+                                    </div>
                                 }
 
                                 @* 過去の兄弟アイテム *@
@@ -184,14 +174,10 @@
                                                        OnClick="SubmitReplyAsync"
                                                        Disabled="@(string.IsNullOrWhiteSpace(_newReplyText) || _isSubmittingReply)"
                                                        data-testid="item-detail-reply-submit">
-                                                @switch (_isSubmittingReply)
+                                                @if (_isSubmittingReply)
                                                 {
-                                                    case true:
-                                                        <MudProgressCircular Size="Size.Small" Indeterminate="true"
-                                                                             Class="mr-1" />
-                                                        break;
-                                                    case false:
-                                                        break;
+                                                    <MudProgressCircular Size="Size.Small" Indeterminate="true"
+                                                                         Class="mr-1" />
                                                 }
                                                 返信
                                             </MudButton>
@@ -207,46 +193,41 @@
                                                 リプライ (@data.Replies.Count)
                                             </MudText>
                                         </div>
-                                        @switch (data.Replies.Count)
+                                        @if (data.Replies.Count == 0)
                                         {
-                                            case 0:
-                                                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="pl-2">
-                                                    リプライはまだありません
-                                                </MudText>
-                                                break;
-                                            default:
-                                                <div class="d-flex flex-column gap-3 pl-3"
-                                                     style="border-left: 2px solid var(--mud-palette-divider);">
-                                                    @foreach (var reply in visibleReplies)
-                                                    {
-                                                        <SRNSMudApp.Components.UI.ItemCard Item="@reply" AllTags="@_allTags"
-                                                                                           AllTagRelationsToTags="@_allTagRelationsToTags"
-                                                                                           CurrentUserId="@_currentUserId"
-                                                                                           CurrentUserGoodTagId="@_currentUserGoodTagId"
-                                                                                           CurrentUserBadTagId="@_currentUserBadTagId"
-                                                                                           CurrentUserShinjiTagId="@_currentUserShinjiTagId"
-                                                                                           CurrentUserZenTagId="@_currentUserZenTagId"
-                                                                                           CurrentUserBiTagId="@_currentUserBiTagId"
-                                                                                           OnEnsureSystemTags="EnsureSystemTagsExistAsync"
-                                                                                           OnDataChanged="LoadDataAsync" EnableNavigation="true" />
-                                                    }
-                                                    @switch (data.Replies.Count > RepliesThreshold && !_isRepliesExpanded)
-                                                    {
-                                                        case true:
-                                                            <div class="d-flex justify-center mt-2">
-                                                                <MudButton Variant="Variant.Text" Color="Color.Primary"
-                                                                           Size="Size.Small" StartIcon="@Icons.Material.Filled.ExpandMore"
-                                                                           OnClick="@(() => _isRepliesExpanded = true)"
-                                                                           data-testid="expand-replies-btn">
-                                                                    返信をもっと見る (他 @(data.Replies.Count - RepliesThreshold) 件)
-                                                                </MudButton>
-                                                            </div>
-                                                            break;
-                                                        case false:
-                                                            break;
-                                                    }
-                                                </div>
-                                                break;
+                                            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="pl-2">
+                                                リプライはまだありません
+                                            </MudText>
+                                        }
+                                        else
+                                        {
+                                            <div class="d-flex flex-column gap-3 pl-3"
+                                                 style="border-left: 2px solid var(--mud-palette-divider);">
+                                                @foreach (var reply in visibleReplies)
+                                                {
+                                                    <SRNSMudApp.Components.UI.ItemCard Item="@reply" AllTags="@_allTags"
+                                                                                       AllTagRelationsToTags="@_allTagRelationsToTags"
+                                                                                       CurrentUserId="@_currentUserId"
+                                                                                       CurrentUserGoodTagId="@_currentUserGoodTagId"
+                                                                                       CurrentUserBadTagId="@_currentUserBadTagId"
+                                                                                       CurrentUserShinjiTagId="@_currentUserShinjiTagId"
+                                                                                       CurrentUserZenTagId="@_currentUserZenTagId"
+                                                                                       CurrentUserBiTagId="@_currentUserBiTagId"
+                                                                                       OnEnsureSystemTags="EnsureSystemTagsExistAsync"
+                                                                                       OnDataChanged="LoadDataAsync" EnableNavigation="true" />
+                                                }
+                                                @if (data.Replies.Count > RepliesThreshold && !_isRepliesExpanded)
+                                                {
+                                                    <div class="d-flex justify-center mt-2">
+                                                        <MudButton Variant="Variant.Text" Color="Color.Primary"
+                                                                   Size="Size.Small" StartIcon="@Icons.Material.Filled.ExpandMore"
+                                                                   OnClick="@(() => _isRepliesExpanded = true)"
+                                                                   data-testid="expand-replies-btn">
+                                                            返信をもっと見る (他 @(data.Replies.Count - RepliesThreshold) 件)
+                                                        </MudButton>
+                                                    </div>
+                                                }
+                                            </div>
                                         }
                                     </div>
                                 </div>
@@ -268,20 +249,16 @@
                                 }
 
                                 @* 未来兄弟の折りたたみ展開ボタン *@
-                                @switch (laterSiblings.Count > LaterSiblingsThreshold && !_isLaterSiblingsExpanded)
+                                @if (laterSiblings.Count > LaterSiblingsThreshold && !_isLaterSiblingsExpanded)
                                 {
-                                    case true:
-                                        <div class="d-flex justify-center my-1">
-                                            <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small"
-                                                       StartIcon="@Icons.Material.Filled.KeyboardDoubleArrowDown"
-                                                       OnClick="@(() => _isLaterSiblingsExpanded = true)"
-                                                       data-testid="expand-later-siblings-btn">
-                                                新しい兄弟リプライをもっと見る (@(laterSiblings.Count - LaterSiblingsThreshold) 件)
-                                            </MudButton>
-                                        </div>
-                                        break;
-                                    case false:
-                                        break;
+                                    <div class="d-flex justify-center my-1">
+                                        <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small"
+                                                   StartIcon="@Icons.Material.Filled.KeyboardDoubleArrowDown"
+                                                   OnClick="@(() => _isLaterSiblingsExpanded = true)"
+                                                   data-testid="expand-later-siblings-btn">
+                                            新しい兄弟リプライをもっと見る (@(laterSiblings.Count - LaterSiblingsThreshold) 件)
+                                        </MudButton>
+                                    </div>
                                 }
                             </div>
                         </div>
@@ -289,96 +266,89 @@
 
                     <MudTabPanel Text="タグ管理 (Tag Management)">
                         <MudText Typo="Typo.h6" Class="mb-3">タグ一覧</MudText>
-                        @switch (data.Item.TagRelations)
+                        @if (data.Item.TagRelations is not null)
                         {
-                            case not null:
-                                <SRNSMudApp.Components.Tag.ItemTagTable TagRelations="@data.Item.TagRelations" Item="@data.Item"
-                                                                        CurrentUserId="@_currentUserId" AllTags="@_allTags"
-                                                                        AllTagRelationsToTags="@_allTagRelationsToTags" SearchString="@_searchQuery"
-                                                                        SearchStringChanged="OnSearchStringChanged" OnDataChanged="LoadDataAsync" />
-                                break;
+                            <SRNSMudApp.Components.Tag.ItemTagTable TagRelations="@data.Item.TagRelations" Item="@data.Item"
+                                                                    CurrentUserId="@_currentUserId" AllTags="@_allTags"
+                                                                    AllTagRelationsToTags="@_allTagRelationsToTags" SearchString="@_searchQuery"
+                                                                    SearchStringChanged="OnSearchStringChanged" OnDataChanged="LoadDataAsync" />
                         }
 
                         <MudDivider Class="my-6" />
                         <MudText Typo="Typo.h6" Class="mb-3">タグ付与依頼 (関連リクエスト)</MudText>
-                        @switch (!data.Requests.Any())
+                        @if (!data.Requests.Any())
                         {
-                            case true:
-                                <MudText Typo="Typo.body1" Color="Color.Default">関連するリクエストはありません。</MudText>
-                                break;
-                            case false:
-                                <SRNSMudApp.Components.Tag.TaggingRequestList Requests="@data.Requests"
-                                                                              OnRequestChanged="LoadDataAsync" SelectedRequest="_selectedRequest"
-                                                                              SelectedRequestChanged="OnSelectedRequestChanged">
-                                    <RejectButtonTemplate Context="request">
-                                        <MudButton Color="Color.Error" Variant="Variant.Filled" Size="Size.Small"
-                                                   OnClick="@(() => OpenRejectDialogAsync(request))">
-                                            リジェクト
-                                        </MudButton>
-                                    </RejectButtonTemplate>
-                                </SRNSMudApp.Components.Tag.TaggingRequestList>
-                                break;
+                            <MudText Typo="Typo.body1" Color="Color.Default">関連するリクエストはありません。</MudText>
+                        }
+                        else
+                        {
+                            <SRNSMudApp.Components.Tag.TaggingRequestList Requests="@data.Requests"
+                                                                          OnRequestChanged="LoadDataAsync" SelectedRequest="_selectedRequest"
+                                                                          SelectedRequestChanged="OnSelectedRequestChanged">
+                                <RejectButtonTemplate Context="request">
+                                    <MudButton Color="Color.Error" Variant="Variant.Filled" Size="Size.Small"
+                                               OnClick="@(() => OpenRejectDialogAsync(request))">
+                                        リジェクト
+                                    </MudButton>
+                                </RejectButtonTemplate>
+                            </SRNSMudApp.Components.Tag.TaggingRequestList>
                         }
                     </MudTabPanel>
 
                     <MudTabPanel Text="タグ履歴">
-                        @switch (!data.Ledgers.Any())
+                        @if (!data.Ledgers.Any())
                         {
-                            case true:
-                                <MudText Typo="Typo.body1" Color="Color.Default">履歴はありません</MudText>
-                                break;
-                            case false:
-                                <MudList T="TagWeightLedger">
-                                    @foreach (var ledger in data.Ledgers)
-                                    {
-                                        <MudListItem>
-                                            <div class="d-flex align-center">
-                                                <MudChip T="string" Color="Color.Primary" Size="Size.Small" Class="mr-2">
-                                                    @(ledger.TagRelation?.Tag?.Name ?? ledger.TagNameSnapshot)
-                                                </MudChip>
-                                                <MudText Typo="Typo.body2"
-                                                         Color="@(ledger.Delta > 0 ? Color.Success : ledger.Delta < 0 ? Color.Error : Color.Default)"
-                                                         Class="mr-2">
-                                                    @(ledger.Delta > 0 ? $"+{ledger.Delta}" : ledger.Delta.ToString())
-                                                </MudText>
-                                                <MudText Typo="Typo.body2" Class="mr-2">
-                                                    @ledger.Owner?.UserName
-                                                </MudText>
-                                                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="ml-auto">
-                                                    @ledger.CreatedDate.ToLocalTime().ToString("g")
-                                                </MudText>
-                                            </div>
-                                        </MudListItem>
-                                    }
-                                </MudList>
-                                break;
+                            <MudText Typo="Typo.body1" Color="Color.Default">履歴はありません</MudText>
+                        }
+                        else
+                        {
+                            <MudList T="TagWeightLedger">
+                                @foreach (var ledger in data.Ledgers)
+                                {
+                                    <MudListItem>
+                                        <div class="d-flex align-center">
+                                            <MudChip T="string" Color="Color.Primary" Size="Size.Small" Class="mr-2">
+                                                @(ledger.TagRelation?.Tag?.Name ?? ledger.TagNameSnapshot)
+                                            </MudChip>
+                                            <MudText Typo="Typo.body2"
+                                                     Color="@(ledger.Delta > 0 ? Color.Success : ledger.Delta < 0 ? Color.Error : Color.Default)"
+                                                     Class="mr-2">
+                                                @(ledger.Delta > 0 ? $"+{ledger.Delta}" : ledger.Delta.ToString())
+                                            </MudText>
+                                            <MudText Typo="Typo.body2" Class="mr-2">
+                                                @ledger.Owner?.UserName
+                                            </MudText>
+                                            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="ml-auto">
+                                                @ledger.CreatedDate.ToLocalTime().ToString("g")
+                                            </MudText>
+                                        </div>
+                                    </MudListItem>
+                                }
+                            </MudList>
                         }
                     </MudTabPanel>
 
                     <MudTabPanel Text="@($"引用 ({data.Quotes.Count})")">
                         <MudText Typo="Typo.h6" Class="mb-3">このアイテムを引用した投稿</MudText>
-                        @switch (data.Quotes.Count)
+                        @if (data.Quotes.Count == 0)
                         {
-                            case 0:
-                                <MudText Typo="Typo.body1" Color="Color.Default">引用されたアイテムはありません。</MudText>
-                                break;
-                            default:
-                                <div class="d-flex flex-column gap-3">
-                                    @foreach (var quote in data.Quotes)
-                                    {
-                                        <SRNSMudApp.Components.UI.ItemCard Item="@quote" AllTags="@_allTags"
-                                                                           AllTagRelationsToTags="@_allTagRelationsToTags"
-                                                                           CurrentUserId="@_currentUserId"
-                                                                           CurrentUserGoodTagId="@_currentUserGoodTagId"
-                                                                           CurrentUserBadTagId="@_currentUserBadTagId"
-                                                                           CurrentUserShinjiTagId="@_currentUserShinjiTagId"
-                                                                           CurrentUserZenTagId="@_currentUserZenTagId"
-                                                                           CurrentUserBiTagId="@_currentUserBiTagId"
-                                                                           OnEnsureSystemTags="EnsureSystemTagsExistAsync"
-                                                                           OnDataChanged="LoadDataAsync" EnableNavigation="true" />
-                                    }
-                                </div>
-                                break;
+                            <MudText Typo="Typo.body1" Color="Color.Default">引用されたアイテムはありません。</MudText>
+                        }
+                        else
+                        {
+                            <div class="d-flex flex-column gap-3">
+                                @foreach (var quote in data.Quotes)
+                                {
+                                    <SRNSMudApp.Components.UI.ItemCard Item="@quote" AllTags="@_allTags"
+                                                                       AllTagRelationsToTags="@_allTagRelationsToTags" CurrentUserId="@_currentUserId"
+                                                                       CurrentUserGoodTagId="@_currentUserGoodTagId"
+                                                                       CurrentUserBadTagId="@_currentUserBadTagId"
+                                                                       CurrentUserShinjiTagId="@_currentUserShinjiTagId"
+                                                                       CurrentUserZenTagId="@_currentUserZenTagId" CurrentUserBiTagId="@_currentUserBiTagId"
+                                                                       OnEnsureSystemTags="EnsureSystemTagsExistAsync" OnDataChanged="LoadDataAsync"
+                                                                       EnableNavigation="true" />
+                                }
+                            </div>
                         }
                     </MudTabPanel>
                 </MudTabs>

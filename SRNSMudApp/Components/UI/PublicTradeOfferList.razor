@@ -15,14 +15,13 @@
     </HeaderContent>
     <RowTemplate>
         <MudTd DataLabel="ステータス">
-            @switch (context.IsActive)
+            @if (context.IsActive)
             {
-                case true:
-                    <MudChip T="string" Color="Color.Success" Size="Size.Small">有効</MudChip>
-                    break;
-                case false:
-                    <MudChip T="string" Color="Color.Default" Size="Size.Small">無効</MudChip>
-                    break;
+                <MudChip T="string" Color="Color.Success" Size="Size.Small">有効</MudChip>
+            }
+            else
+            {
+                <MudChip T="string" Color="Color.Default" Size="Size.Small">無効</MudChip>
             }
         </MudTd>
         <MudTd DataLabel="オファー日時">@context.CreatedDate.ToLocalTime().ToString("g")</MudTd>
@@ -30,20 +29,19 @@
         <MudTd DataLabel="対象タグ">@(context.OfferedTag?.Name ?? "-")</MudTd>
         <MudTd DataLabel="要求アセット量">@context.RequiredAssetAmount</MudTd>
         <MudTd DataLabel="アクション">
-            <MudButton Variant="Variant.Outlined" Size="Size.Small" Color="Color.Primary"
-                       Disabled="!context.IsActive"
+            <MudButton Variant="Variant.Outlined" Size="Size.Small" Color="Color.Primary" Disabled="!context.IsActive"
                        OnClick="@(() => TriggerOffer(context))">
                 受諾する
             </MudButton>
         </MudTd>
     </RowTemplate>
     <PagerContent>
-        <MudTablePager PageSizeOptions="new[] { 10, 20, 50 }"/>
+        <MudTablePager PageSizeOptions="[10, 20, 50]" />
     </PagerContent>
 </MudTable>
 
 @code {
-    [Parameter] public IEnumerable<PublicTradeOffer> Offers { get; set; } = Enumerable.Empty<PublicTradeOffer>();
+    [Parameter] public IEnumerable<PublicTradeOffer> Offers { get; set; } = [];
 
     [Parameter] public EventCallback OnOfferTriggered { get; set; }
 
@@ -57,12 +55,10 @@
         var dialog = await DialogLauncher.ShowAsync<TriggerPublicOfferDialog>("オファーを受諾", parameters);
         var result = await dialog.Result;
 
-        switch (result)
+        if (result is { Canceled: false })
         {
-            case { Canceled: false }:
-                Snackbar.Add("オファーを受諾し、リクエストを作成しました。", Severity.Success);
-                await OnOfferTriggered.InvokeAsync();
-                break;
+            Snackbar.Add("オファーを受諾し、リクエストを作成しました。", Severity.Success);
+            await OnOfferTriggered.InvokeAsync();
         }
     }
 

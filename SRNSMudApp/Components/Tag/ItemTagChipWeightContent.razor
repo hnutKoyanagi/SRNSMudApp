@@ -1,42 +1,28 @@
 @* ItemTagChip の Weight 操作領域 (増減ボタン・Weight 表示・削除) を担う表示専用子コンポーネント。
    サービス注入なし・[Parameter] / EventCallback のみで bUnit テスト可能。 *@
 <MudStack Row="true" AlignItems="AlignItems.Center" Class="gap-0">
-    @switch (IsDeleted)
+    @if (!IsDeleted)
     {
-        case false:
-            <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small"
-                           Color="Color.Inherit" Class="chip-icon-btn pa-0 mx-1"
-                           OnClick="@(() => OnDecreaseWeight.InvokeAsync())"
-                           title="Weightを減らす"/>
-            break;
+        <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small" Color="Color.Inherit"
+                       Class="chip-icon-btn pa-0 mx-1" OnClick="@(() => OnDecreaseWeight.InvokeAsync())" title="Weightを減らす" />
     }
-    <MudLink Color="Color.Inherit" Underline="Underline.Hover"
-             Class="mx-1 cursor-pointer font-weight-bold"
+    <MudLink Color="Color.Inherit" Underline="Underline.Hover" Class="mx-1 cursor-pointer font-weight-bold"
              OnClick="@(() => (IsDeleted ? Task.CompletedTask : OnEditWeight.InvokeAsync()))">
-        @switch (IsDeleted)
+        @if (IsDeleted)
         {
-            case true:
-                <MudIcon Icon="@Icons.Material.Outlined.Delete" Size="Size.Small"
-                         Class="mr-1" Style="font-size: 1rem; vertical-align: middle;"/>
-                break;
+            <MudIcon Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" Class="mr-1"
+                     Style="font-size: 1rem; vertical-align: middle;" />
         }
         <span style="vertical-align: middle;">@DisplayWeight</span>
     </MudLink>
-    @switch (IsDeleted)
+    @if (!IsDeleted)
     {
-        case false:
-            <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
-                           Color="@AddButtonColor" Class="chip-icon-btn pa-0 mx-1"
-                           OnClick="@(() => OnIncreaseWeight.InvokeAsync())"
-                           title="Weightを増やす"/>
+        <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" Color="@AddButtonColor"
+                       Class="chip-icon-btn pa-0 mx-1" OnClick="@(() => OnIncreaseWeight.InvokeAsync())" title="Weightを増やす" />
 
-            <MudIconButton
-                Icon="@(IsMyTag switch { true => Icons.Material.Filled.Delete, false => Icons.Material.Outlined.Delete })"
-                Size="Size.Small"
-                Color="Color.Inherit" Class="chip-icon-btn pa-0 mx-1"
-                OnClick="@(() => OnRemoveRelation.InvokeAsync())"
-                title="関連付けを削除"/>
-            break;
+        <MudIconButton Icon="@(IsMyTag ? Icons.Material.Filled.Delete : Icons.Material.Outlined.Delete)" Size="Size.Small"
+                       Color="Color.Inherit" Class="chip-icon-btn pa-0 mx-1" OnClick="@(() => OnRemoveRelation.InvokeAsync())"
+                       title="関連付けを削除" />
     }
 </MudStack>
 

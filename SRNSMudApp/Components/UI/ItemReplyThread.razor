@@ -46,21 +46,19 @@
         <MudDivider Class="my-3" />
         <MudText Typo="Typo.subtitle2" Class="mb-2">リプライスレッド</MudText>
 
-        @switch (Replies?.Any())
+        @if (Replies?.Any() == true)
         {
-            case true:
-                <div class="d-flex flex-column gap-3 mb-4 pl-4" style="border-left: 2px solid #e0e0e0;">
-                    @foreach (Data.Item reply in Replies!)
+            <div class="d-flex flex-column gap-3 mb-4 pl-4" style="border-left: 2px solid #e0e0e0;">
+                @foreach (Data.Item reply in Replies!)
+                {
+                    // リプライの描画はコンテナ (ItemCard) がテンプレートとして提供する
+                    var template = ReplyTemplate;
+                    if (template != null)
                     {
-                        // リプライの描画はコンテナ (ItemCard) がテンプレートとして提供する
-                        var template = ReplyTemplate;
-                        if (template != null)
-                        {
-                            @template(reply)
-                        }
+                        @template(reply)
                     }
-                </div>
-                break;
+                }
+            </div>
         }
 
         @if (TargetCandidates?.Any() == true)
@@ -92,15 +90,14 @@
                        OnClick="@(async () => await OnSubmitReply.InvokeAsync())"
                        Disabled="@(string.IsNullOrWhiteSpace(NewReplyContent) || IsSubmittingReply)"
                        data-testid="@($"reply-submit-button-{ItemId}")">
-                @switch (IsSubmittingReply)
+                @if (IsSubmittingReply)
                 {
-                    case true:
-                        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
-                        <span class="ms-2">送信中</span>
-                        break;
-                    case false:
-                        <span>送信</span>
-                        break;
+                    <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                    <span class="ms-2">送信中</span>
+                }
+                else
+                {
+                    <span>送信</span>
                 }
             </MudButton>
         </div>

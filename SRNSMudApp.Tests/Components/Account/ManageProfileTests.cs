@@ -149,7 +149,8 @@ public sealed class ManageProfileTests : IDisposable
         {
             Id = "test-user-id",
             UserName = "CurrentUserName",
-            Email = "current@example.com"
+            Email = "current@example.com",
+            PhoneNumber = "090-1234-5678"
         };
 
         var userStoreMock = new Mock<IUserStore<ApplicationUser>>();
@@ -197,9 +198,9 @@ public sealed class ManageProfileTests : IDisposable
         var usernameInput = cut.Find("input[placeholder='Please choose your username.']");
         Assert.NotNull(usernameInput);
         Assert.False(usernameInput.HasAttribute("disabled"), "Username field should be editable (not disabled).");
-        Assert.Equal("CurrentUserName", usernameInput.GetAttribute("value"));
-
-        // PhoneNumber フィールドが存在しないことを検証
-        Assert.Empty(cut.FindAll("input[autocomplete='tel-national']"));
+        // PhoneNumber フィールドが存在し、初期値が設定されていることを検証
+        var phoneInput = cut.Find("input[autocomplete='tel-national']");
+        Assert.NotNull(phoneInput);
+        Assert.Equal("090-1234-5678", phoneInput.GetAttribute("value"));
     }
 }

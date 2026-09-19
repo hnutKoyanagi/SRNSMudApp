@@ -92,16 +92,15 @@
                 <MudTd Style="text-align: right;" DataLabel="アクション">
                     <div class="d-flex justify-end gap-1">
                         <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
-                                   StartIcon="@Icons.Material.Filled.People"
-                                   OnClick="@(() => OpenMembersDialogAsync(context))">
+                                   StartIcon="@Icons.Material.Filled.People" OnClick="@(() => OpenMembersDialogAsync(context))">
                             メンバー
                         </MudButton>
                         @if (context.OwnerId == _currentUserId)
                         {
-                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Default" Size="Size.Small"
-                                           Title="編集" OnClick="@(() => OpenEditDialogAsync(context))" />
-                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
-                                           Title="削除" OnClick="@(() => DeleteGroupAsync(context))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Default" Size="Size.Small" Title="編集"
+                                           OnClick="@(() => OpenEditDialogAsync(context))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" Title="削除"
+                                           OnClick="@(() => DeleteGroupAsync(context))" />
                         }
                     </div>
                 </MudTd>
@@ -227,4 +226,3 @@
         }
     }
 }
-

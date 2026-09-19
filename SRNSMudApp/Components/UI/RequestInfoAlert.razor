@@ -4,62 +4,52 @@
 
 <MudAlert
     Severity="@(RequestInfo.RequestType switch { TaggingRequestType.Add => Severity.Success, TaggingRequestType.Remove => Severity.Error, _ => Severity.Warning })"
-    Variant="Variant.Outlined"
-    Dense="true"
-    Class="mb-3 py-1 px-3"
-    NoIcon="true">
+    Variant="Variant.Outlined" Dense="true" Class="mb-3 py-1 px-3" NoIcon="true">
     <div class="d-flex align-start flex-wrap" style="gap: 8px;">
         <!-- アイコン領域（クリック可能） -->
         <div class="d-flex align-center mt-1">
             @switch ((CanCancel, CanApprove || CanReject, RequestInfo.Status))
             {
                 case (true, _, _):
-                    <MudIconButton Icon="@Icons.Material.Filled.CancelScheduleSend"
-                                   Color="Color.Error"
-                                   Size="Size.Small"
-                                   OnClick="OnCancelClicked"
-                                   Class="pa-0 mr-2"
-                                   title="リクエストを取り下げる"/>
+                    <MudIconButton Icon="@Icons.Material.Filled.CancelScheduleSend" Color="Color.Error" Size="Size.Small"
+                                   OnClick="OnCancelClicked" Class="pa-0 mr-2" title="リクエストを取り下げる" />
                     break;
                 case (false, true, _):
-                    @switch (CanApprove)
+                    @if (CanApprove)
                     {
-                        case true:
-                            <button type="button" @onclick="OnApproveClicked" @onclick:stopPropagation="true" class="mud-button-root mud-icon-button mud-success-text hover:mud-success-hover mud-ripple mud-ripple-icon mud-icon-button-size-small pa-0 mr-1" title="リクエストを承認する">
-                                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" />
-                            </button>
-                            break;
+                        <button type="button" @onclick="OnApproveClicked" @onclick:stopPropagation="true"
+                                class="mud-button-root mud-icon-button mud-success-text hover:mud-success-hover mud-ripple mud-ripple-icon mud-icon-button-size-small pa-0 mr-1"
+                                title="リクエストを承認する">
+                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" />
+                        </button>
                     }
-                    @switch (CanReject)
+                    @if (CanReject)
                     {
-                        case true:
-                            <button type="button" @onclick="OnRejectClicked" @onclick:stopPropagation="true" class="mud-button-root mud-icon-button mud-error-text hover:mud-error-hover mud-ripple mud-ripple-icon mud-icon-button-size-small pa-0 mr-2" title="リクエストを却下する">
-                                <MudIcon Icon="@Icons.Material.Filled.Cancel" Size="Size.Small" />
-                            </button>
-                            break;
+                        <button type="button" @onclick="OnRejectClicked" @onclick:stopPropagation="true"
+                                class="mud-button-root mud-icon-button mud-error-text hover:mud-error-hover mud-ripple mud-ripple-icon mud-icon-button-size-small pa-0 mr-2"
+                                title="リクエストを却下する">
+                            <MudIcon Icon="@Icons.Material.Filled.Cancel" Size="Size.Small" />
+                        </button>
                     }
                     break;
                 case (false, false, TradeStatus.Canceled):
-                    <MudIcon Icon="@Icons.Material.Filled.RemoveDone"
-                             Size="Size.Small"
-                             Class="mr-2 canceled-icon"/>
+                    <MudIcon Icon="@Icons.Material.Filled.RemoveDone" Size="Size.Small" Class="mr-2 canceled-icon" />
                     break;
                 case (false, false, TradeStatus.Executed):
-                    <MudIcon Icon="@Icons.Material.Filled.DoneAll"
-                             Size="Size.Small"
-                             Class="mr-2"/>
+                    <MudIcon Icon="@Icons.Material.Filled.DoneAll" Size="Size.Small" Class="mr-2" />
                     break;
                 default:
-                    <MudIcon Icon="@(RequestInfo.RequestType switch { TaggingRequestType.Add => Icons.Material.Filled.AddCircleOutline, TaggingRequestType.Remove => Icons.Material.Outlined.Delete, _ => Icons.Material.Outlined.RemoveCircleOutline })"
-                             Size="Size.Small"
-                             Class="mr-2"/>
+                    <MudIcon
+                    Icon="@(RequestInfo.RequestType switch { TaggingRequestType.Add => Icons.Material.Filled.AddCircleOutline, TaggingRequestType.Remove => Icons.Material.Outlined.Delete, _ => Icons.Material.Outlined.RemoveCircleOutline })"
+                    Size="Size.Small" Class="mr-2" />
                     break;
             }
 
             <MudText Typo="Typo.body2" Class="font-weight-bold" Style="user-select: text; -webkit-user-select: text;">
                 @(RequestInfoAlertViewModel.RequestTypeLabel(RequestInfo.RequestType, RequestInfo.ProposedWeight))
             </MudText>
-            <MudChip T="string" Size="Size.Small" Color="@RequestInfoAlertViewModel.StatusColor(RequestInfo.Status)" Variant="Variant.Text" Class="ml-2 mt-n1 mb-n1">
+            <MudChip T="string" Size="Size.Small" Color="@RequestInfoAlertViewModel.StatusColor(RequestInfo.Status)"
+                     Variant="Variant.Text" Class="ml-2 mt-n1 mb-n1">
                 @RequestInfoAlertViewModel.StatusText(RequestInfo.Status)
             </MudChip>
         </div>
@@ -67,38 +57,34 @@
 
         <!-- ターゲットコンテンツ -->
         <div class="d-flex flex-column justify-center" style="flex: 1; min-width: 200px;">
-            @switch (string.IsNullOrWhiteSpace(RequestInfo.TargetItemContent))
+            @if (!string.IsNullOrWhiteSpace(RequestInfo.TargetItemContent))
             {
-                case false:
-                    <div class="d-flex align-start gap-1 mt-1" @onclick:stopPropagation="true">
-                        <div class="flex-1" style="min-width: 0;">
-                            <MudLink Href="@($"/ItemDetail/{RequestInfo.TargetItemId}")"
-                                     Color="Color.Default" Underline="Underline.Hover">
-                                <div class="@(!_isTargetExpanded ? "line-clamp-2" : "")"
-                                     style="font-size: 0.85rem; padding: 4px 8px; background: rgba(0,0,0,0.03); border-radius: 4px; white-space: pre-wrap; word-break: break-word;">
-                                    @RequestInfo.TargetItemContent
-                                </div>
-                            </MudLink>
-                        </div>
-                        <MudIconButton
-                            Icon="@(_isTargetExpanded ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)"
-                            Size="Size.Small"
-                            OnClick="ToggleTargetExpand"
-                            Class="mt-n1 flex-shrink-0"
-                            title="展開/折りたたみ"/>
-                    </div>
-                    break;
-                case true:
-                    <div class="mt-1" @onclick:stopPropagation="true">
-                        <MudLink Href="@($"/ItemDetail/{RequestInfo.TargetItemId}")"
-                                 Color="Color.Default" Underline="Underline.Hover">
-                            <div
-                                style="font-size: 0.85rem; padding: 4px 8px; background: rgba(0,0,0,0.03); border-radius: 4px;">
-                                (内容なし)
+                <div class="d-flex align-start gap-1 mt-1" @onclick:stopPropagation="true">
+                    <div class="flex-1" style="min-width: 0;">
+                        <MudLink Href="@($"/ItemDetail/{RequestInfo.TargetItemId}")" Color="Color.Default"
+                                 Underline="Underline.Hover">
+                            <div class="@(!_isTargetExpanded ? "line-clamp-2" : "")"
+                                 style="font-size: 0.85rem; padding: 4px 8px; background: rgba(0,0,0,0.03); border-radius: 4px; white-space: pre-wrap; word-break: break-word;">
+                                @RequestInfo.TargetItemContent
                             </div>
                         </MudLink>
                     </div>
-                    break;
+                    <MudIconButton
+                    Icon="@(_isTargetExpanded ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)"
+                    Size="Size.Small" OnClick="ToggleTargetExpand" Class="mt-n1 flex-shrink-0" title="展開/折りたたみ" />
+                </div>
+            }
+            else
+            {
+                <div class="mt-1" @onclick:stopPropagation="true">
+                    <MudLink Href="@($"/ItemDetail/{RequestInfo.TargetItemId}")" Color="Color.Default"
+                             Underline="Underline.Hover">
+                        <div
+                            style="font-size: 0.85rem; padding: 4px 8px; background: rgba(0,0,0,0.03); border-radius: 4px;">
+                            (内容なし)
+                        </div>
+                    </MudLink>
+                </div>
             }
         </div>
 
@@ -108,8 +94,8 @@
         <div class="d-flex align-center mt-1">
             <MudText Typo="Typo.body2" Class="mr-1">タグ:</MudText>
             <span @onclick:stopPropagation="true">
-                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
-                         Color="Color.Primary" Class="ma-0 cursor-pointer"
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                         Class="ma-0 cursor-pointer"
                          OnClick="@(() => NavigationManager.NavigateTo($"/TagDetail/{RequestInfo.TargetTagId}"))">
                     @RequestInfo.TargetTagName
                 </MudChip>
@@ -119,7 +105,7 @@
 </MudAlert>
 
 @code {
-    [Parameter] [EditorRequired] public RequestInfo RequestInfo { get; set; } = null!;
+    [Parameter][EditorRequired] public RequestInfo RequestInfo { get; set; } = null!;
 
     [Parameter] public bool CanCancel { get; set; }
     [Parameter] public bool CanApprove { get; set; }
@@ -138,31 +124,25 @@
 
     private async Task OnCancelClicked()
     {
-        switch (OnCancel.HasDelegate)
+        if (OnCancel.HasDelegate)
         {
-            case true:
-                await OnCancel.InvokeAsync();
-                break;
+            await OnCancel.InvokeAsync();
         }
     }
 
     private async Task OnApproveClicked()
     {
-        switch (OnApprove.HasDelegate)
+        if (OnApprove.HasDelegate)
         {
-            case true:
-                await OnApprove.InvokeAsync();
-                break;
+            await OnApprove.InvokeAsync();
         }
     }
 
     private async Task OnRejectClicked()
     {
-        switch (OnReject.HasDelegate)
+        if (OnReject.HasDelegate)
         {
-            case true:
-                await OnReject.InvokeAsync();
-                break;
+            await OnReject.InvokeAsync();
         }
     }
 

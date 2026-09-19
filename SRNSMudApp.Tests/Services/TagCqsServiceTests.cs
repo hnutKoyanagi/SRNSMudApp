@@ -8,6 +8,9 @@ using SRNSMudApp.Tests.TestSupport;
 
 namespace SRNSMudApp.Tests.Services;
 
+/// <summary>
+///     TagSearchQueryService (Query) および TagCommandService (Command) の CQS 統合テスト。
+/// </summary>
 public class TagCqsServiceTests : IAsyncLifetime
 {
     private MsSqlTestDatabase _sharedDb = null!;

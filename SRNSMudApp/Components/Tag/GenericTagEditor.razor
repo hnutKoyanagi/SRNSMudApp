@@ -6,20 +6,19 @@
     <MudText Typo="Typo.subtitle2">タグ</MudText>
 
     <div class="d-flex flex-wrap gap-1">
-        @switch (TargetEntity.Tags)
+        @if (TargetEntity.Tags is { Count: > 0 })
         {
-            case { Count: > 0 }:
-                @foreach (var tag in TargetEntity.Tags)
-                {
-                    <MudChip T="string" Color="Color.Primary" Size="Size.Small" CloseIcon="@Icons.Material.Filled.Close"
-                             OnClose="@(_ => RemoveTagAsync(tag.Id))">
-                        @tag.Name
-                    </MudChip>
-                }
-                break;
-            default:
-                <MudText Typo="Typo.body2" Color="Color.Secondary">タグがありません</MudText>
-                break;
+            @foreach (var tag in TargetEntity.Tags)
+            {
+                <MudChip T="string" Color="Color.Primary" Size="Size.Small" CloseIcon="@Icons.Material.Filled.Close"
+                         OnClose="@(_ => RemoveTagAsync(tag.Id))">
+                    @tag.Name
+                </MudChip>
+            }
+        }
+        else
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary">タグがありません</MudText>
         }
     </div>
 
@@ -39,18 +38,16 @@
 
     private async Task AddTagAsync()
     {
-        switch (_newTagId <= 0)
+        if (_newTagId <= 0)
         {
-            case true: return;
+            return;
         }
 
         await TaggingService.AddTagAsync<TItem>(TargetEntity.Id, _newTagId);
 
-        switch (OnTagsChanged.HasDelegate)
+        if (OnTagsChanged.HasDelegate)
         {
-            case true:
-                await OnTagsChanged.InvokeAsync();
-                break;
+            await OnTagsChanged.InvokeAsync();
         }
 
         _newTagId = 0;
@@ -60,11 +57,9 @@
     {
         await TaggingService.RemoveTagAsync<TItem>(TargetEntity.Id, tagId);
 
-        switch (OnTagsChanged.HasDelegate)
+        if (OnTagsChanged.HasDelegate)
         {
-            case true:
-                await OnTagsChanged.InvokeAsync();
-                break;
+            await OnTagsChanged.InvokeAsync();
         }
     }
 

@@ -19,75 +19,68 @@
         オファーを作成する
     </MudButton>
 
-    @switch (_isLoading)
+    @if (_isLoading)
     {
-        case true:
-            <MudProgressCircular Indeterminate="true" />
-            break;
-        case false:
-            @switch (!_offers.Any())
+        <MudProgressCircular Indeterminate="true" />
+    }
+    else if (!_offers.Any())
+    {
+        <MudAlert Severity="Severity.Info">現在、アクティブな公開オファーはありません。</MudAlert>
+    }
+    else
+    {
+        <MudGrid>
+            @foreach (var offer in _offers)
             {
-                case true:
-                    <MudAlert Severity="Severity.Info">現在、アクティブな公開オファーはありません。</MudAlert>
-                    break;
-                case false:
-                    <MudGrid>
-                        @foreach (var offer in _offers)
-                        {
-                            <MudItem xs="12" sm="6" md="4">
-                                <MudCard Elevation="3">
-                                    <MudCardHeader>
-                                        <CardHeaderContent>
-                                            <MudText Typo="Typo.h6">@offer.OfferedTag.Name</MudText>
-                                            <MudText Typo="Typo.body2" Color="Color.Secondary">
-                                                提供者: @offer.Owner?.UserName
-                                            </MudText>
-                                        </CardHeaderContent>
-                                    </MudCardHeader>
-                                    <MudCardContent>
-                                        @switch (offer.RequiredAssetAmount > 0)
-                                        {
-                                            case true:
-                                                <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mt-2 py-1 px-2"
-                                                          Style="font-size: 0.8rem;">
-                                                    要求アセット量: @offer.RequiredAssetAmount
-                                                </MudAlert>
-                                                break;
-                                            case false:
-                                                <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Class="mt-2 py-1 px-2"
-                                                          Style="font-size: 0.8rem;">
-                                                    無償で提供
-                                                </MudAlert>
-                                                break;
-                                        }
-                                    </MudCardContent>
-                                    <MudCardActions>
-                                        @switch (offer.OwnerId == _currentUserId)
-                                        {
-                                            case true:
-                                                <MudButton Color="Color.Error" Variant="Variant.Text" OnClick="() => DeactivateOffer(offer)">
-                                                    取り下げる
-                                                </MudButton>
-                                                break;
-                                            case false:
-                                                <MudButton Color="Color.Secondary" Variant="Variant.Filled" OnClick="() => TriggerOffer(offer)">
-                                                    オファーに応じる
-                                                </MudButton>
-                                                break;
-                                        }
-                                    </MudCardActions>
-                                </MudCard>
-                            </MudItem>
-                        }
-                    </MudGrid>
-                    break;
+                <MudItem xs="12" sm="6" md="4" @key="offer.Id">
+                    <MudCard Elevation="3">
+                        <MudCardHeader>
+                            <CardHeaderContent>
+                                <MudText Typo="Typo.h6">@offer.OfferedTag.Name</MudText>
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                    提供者: @offer.Owner?.UserName
+                                </MudText>
+                            </CardHeaderContent>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            @if (offer.RequiredAssetAmount > 0)
+                            {
+                                <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mt-2 py-1 px-2"
+                                          Style="font-size: 0.8rem;">
+                                    要求アセット量: @offer.RequiredAssetAmount
+                                </MudAlert>
+                            }
+                            else
+                            {
+                                <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Class="mt-2 py-1 px-2"
+                                          Style="font-size: 0.8rem;">
+                                    無償で提供
+                                </MudAlert>
+                            }
+                        </MudCardContent>
+                        <MudCardActions>
+                            @if (offer.OwnerId == _currentUserId)
+                            {
+                                <MudButton Color="Color.Error" Variant="Variant.Text" OnClick="() => DeactivateOffer(offer)">
+                                    取り下げる
+                                </MudButton>
+                            }
+                            else
+                            {
+                                <MudButton Color="Color.Secondary" Variant="Variant.Filled" OnClick="() => TriggerOffer(offer)">
+                                    オファーに応じる
+                                </MudButton>
+                            }
+                        </MudCardActions>
+                    </MudCard>
+                </MudItem>
             }
-            break;
+        </MudGrid>
     }
 </MudContainer>
 
 @code {
-    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
 
     private bool _isLoading = true;
     private string _currentUserId = string.Empty;
@@ -95,8 +88,8 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var authState = await AuthState!;
-        _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
+        var authState = await AuthStateTask;
+        _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
 
         await LoadDataAsync();
     }
@@ -115,11 +108,9 @@
         var dialog = await DialogLauncher.ShowAsync<CreatePublicOfferDialog>("公開オファーの作成", options);
         var result = await dialog.Result;
 
-        switch (!result.Canceled)
+        if (result is { Canceled: false })
         {
-            case true:
-                await LoadDataAsync();
-                break;
+            await LoadDataAsync();
         }
     }
 
@@ -130,25 +121,22 @@
         var dialog = await DialogLauncher.ShowAsync<TriggerPublicOfferDialog>("オファーに応じる", parameters, options);
         var result = await dialog.Result;
 
-        switch (!result.Canceled && result.Data is int)
+        if (result is { Canceled: false, Data: int contractId })
         {
-            case true:
-                var contractId = (int)result.Data;
-                // Now accept the contract we just created via the dialog
-                try
-                {
-                    await ContractService.AcceptContractAsync(contractId, _currentUserId);
-                    Snackbar.Add("公開オファーを利用してタグを獲得しました！", Severity.Success);
-                }
-                catch (Exception ex)
-                {
-                    Snackbar.Add($"エラーが発生しました: {ex.Message}", Severity.Error);
-                    // Also could try to cancel the contract since it failed
-                    await ContractService.CancelContractAsync(contractId, _currentUserId);
-                }
+            // Now accept the contract we just created via the dialog
+            try
+            {
+                await ContractService.AcceptContractAsync(contractId, _currentUserId);
+                Snackbar.Add("公開オファーを利用してタグを獲得しました！", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"エラーが発生しました: {ex.Message}", Severity.Error);
+                // Also could try to cancel the contract since it failed
+                await ContractService.CancelContractAsync(contractId, _currentUserId);
+            }
 
-                await LoadDataAsync();
-                break;
+            await LoadDataAsync();
         }
     }
 
@@ -160,5 +148,4 @@
             await LoadDataAsync();
         }
     }
-
 }

@@ -24,20 +24,19 @@
             }
             <MudTextField T="string" Label="希望するタグ" Value="@RequestedTag.Name" ReadOnly="true" />
 
-            @switch (IsRemovalRequest)
+            @if (IsRemovalRequest)
             {
-                case true:
-                    <MudAlert Severity="Severity.Info" Class="mt-2 mb-4">
-                        タグの削除提案
-                    </MudAlert>
-                    break;
-                case false:
-                    <div class="d-flex align-center gap-4 mt-2 mb-4">
-                        <MudText Typo="Typo.body2">提案するWeight変更（増減）:</MudText>
-                        <MudNumericField @bind-Value="ProposedWeightInput" Required="true" Variant="Variant.Outlined"
-                                         Margin="Margin.Dense" Style="max-width: 150px" />
-                    </div>
-                    break;
+                <MudAlert Severity="Severity.Info" Class="mt-2 mb-4">
+                    タグの削除提案
+                </MudAlert>
+            }
+            else
+            {
+                <div class="d-flex align-center gap-4 mt-2 mb-4">
+                    <MudText Typo="Typo.body2">提案するWeight変更（増減）:</MudText>
+                    <MudNumericField @bind-Value="ProposedWeightInput" Required="true" Variant="Variant.Outlined"
+                                     Margin="Margin.Dense" Style="max-width: 150px" />
+                </div>
             }
 
             <MudTabs @bind-ActivePanelIndex="_activeTabIndex" Elevation="1" Rounded="true"
@@ -87,7 +86,7 @@
 
 @code {
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
-    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
 
     [Parameter] public Item? TargetItem { get; set; }
     [Parameter] public Tag RequestedTag { get; set; } = null!;
@@ -112,8 +111,8 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var authState = await AuthState!;
-        _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
+        var authState = await AuthStateTask;
+        _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
 
         ProposedWeightInput = WeightDelta != 0 ? WeightDelta : 1;
         _selectedTargetItem = TargetItem;
@@ -145,19 +144,17 @@
             return;
         }
 
-        switch (ProposedWeightInput == 0 && !IsRemovalRequest)
+        if (ProposedWeightInput == 0 && !IsRemovalRequest)
         {
-            case true:
-                Snackbar.Add("0以外のWeight変更値を入力してください。", Severity.Error);
-                return;
+            Snackbar.Add("0以外のWeight変更値を入力してください。", Severity.Error);
+            return;
         }
 
         var isMutual = _activeTabIndex == 1;
-        switch (isMutual && (_offeredItem == null || _offeredTag == null || _selectedRightAsset == null))
+        if (isMutual && (_offeredItem is null || _offeredTag is null || _selectedRightAsset is null))
         {
-            case true:
-                Snackbar.Add("相互タグ付けに必要な項目を入力してください。", Severity.Error);
-                return;
+            Snackbar.Add("相互タグ付けに必要な項目を入力してください。", Severity.Error);
+            return;
         }
 
         var requestType = IsRemovalRequest
@@ -168,32 +165,31 @@
 
         var absoluteWeight = Math.Abs(ProposedWeightInput);
 
-        switch (isMutual)
+        if (isMutual)
         {
-            case true:
-                await ContractService.ProposeMutualContractAsync(
-                    _currentUserId,
-                    RequestedTag.OwnerId,
-                    effectiveTargetItem.Id,
-                    RequestedTag.Id,
-                    _offeredItem!.Id,
-                    _offeredTag!.Id,
-                    _selectedRightAsset!.Id,
-                    requestType,
-                    absoluteWeight
-                );
-                break;
-            case false:
-                await ContractService.ProposeGratisContractAsync(
-                    _currentUserId,
-                    RequestedTag.OwnerId,
-                    effectiveTargetItem.Id,
-                    RequestedTag.Id,
-                    requestType,
-                    absoluteWeight,
-                    _gratisMessage
-                );
-                break;
+            await ContractService.ProposeMutualContractAsync(
+                _currentUserId,
+                RequestedTag.OwnerId,
+                effectiveTargetItem.Id,
+                RequestedTag.Id,
+                _offeredItem!.Id,
+                _offeredTag!.Id,
+                _selectedRightAsset!.Id,
+                requestType,
+                absoluteWeight
+            );
+        }
+        else
+        {
+            await ContractService.ProposeGratisContractAsync(
+                _currentUserId,
+                RequestedTag.OwnerId,
+                effectiveTargetItem.Id,
+                RequestedTag.Id,
+                requestType,
+                absoluteWeight,
+                _gratisMessage
+            );
         }
 
         Snackbar.Add("コントラクトを提案しました。", Severity.Success);
@@ -204,5 +200,4 @@
     {
         MudDialog.Cancel();
     }
-
 }

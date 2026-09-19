@@ -3,6 +3,7 @@
 
 using System.Globalization;
 
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 using SRNSMudApp.Data;
@@ -66,12 +67,21 @@ public interface IUserDataProvider
 
     Task<ApplicationUser?> FindUserByIdAsync(string userId);
     Task<List<ApplicationUser>> GetUsersByIdsAsync(IEnumerable<string> userIds);
+
+    /// <summary>指定したユーザーが特定のロールに所属しているかを判定する。</summary>
+    Task<bool> IsUserInRoleAsync(ApplicationUser user, string role);
+
+    /// <summary>指定したユーザーの Admin ロールを更新する。</summary>
+    Task<IdentityResult> UpdateUserAdminRoleAsync(string userId, bool isAdmin);
 }
 
-public class UserDataProvider(IDbContextFactory<ApplicationDbContext> dbFactory) : IUserDataProvider
+public class UserDataProvider(
+    IDbContextFactory<ApplicationDbContext> dbFactory,
+    UserManager<ApplicationUser>? userManager = null) : IUserDataProvider
 {
     private readonly IDbContextFactory<ApplicationDbContext> _dbFactory =
         dbFactory ?? throw new ArgumentNullException(nameof(dbFactory));
+    private readonly UserManager<ApplicationUser>? _userManager = userManager;
 
     public Task<UserDetailPageData> GetUserDetailAsync(string userId) => GetUserDetailAsync(userId, null);
 
@@ -280,5 +290,34 @@ public class UserDataProvider(IDbContextFactory<ApplicationDbContext> dbFactory)
         await using ApplicationDbContext dbContext = await _dbFactory.CreateDbContextAsync();
         var idList = userIds.ToList();
         return await dbContext.Users.AsNoTracking().Where(u => idList.Contains(u.Id)).ToListAsync();
+    }
+
+    public async Task<bool> IsUserInRoleAsync(ApplicationUser user, string role)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+        if (_userManager is null)
+        {
+            return false;
+        }
+
+        return await _userManager.IsInRoleAsync(user, role);
+    }
+
+    public async Task<IdentityResult> UpdateUserAdminRoleAsync(string userId, bool isAdmin)
+    {
+        if (_userManager is null)
+        {
+            throw new InvalidOperationException("UserManager is not configured.");
+        }
+
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user is null)
+        {
+            return IdentityResult.Failed(new IdentityError { Description = "ユーザーが見つかりません。" });
+        }
+
+        return isAdmin
+            ? await _userManager.AddToRoleAsync(user, "Admin")
+            : await _userManager.RemoveFromRoleAsync(user, "Admin");
     }
 }

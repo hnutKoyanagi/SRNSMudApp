@@ -9,29 +9,24 @@
     <MudStack>
         <MudText Typo="Typo.h6">CSVからインポート</MudText>
         <MudText Typo="Typo.body2">フォーマット: 1列目にアイテムのContent、2列目以降にタグ名を指定します。</MudText>
-        <InputFile id="csv-upload" OnChange="@OnCsvUpload" hidden accept=".csv"/>
-        <MudButton HtmlTag="label"
-                   Variant="Variant.Filled"
-                   Color="Color.Primary"
-                   StartIcon="@Icons.Material.Filled.UploadFile"
-                   for="csv-upload"
-                   Disabled="@_isUploading">
-            @switch (_isUploading)
+        <InputFile id="csv-upload" OnChange="@OnCsvUpload" hidden accept=".csv" />
+        <MudButton HtmlTag="label" Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.UploadFile" for="csv-upload" Disabled="@_isUploading">
+            @if (_isUploading)
             {
-                case true:
-                    <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
-                    <MudText Class="ms-2">処理中...</MudText>
-                    break;
-                case false:
-                    <MudText>CSVファイルを選択</MudText>
-                    break;
+                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                <MudText Class="ms-2">処理中...</MudText>
+            }
+            else
+            {
+                <MudText>CSVファイルを選択</MudText>
             }
         </MudButton>
     </MudStack>
 </MudPaper>
 
 @code {
-    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
 
     [Parameter] public EventCallback OnImportCompleted { get; set; }
 
@@ -40,17 +35,19 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var authState = await AuthState!;
-        _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        if (AuthState is not null)
+        {
+            var authState = await AuthState;
+            _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        }
     }
 
     private async Task OnCsvUpload(InputFileChangeEventArgs e)
     {
-        switch (string.IsNullOrEmpty(_currentUserId))
+        if (string.IsNullOrEmpty(_currentUserId))
         {
-            case true:
-                Snackbar.Add("ログインが必要です。", Severity.Error);
-                return;
+            Snackbar.Add("ログインが必要です。", Severity.Error);
+            return;
         }
 
         _isUploading = true;
@@ -58,11 +55,10 @@
         try
         {
             var file = e.File;
-            switch (file.Size > 5 * 1024 * 1024) // 5MB limit
+            if (file.Size > 5 * 1024 * 1024) // 5MB limit
             {
-                case true:
-                    Snackbar.Add("ファイルサイズが大きすぎます。5MB以下のファイルを選択してください。", Severity.Error);
-                    return;
+                Snackbar.Add("ファイルサイズが大きすぎます。5MB以下のファイルを選択してください。", Severity.Error);
+                return;
             }
 
             await ProcessCsvFile(file);
@@ -84,25 +80,22 @@
         {
             while (await reader.ReadLineAsync() is { } line)
             {
-                switch (string.IsNullOrWhiteSpace(line))
+                if (string.IsNullOrWhiteSpace(line))
                 {
-                    case true: continue;
+                    continue;
                 }
                 var values = line.Split(',').Select(v => v.Trim()).ToArray();
-                switch (values.Length > 0 && !string.IsNullOrWhiteSpace(values[0]))
+                if (values.Length > 0 && !string.IsNullOrWhiteSpace(values[0]))
                 {
-                    case true:
-                        linesToProcess.Add(values);
-                        break;
+                    linesToProcess.Add(values);
                 }
             }
         }
 
-        switch (!linesToProcess.Any())
+        if (linesToProcess.Count == 0)
         {
-            case true:
-                Snackbar.Add("処理するデータがありませんでした。", Severity.Info);
-                return;
+            Snackbar.Add("処理するデータがありませんでした。", Severity.Info);
+            return;
         }
 
         try
@@ -118,5 +111,4 @@
             Snackbar.Add($"インポート中にエラーが発生しました: {ex.Message}", Severity.Error);
         }
     }
-
 }

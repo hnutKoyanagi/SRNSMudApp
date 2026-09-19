@@ -34,12 +34,10 @@
         </NoItemsTemplate>
     </MudAutocomplete>
 
-    @switch (_isAdmin)
+    @if (_isAdmin)
     {
-        case true:
-            <MudSwitch T="bool" @bind-Value="_importAsSystem" Label="システムタグとしてインポート (Owner: system)" Color="Color.Warning"
-                       Class="mb-4" />
-            break;
+        <MudSwitch T="bool" @bind-Value="_importAsSystem" Label="システムタグとしてインポート (Owner: system)" Color="Color.Warning"
+                   Class="mb-4" />
     }
 
     <MudFileUpload T="IBrowserFile" FilesChanged="UploadFiles" Accept=".csv">
@@ -48,29 +46,26 @@
         </MudButton>
     </MudFileUpload>
 
-    @switch (_file)
+    @if (_file is not null)
     {
-        case not null:
-            <MudText Typo="Typo.body2" Class="mt-2">選択されたファイル: @_file.Name (@_file.Size bytes)</MudText>
-            <MudButton Variant="Variant.Filled" Color="Color.Success" Class="mt-4" OnClick="@ImportData"
-                       Disabled="@(_isImporting || _selectedParentTag == null)">
-                @switch (_isImporting)
-                {
-                    case true:
-                        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
-                        <MudText Class="ms-2">インポート中...</MudText>
-                        break;
-                    case false:
-                        <MudText>インポート実行</MudText>
-                        break;
-                }
-            </MudButton>
-            break;
+        <MudText Typo="Typo.body2" Class="mt-2">選択されたファイル: @_file.Name (@_file.Size bytes)</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Success" Class="mt-4" OnClick="@ImportData"
+                   Disabled="@(_isImporting || _selectedParentTag == null)">
+            @if (_isImporting)
+            {
+                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                <MudText Class="ms-2">インポート中...</MudText>
+            }
+            else
+            {
+                <MudText>インポート実行</MudText>
+            }
+        </MudButton>
     }
 </MudPaper>
 
 @code {
-    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
     public int Weight { get; set; } = 0;
     private IBrowserFile? _file;
     private bool _isImporting;
@@ -81,9 +76,9 @@
 
     private async Task<IEnumerable<Tag>> SearchTagsAsync(string? value, CancellationToken token)
     {
-        switch (string.IsNullOrEmpty(_currentUserId))
+        if (string.IsNullOrEmpty(_currentUserId))
         {
-            case true: return [];
+            return [];
         }
 
         return await ImportTagData.SearchUserTagsAsync(_currentUserId!, value, token);
@@ -91,14 +86,9 @@
 
     protected override async Task OnInitializedAsync()
     {
-        switch (AuthState)
-        {
-            case not null:
-                var authState = await AuthState;
-                _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                _isAdmin = authState.User.IsInRole("Admin");
-                break;
-        }
+        var authState = await AuthStateTask;
+        _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        _isAdmin = authState.User.IsInRole("Admin");
     }
 
     private void UploadFiles(IBrowserFile? file)
@@ -108,31 +98,27 @@
 
     private async Task ImportData()
     {
-        switch (_isImporting)
+        if (_isImporting)
         {
-            case true:
-                return;
+            return;
         }
 
-        switch (_selectedParentTag)
+        if (_selectedParentTag is null)
         {
-            case null:
-                Snackbar.Add("親タグを選択してください", Severity.Warning);
-                return;
+            Snackbar.Add("親タグを選択してください", Severity.Warning);
+            return;
         }
 
-        switch (_file)
+        if (_file is null)
         {
-            case null:
-                Snackbar.Add("ファイルが選択されていません", Severity.Warning);
-                return;
+            Snackbar.Add("ファイルが選択されていません", Severity.Warning);
+            return;
         }
 
-        switch (string.IsNullOrEmpty(_currentUserId))
+        if (string.IsNullOrEmpty(_currentUserId))
         {
-            case true:
-                Snackbar.Add("ログインが必要です", Severity.Error);
-                return;
+            Snackbar.Add("ログインが必要です", Severity.Error);
+            return;
         }
 
         _isImporting = true;

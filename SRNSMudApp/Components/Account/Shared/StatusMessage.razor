@@ -1,9 +1,7 @@
-@switch (string.IsNullOrEmpty(DisplayMessage))
+@if (!string.IsNullOrEmpty(DisplayMessage))
 {
-    case false:
-        var severity = DisplayMessage.StartsWith("Error") ? Severity.Error : Severity.Success;
-        <MudAlert Variant="Variant.Outlined" Severity="@severity">@DisplayMessage</MudAlert>
-        break;
+    var severity = DisplayMessage.StartsWith("Error") ? Severity.Error : Severity.Success;
+    <MudAlert Variant="Variant.Outlined" Severity="@severity">@DisplayMessage</MudAlert>
 }
 
 @code {
@@ -17,20 +15,16 @@
 
     protected override void OnInitialized()
     {
-        switch (HttpContext)
+        if (HttpContext is null)
         {
-            case null:
-                return;
+            return;
         }
 
         messageFromCookie = HttpContext.Request.Cookies[IdentityRedirectManager.StatusCookieName];
 
-        switch (messageFromCookie)
+        if (messageFromCookie is not null)
         {
-            case not null:
-                HttpContext.Response.Cookies.Delete(IdentityRedirectManager.StatusCookieName);
-                break;
+            HttpContext.Response.Cookies.Delete(IdentityRedirectManager.StatusCookieName);
         }
     }
-
 }

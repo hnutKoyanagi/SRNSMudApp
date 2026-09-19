@@ -20,88 +20,79 @@
         タグ付けを依頼する
     </MudButton>
 
-    @switch (_isLoading)
+    @if (_isLoading)
     {
-        case true:
-            <MudProgressCircular Indeterminate="true" />
-            break;
-        case false:
-            @switch (!_bounties.Any())
+        <MudProgressCircular Indeterminate="true" />
+    }
+    else if (!_bounties.Any())
+    {
+        <MudAlert Severity="Severity.Info">現在、募集中のバウンティはありません。</MudAlert>
+    }
+    else
+    {
+        <MudGrid>
+            @foreach (var bounty in _bounties)
             {
-                case true:
-                    <MudAlert Severity="Severity.Info">現在、募集中のバウンティはありません。</MudAlert>
-                    break;
-                case false:
-                    <MudGrid>
-                        @foreach (var bounty in _bounties)
-                        {
-                            <MudItem xs="12" sm="6" md="4">
-                                <MudCard Elevation="3">
-                                    <MudCardHeader>
-                                        <CardHeaderContent>
-                                            <MudText Typo="Typo.h6">@bounty.RequestedTag.Name</MudText>
-                                            <MudText Typo="Typo.body2" Color="Color.Secondary">
-                                                依頼者: @bounty.RequesterUserId
-                                            </MudText>
-                                        </CardHeaderContent>
-                                    </MudCardHeader>
-                                    <MudCardContent>
-                                        <MudText Typo="Typo.subtitle2">対象アイテム</MudText>
-                                        <MudText Typo="Typo.body2" Class="mb-2">@bounty.TargetItem.Content</MudText>
+                <MudItem xs="12" sm="6" md="4" @key="bounty.Id">
+                    <MudCard Elevation="3">
+                        <MudCardHeader>
+                            <CardHeaderContent>
+                                <MudText Typo="Typo.h6">@bounty.RequestedTag.Name</MudText>
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                    依頼者: @bounty.RequesterUserId
+                                </MudText>
+                            </CardHeaderContent>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            <MudText Typo="Typo.subtitle2">対象アイテム</MudText>
+                            <MudText Typo="Typo.body2" Class="mb-2">@bounty.TargetItem.Content</MudText>
 
-                                        @{
-                                            RightAsset? rewardAsset = (bounty.Payload is SRNSMudApp.Models.Unions.BountyPayload bp &&
-                    bp.OfferedRewardAssetId != 0 && _rewardAssets.TryGetValue(bp.OfferedRewardAssetId, out var a)) ? a :
-                    null;
-                                        }
-                                        @switch (rewardAsset != null)
-                                        {
-                                            case true:
-                                                <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Class="mt-2 py-1 px-2"
-                                                          Style="font-size: 0.8rem;">
-                                                    報酬: @rewardAsset!.TargetTag?.Name の権利
-                                                </MudAlert>
-                                                break;
-                                            case false:
-                                                <MudText Typo="Typo.caption" Color="Color.Secondary">（無償のウィッシュリスト）</MudText>
-                                                break;
-                                        }
-                                    </MudCardContent>
-                                    <MudCardActions>
-                                        @switch (bounty.RequesterUserId == _currentUserId)
-                                        {
-                                            case true:
-                                                <MudButton Disabled="true" Variant="Variant.Text">自分の依頼</MudButton>
-                                                break;
-                                            case false:
-                                                <MudButton Color="Color.Secondary" Variant="Variant.Filled" OnClick="() => FulfillBounty(bounty)">
-                                                    依頼を完了する
-                                                </MudButton>
-                                                break;
-                                        }
-                                    </MudCardActions>
-                                </MudCard>
-                            </MudItem>
-                        }
-                    </MudGrid>
-                    break;
+                            @{
+                                RightAsset? rewardAsset = BountyBoardViewModel.ResolveRewardAsset(bounty, _rewardAssets);
+                            }
+                            @if (rewardAsset is not null)
+                            {
+                                <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Class="mt-2 py-1 px-2"
+                                          Style="font-size: 0.8rem;">
+                                    報酬: @rewardAsset.TargetTag?.Name の権利
+                                </MudAlert>
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">（無償のウィッシュリスト）</MudText>
+                            }
+                        </MudCardContent>
+                        <MudCardActions>
+                            @if (!BountyBoardViewModel.CanFulfillBounty(bounty, _currentUserId))
+                            {
+                                <MudButton Disabled="true" Variant="Variant.Text">自分の依頼</MudButton>
+                            }
+                            else
+                            {
+                                <MudButton Color="Color.Secondary" Variant="Variant.Filled" OnClick="() => FulfillBounty(bounty)">
+                                    依頼を完了する
+                                </MudButton>
+                            }
+                        </MudCardActions>
+                    </MudCard>
+                </MudItem>
             }
-            break;
+        </MudGrid>
     }
 </MudContainer>
 
 @code {
-    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
 
     private bool _isLoading = true;
     private string _currentUserId = string.Empty;
     private IReadOnlyList<TaggingRequestEntity> _bounties = [];
-    private Dictionary<int, RightAsset> _rewardAssets = new();
+    private Dictionary<int, RightAsset> _rewardAssets = [];
 
     protected override async Task OnInitializedAsync()
     {
-        var authState = await AuthState!;
-        _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
+        var authState = await AuthStateTask;
+        _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
 
         await LoadDataAsync();
     }
@@ -122,11 +113,9 @@
         var dialog = await DialogLauncher.ShowAsync<BountyCreateDialog>("タグ付けの依頼を作成", options);
         var result = await dialog.Result;
 
-        switch (!result.Canceled)
+        if (result is { Canceled: false })
         {
-            case true:
-                await LoadDataAsync();
-                break;
+            await LoadDataAsync();
         }
     }
 
@@ -137,12 +126,9 @@
         var dialog = await DialogLauncher.ShowAsync<FulfillBountyDialog>("依頼を叶える", parameters, options);
         var result = await dialog.Result;
 
-        switch (!result.Canceled)
+        if (result is { Canceled: false })
         {
-            case true:
-                await LoadDataAsync();
-                break;
+            await LoadDataAsync();
         }
     }
-
 }

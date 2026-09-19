@@ -44,39 +44,27 @@
     @for (var i = 0; i < tagsToDisplay.Count; i++)
     {
         var tr = tagsToDisplay[i];
-        <ItemTagChip TagRelation="tr"
-                     Item="Item"
-                     CurrentUserId="@CurrentUserId"
-                     AllTags="AllTags"
+        <ItemTagChip TagRelation="tr" Item="Item" CurrentUserId="@CurrentUserId" AllTags="AllTags"
                      AllTagRelationsToTags="AllTagRelationsToTags"
                      HighlightEvent="@(HighlightEvents?.FirstOrDefault(e => e.FollowedTagId == (tr.Tag?.Id ?? -1)))"
-                     OnDataChanged="OnDataChanged"
-                     ChipIndex="i"
-                     ChipBackgrounds="_chipBackgrounds"
-                     ChipTextColors="_chipTextColors"/>
+                     OnDataChanged="OnDataChanged" ChipIndex="i" ChipBackgrounds="_chipBackgrounds"
+                     ChipTextColors="_chipTextColors" />
     }
     @* 5つ以上の場合のみボタンを表示 *@
-    @switch (hasManyTags)
+    @if (hasManyTags)
     {
-        case true:
-            switch (_areTagsExpanded)
-            {
-                case true:
-                    <MudChip T="string" Size="Size.Small"
-                             OnClick="ToggleTagExpand"
-                             Class="more-chip">
-                        閉じる
-                    </MudChip>
-                    break;
-                case false:
-                    <MudChip T="string" Size="Size.Small"
-                             OnClick="@ToggleTagExpand"
-                             Class="more-chip">
-                        +@hiddenCount more
-                    </MudChip>
-                    break;
-            }
-            break;
+        @if (_areTagsExpanded)
+        {
+            <MudChip T="string" Size="Size.Small" OnClick="ToggleTagExpand" Class="more-chip">
+                閉じる
+            </MudChip>
+        }
+        else
+        {
+            <MudChip T="string" Size="Size.Small" OnClick="@ToggleTagExpand" Class="more-chip">
+                +@hiddenCount more
+            </MudChip>
+        }
     }
 
     <!-- リクエスト中のタグ -->
@@ -85,15 +73,12 @@
         <ItemTagRequestChip Request="request" Item="Item" OnDataChanged="OnDataChanged" />
     }
 
-    <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline"
-                   Size="Size.Small"
-                   Color="Color.Primary"
-                   OnClick="OnAddTagClicked"
-                   title="タグを追加"/>
+    <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small" Color="Color.Primary"
+                   OnClick="OnAddTagClicked" title="タグを追加" />
 </MudStack>
 
 @code {
-    [Parameter] [EditorRequired] public Item Item { get; set; } = null!;
+    [Parameter][EditorRequired] public Item Item { get; set; } = null!;
     [Parameter] public string CurrentUserId { get; set; } = "";
     [Parameter] public IReadOnlyList<Tag> AllTags { get; set; } = [];
     [Parameter] public IReadOnlyList<TagRelationToTag> AllTagRelationsToTags { get; set; } = [];

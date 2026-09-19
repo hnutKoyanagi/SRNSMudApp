@@ -11,76 +11,73 @@
 <PageTitle>Home</PageTitle>
 
 <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-4">
-    @switch (_isLoggedIn)
+    @if (_isLoggedIn)
     {
-        case true:
-            <MudText Typo="Typo.h5" GutterBottom="true" Class="mb-4">タイムライン</MudText>
+        <MudText Typo="Typo.h5" GutterBottom="true" Class="mb-4">タイムライン</MudText>
 
-            @switch (_followedTagIds)
-            {
-                case { Count: 0 }:
-                    <MudAlert Severity="Severity.Info" Class="mb-4">
-                        まだタグをフォローしていません。タグをフォローすると、ここにタイムラインが表示されます。
-                    </MudAlert>
-                    break;
-                case not null:
-                    <div style="height: 80vh; overflow-y: auto;">
-                        <Virtualize ItemsProvider="LoadTimeline" Context="group" ItemComparer="new TimelineFeedGroupComparer()">
-                            <ItemContent>
-                                <div class="mb-4">
-                                    @switch
-                    (System.Text.Json.JsonSerializer.Deserialize<SRNSMudApp.Models.Unions.TimelineTarget>(group.TimelineTargetJson))
-                                    {
-                                        case SRNSMudApp.Models.Unions.ItemTarget when group.Item != null:
-                                            <SRNSMudApp.Components.UI.ItemCard Item="@group.Item" AllTags="@_allTags"
-                                                                               AllTagRelationsToTags="@_allTagRelationsToTags" CurrentUserId="@_currentUserId"
-                                                                               CurrentUserGoodTagId="@_currentUserGoodTagId" CurrentUserBadTagId="@_currentUserBadTagId"
-                                                                               CurrentUserShinjiTagId="@_currentUserShinjiTagId" CurrentUserZenTagId="@_currentUserZenTagId"
-                                                                               CurrentUserBiTagId="@_currentUserBiTagId" OnEnsureSystemTags="EnsureSystemTagsExistAsync"
-                                                                               HighlightEvents="@group.Events" IsFocused="false" />
-                                            break;
-                                        case SRNSMudApp.Models.Unions.TagTarget when group.Tag != null:
-                                            <SRNSMudApp.Components.UI.TagCard Tag="@group.Tag" AllTags="@_allTags"
-                                                                              CurrentUserId="@_currentUserId" CurrentUserGoodTagId="@_currentUserGoodTagId"
-                                                                              CurrentUserBadTagId="@_currentUserBadTagId" OnEnsureSystemTags="EnsureSystemTagsExistAsync"
-                                                                              HighlightEvents="@group.Events" IsFocused="false" />
-                                            break;
-                                    }
+        @if (_followedTagIds is { Count: 0 })
+        {
+            <MudAlert Severity="Severity.Info" Class="mb-4">
+                まだタグをフォローしていません。タグをフォローすると、ここにタイムラインが表示されます。
+            </MudAlert>
+        }
+        else if (_followedTagIds is not null)
+        {
+            <div style="height: 80vh; overflow-y: auto;">
+                <Virtualize ItemsProvider="LoadTimeline" Context="group" ItemComparer="new TimelineFeedGroupComparer()">
+                    <ItemContent>
+                        <div class="mb-4">
+                            @{
+                                var target =
+                    System.Text.Json.JsonSerializer.Deserialize<SRNSMudApp.Models.Unions.TimelineTarget>(group.TimelineTargetJson);
+                            }
+                            @if (target is SRNSMudApp.Models.Unions.ItemTarget && group.Item is not null)
+                            {
+                                <SRNSMudApp.Components.UI.ItemCard Item="@group.Item" AllTags="@_allTags"
+                                                                   AllTagRelationsToTags="@_allTagRelationsToTags" CurrentUserId="@_currentUserId"
+                                                                   CurrentUserGoodTagId="@_currentUserGoodTagId" CurrentUserBadTagId="@_currentUserBadTagId"
+                                                                   CurrentUserShinjiTagId="@_currentUserShinjiTagId" CurrentUserZenTagId="@_currentUserZenTagId"
+                                                                   CurrentUserBiTagId="@_currentUserBiTagId" OnEnsureSystemTags="EnsureSystemTagsExistAsync"
+                                                                   HighlightEvents="@group.Events" IsFocused="false" />
+                            }
+                            else if (target is SRNSMudApp.Models.Unions.TagTarget && group.Tag is not null)
+                            {
+                                <SRNSMudApp.Components.UI.TagCard Tag="@group.Tag" AllTags="@_allTags"
+                                                                  CurrentUserId="@_currentUserId" CurrentUserGoodTagId="@_currentUserGoodTagId"
+                                                                  CurrentUserBadTagId="@_currentUserBadTagId" OnEnsureSystemTags="EnsureSystemTagsExistAsync"
+                                                                  HighlightEvents="@group.Events" IsFocused="false" />
+                            }
+                        </div>
+                    </ItemContent>
+                    <Placeholder>
+                        <MudCard Class="mb-4" Elevation="0" Outlined="true">
+                            <MudCardContent>
+                                <div class="d-flex justify-center align-center py-4">
+                                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
                                 </div>
-                            </ItemContent>
-                            <Placeholder>
-                                <MudCard Class="mb-4" Elevation="0" Outlined="true">
-                                    <MudCardContent>
-                                        <div class="d-flex justify-center align-center py-4">
-                                            <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
-                                        </div>
-                                    </MudCardContent>
-                                </MudCard>
-                            </Placeholder>
-                        </Virtualize>
-                    </div>
-                    break;
-                case null:
-                    break;
-            }
-            break;
-
-        case false:
-            <MudText Typo="Typo.h3" GutterBottom="true" Align="Align.Center" Class="mt-10">Welcome to SRNSMudApp</MudText>
-            <MudText Align="Align.Center" Class="mb-8">
-                ログインして、フォローしたタグのタイムラインを表示しましょう。
-            </MudText>
-            <div class="d-flex justify-center">
-                <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/Account/Login" Size="Size.Large">
-                    ログイン
-                </MudButton>
+                            </MudCardContent>
+                        </MudCard>
+                    </Placeholder>
+                </Virtualize>
             </div>
-            break;
+        }
+    }
+    else
+    {
+        <MudText Typo="Typo.h3" GutterBottom="true" Align="Align.Center" Class="mt-10">Welcome to SRNSMudApp</MudText>
+        <MudText Align="Align.Center" Class="mb-8">
+            ログインして、フォローしたタグのタイムラインを表示しましょう。
+        </MudText>
+        <div class="d-flex justify-center">
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/Account/Login" Size="Size.Large">
+                ログイン
+            </MudButton>
+        </div>
     }
 </MudContainer>
 
 @code {
-    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
 
     private bool _isLoggedIn;
     private string _currentUserId = "";
@@ -96,26 +93,24 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var authState = await AuthState!;
+        var authState = await AuthStateTask;
         var user = authState.User;
         _isLoggedIn = user.Identity?.IsAuthenticated ?? false;
 
-        await (_isLoggedIn switch
+        if (_isLoggedIn)
         {
-            true => HandleLoggedInUserAsync(user),
-            false => Task.CompletedTask
-        });
+            await HandleLoggedInUserAsync(user);
+        }
     }
 
     private async Task HandleLoggedInUserAsync(ClaimsPrincipal user)
     {
         _currentUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
 
-        await (string.IsNullOrEmpty(_currentUserId) switch
+        if (!string.IsNullOrEmpty(_currentUserId))
         {
-            false => LoadUserDataAsync(),
-            true => Task.CompletedTask
-        });
+            await LoadUserDataAsync();
+        }
     }
 
     private async Task LoadUserDataAsync()
@@ -131,14 +126,13 @@
         _allTags = tags;
         _allTagRelationsToTags = relations;
 
-        _ = string.IsNullOrEmpty(_currentUserId) switch
+        if (!string.IsNullOrEmpty(_currentUserId))
         {
-            false => AssignSystemTags(),
-            true => false
-        };
+            AssignSystemTags();
+        }
     }
 
-    private bool AssignSystemTags()
+    private void AssignSystemTags()
     {
         var goodTag = _allTags.FirstOrDefault(t => t.OwnerId == _currentUserId && t.Name == "good" && t.IsSystem);
         var badTag = _allTags.FirstOrDefault(t => t.OwnerId == _currentUserId && t.Name == "bad" && t.IsSystem);
@@ -149,7 +143,6 @@
         _currentUserShinjiTagId = reactionIds.ShinjiTagId;
         _currentUserZenTagId = reactionIds.ZenTagId;
         _currentUserBiTagId = reactionIds.BiTagId;
-        return true;
     }
 
     public async Task EnsureSystemTagsExistAsync()
@@ -173,12 +166,12 @@
 
     private async ValueTask<ItemsProviderResult<TimelineFeedGroup>> LoadTimeline(ItemsProviderRequest request)
     {
-        return await (_followedTagIds switch
+        if (_followedTagIds is null or { Count: 0 })
         {
-            null or { Count: 0 } => ValueTask.FromResult(new ItemsProviderResult<TimelineFeedGroup>(new List<TimelineFeedGroup>(),
-0)),
-            _ => LoadTimelineDataAsync(request)
-        });
+            return new ItemsProviderResult<TimelineFeedGroup>([], 0);
+        }
+
+        return await LoadTimelineDataAsync(request);
     }
 
     private async ValueTask<ItemsProviderResult<TimelineFeedGroup>> LoadTimelineDataAsync(ItemsProviderRequest request)

@@ -40,11 +40,13 @@
                     }
                 </div>
 
-                <MudPaper Outlined="true" Class="pa-3 rounded-lg" Style="background-color: var(--mud-palette-background-grey);">
+                <MudPaper Outlined="true" Class="pa-3 rounded-lg"
+                          Style="background-color: var(--mud-palette-background-grey);">
                     <div class="d-flex align-center gap-2 mb-2">
                         @if (Report.TargetType == ReportTargetType.Item)
                         {
-                            <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">アイテム</MudChip>
+                            <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">アイテム
+                            </MudChip>
                             @if (Report.ItemId.HasValue && Report.Item is not null)
                             {
                                 <MudLink Href="@($"/ItemDetail/{Report.ItemId.Value}")" Target="_blank" Typo="Typo.caption">
@@ -58,7 +60,8 @@
                         }
                         else
                         {
-                            <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Outlined">タグ</MudChip>
+                            <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Outlined">タグ
+                            </MudChip>
                             @if (Report.TagId.HasValue && Report.Tag is not null)
                             {
                                 <MudLink Href="@($"/TagDetail/{Report.TagId.Value}")" Target="_blank" Typo="Typo.caption">
@@ -75,7 +78,8 @@
                     <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-1">
                         通報時コンテンツスナップショット:
                     </MudText>
-                    <MudText Typo="Typo.body2" Style="max-height: 120px; overflow-y: auto; white-space: pre-wrap;" Class="pa-2 border rounded">
+                    <MudText Typo="Typo.body2" Style="max-height: 120px; overflow-y: auto; white-space: pre-wrap;"
+                             Class="pa-2 border rounded">
                         @Report.TargetContentSnapshot
                     </MudText>
                 </MudPaper>
@@ -102,9 +106,11 @@
 
                 @if (Report.HandledDate.HasValue)
                 {
-                    <MudPaper Outlined="true" Class="pa-3 rounded-lg" Style="background-color: var(--mud-palette-background-grey);">
+                    <MudPaper Outlined="true" Class="pa-3 rounded-lg"
+                              Style="background-color: var(--mud-palette-background-grey);">
                         <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block">
-                            対応日時: @Report.HandledDate.Value.ToLocalTime().ToString("yyyy/MM/dd HH:mm") / 対応管理者: @(Report.HandledByAdmin?.UserName ?? "不明")
+                            対応日時: @Report.HandledDate.Value.ToLocalTime().ToString("yyyy/MM/dd HH:mm") / 対応管理者:
+                            @(Report.HandledByAdmin?.UserName ?? "不明")
                         </MudText>
                         @if (!string.IsNullOrEmpty(Report.ResolutionNote))
                         {
@@ -115,40 +121,26 @@
                     </MudPaper>
                 }
 
-                <MudTextField T="string"
-                              @bind-Value="_resolutionNote"
-                              Label="管理者対応メモ"
-                              Variant="Variant.Outlined"
-                              Lines="2"
-                              MaxLength="1000"
-                              Placeholder="処置理由や確認結果のメモを入力してください" />
+                <MudTextField T="string" @bind-Value="_resolutionNote" Label="管理者対応メモ" Variant="Variant.Outlined" Lines="2"
+                              MaxLength="1000" Placeholder="処置理由や確認結果のメモを入力してください" />
             </MudStack>
         }
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="@Close" Disabled="@_isProcessing">閉じる</MudButton>
         <MudSpacer />
-        <MudButton Color="Color.Default"
-                   Variant="Variant.Outlined"
-                   OnClick="@DismissReportAsync"
+        <MudButton Color="Color.Default" Variant="Variant.Outlined" OnClick="@DismissReportAsync"
                    Disabled="@_isProcessing">
             却下 (問題なし)
         </MudButton>
-        <MudButton Color="Color.Info"
-                   Variant="Variant.Outlined"
-                   OnClick="@ReviewReportAsync"
-                   Disabled="@_isProcessing">
+        <MudButton Color="Color.Info" Variant="Variant.Outlined" OnClick="@ReviewReportAsync" Disabled="@_isProcessing">
             確認済みにする
         </MudButton>
-        <MudButton Color="Color.Success"
-                   Variant="Variant.Outlined"
-                   OnClick="@ResolveWithoutDeleteAsync"
+        <MudButton Color="Color.Success" Variant="Variant.Outlined" OnClick="@ResolveWithoutDeleteAsync"
                    Disabled="@_isProcessing">
             処置完了 (削除なし)
         </MudButton>
-        <MudButton Color="Color.Error"
-                   Variant="Variant.Filled"
-                   OnClick="@ResolveAndDeleteTargetAsync"
+        <MudButton Color="Color.Error" Variant="Variant.Filled" OnClick="@ResolveAndDeleteTargetAsync"
                    Disabled="@_isProcessing">
             @if (_isProcessing)
             {
@@ -252,7 +244,8 @@
                 return;
             }
 
-            var success = await ContentReportService.ResolveReportWithActionAsync(Report.Id, deleteTarget: true, _resolutionNote, adminId);
+            var success = await ContentReportService.ResolveReportWithActionAsync(Report.Id, deleteTarget: true, _resolutionNote,
+adminId);
             if (success)
             {
                 Snackbar.Add("対象コンテンツを削除し、処置完了としました。", Severity.Success);
@@ -273,4 +266,3 @@
         }
     }
 }
-

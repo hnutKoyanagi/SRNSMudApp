@@ -20,59 +20,57 @@
 
             <MudDivider Class="my-2" />
 
-            @switch (_isLoading)
+            @if (_isLoading)
             {
-                case true:
-                    <div class="d-flex justify-center align-center pa-4 gap-2">
-                        <MudProgressCircular Size="Size.Medium" Indeterminate="true" Color="Color.Primary" />
-                        <MudText Typo="Typo.body2">読み込み中...</MudText>
+                <div class="d-flex justify-center align-center pa-4 gap-2">
+                    <MudProgressCircular Size="Size.Medium" Indeterminate="true" Color="Color.Primary" />
+                    <MudText Typo="Typo.body2">読み込み中...</MudText>
+                </div>
+            }
+            else
+            {
+                @if (_sourceItem != null)
+                {
+                    <div class="mb-3" data-testid="source-item-container">
+                        <MudText Typo="Typo.subtitle2" Class="mb-1 d-flex align-center gap-1 font-weight-bold">
+                            <MudIcon Icon="@Icons.Material.Filled.VerticalSplit" Size="Size.Small" Color="Color.Primary" />
+                            分割元・引用元のアイテム
+                        </MudText>
+                        <ItemCard Item="@_sourceItem" CurrentUserId="@CurrentUserId" AllTags="@AllTags"
+                                  AllTagRelationsToTags="@AllTagRelationsToTags" EnableNavigation="true"
+                                  OnDataChanged="LoadQuotedItemsAsync" />
                     </div>
-                    break;
-                case false:
-                    @if (_sourceItem != null)
+                    <MudDivider Class="my-3" />
+                }
+
+                @if (_quotedItems.Count == 0)
+                {
+                    @if (_sourceItem == null)
                     {
-                        <div class="mb-3" data-testid="source-item-container">
-                            <MudText Typo="Typo.subtitle2" Class="mb-1 d-flex align-center gap-1 font-weight-bold">
-                                <MudIcon Icon="@Icons.Material.Filled.VerticalSplit" Size="Size.Small" Color="Color.Primary" />
-                                分割元・引用元のアイテム
+                        <div class="pa-4 text-center">
+                            <MudText Typo="Typo.body2" Color="Color.Secondary" data-testid="no-quotes-message">
+                                このアイテムを引用した投稿はまだありません。
                             </MudText>
-                            <ItemCard Item="@_sourceItem" CurrentUserId="@CurrentUserId" AllTags="@AllTags"
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="d-flex flex-column gap-3 py-2" data-testid="quoted-items-container">
+                        @if (_sourceItem != null)
+                        {
+                            <MudText Typo="Typo.subtitle2" Class="mb-1 font-weight-bold">
+                                このアイテムを引用した投稿
+                            </MudText>
+                        }
+                        @foreach (var quote in _quotedItems)
+                        {
+                            <ItemCard Item="@quote" CurrentUserId="@CurrentUserId" AllTags="@AllTags"
                                       AllTagRelationsToTags="@AllTagRelationsToTags" EnableNavigation="true"
                                       OnDataChanged="LoadQuotedItemsAsync" />
-                        </div>
-                        <MudDivider Class="my-3" />
-                    }
-
-                    @switch (_quotedItems.Count)
-                    {
-                        case 0:
-                            @if (_sourceItem == null)
-                            {
-                                <div class="pa-4 text-center">
-                                    <MudText Typo="Typo.body2" Color="Color.Secondary" data-testid="no-quotes-message">
-                                        このアイテムを引用した投稿はまだありません。
-                                    </MudText>
-                                </div>
-                            }
-                            break;
-                        default:
-                            <div class="d-flex flex-column gap-3 py-2" data-testid="quoted-items-container">
-                                @if (_sourceItem != null)
-                                {
-                                    <MudText Typo="Typo.subtitle2" Class="mb-1 font-weight-bold">
-                                        このアイテムを引用した投稿
-                                    </MudText>
-                                }
-                                @foreach (var quote in _quotedItems)
-                                {
-                                    <ItemCard Item="@quote" CurrentUserId="@CurrentUserId" AllTags="@AllTags"
-                                              AllTagRelationsToTags="@AllTagRelationsToTags" EnableNavigation="true"
-                                              OnDataChanged="LoadQuotedItemsAsync" />
-                                }
-                            </div>
-                            break;
-                    }
-                    break;
+                        }
+                    </div>
+                }
             }
         </div>
     </DialogContent>
@@ -80,4 +78,3 @@
         <MudButton Color="Color.Primary" OnClick="Close">閉じる</MudButton>
     </DialogActions>
 </MudDialog>
-

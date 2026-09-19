@@ -9,16 +9,15 @@
 <MudDialog>
     <DialogContent>
         <MudForm @ref="_form" @bind-IsValid="@_isValid">
-            @switch (TargetItem)
+            @if (TargetItem is null)
             {
-                case null:
-                    <MudAutocomplete T="Item" Label="対象のアイテム" @bind-Value="_selectedItem" SearchFunc="@SearchItems"
-                                     ToStringFunc="@(i => i?.Content ?? "")" Required="true" RequiredError="アイテムを選択してください"
-                                     ResetValueOnEmptyText="true" CoerceText="true" CoerceValue="true" MaxItems="10" />
-                    break;
-                case not null:
-                    <MudTextField T="string" Label="対象のアイテム" Value="@TargetItem.Content" ReadOnly="true" />
-                    break;
+                <MudAutocomplete T="Item" Label="対象のアイテム" @bind-Value="_selectedItem" SearchFunc="@SearchItems"
+                                 ToStringFunc="@(i => i?.Content ?? "")" Required="true" RequiredError="アイテムを選択してください"
+                                 ResetValueOnEmptyText="true" CoerceText="true" CoerceValue="true" MaxItems="10" />
+            }
+            else
+            {
+                <MudTextField T="string" Label="対象のアイテム" Value="@TargetItem.Content" ReadOnly="true" />
             }
 
             <MudAutocomplete T="Tag" Label="希望するタグ" @bind-Value="_selectedTag" SearchFunc="@SearchTags"
@@ -44,7 +43,7 @@
 
 @code {
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
-    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
 
     [Parameter] public Item? TargetItem { get; set; }
 
@@ -60,14 +59,12 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var authState = await AuthState!;
-        _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
+        var authState = await AuthStateTask;
+        _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
 
-        switch (TargetItem)
+        if (TargetItem is not null)
         {
-            case not null:
-                _selectedItem = TargetItem;
-                break;
+            _selectedItem = TargetItem;
         }
 
         await LoadMyAssetsAsync();
@@ -91,9 +88,9 @@
     private async Task Submit()
     {
         await _form!.ValidateAsync();
-        switch (!_isValid || _selectedItem == null || _selectedTag == null)
+        if (!_isValid || _selectedItem is null || _selectedTag is null)
         {
-            case true: return;
+            return;
         }
 
         var bounty = new TaggingRequestEntity
@@ -118,5 +115,4 @@
     {
         MudDialog.Cancel();
     }
-
 }

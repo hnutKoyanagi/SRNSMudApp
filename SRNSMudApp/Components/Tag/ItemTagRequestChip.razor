@@ -4,36 +4,27 @@
 @inject NavigationManager NavigationManager
 @inject IDialogLauncher DialogLauncher
 
-@switch (_visible)
+@if (_visible)
 {
-    case true:
-        <MudBadge Content="@_replyCount" Color="Color.Primary" Overlap="true"
-                  Visible="@(_replyCount > 0)">
-            <MudChip T="string"
-                     Size="Size.Small"
-                     Color="@(_isAdd ? Color.Success : Color.Error)"
-                     Variant="Variant.Outlined"
-                     Icon="@(_isAdd ? Icons.Material.Filled.Add : Icons.Material.Filled.Remove)">
-                <div class="d-flex align-center">
-                    <a class="chip-link mr-1" style="color: inherit;"
-                       @onclick="@(() => NavigationManager.NavigateTo($"/TagDetail/{Request.RequestedTagId}"))"
-                       @onclick:stopPropagation="true">
-                        @Request.RequestedTag?.Name
-                    </a>
-                    <MudIconButton Icon="@Icons.Material.Filled.ChatBubbleOutline"
-                                   Size="Size.Small"
-                                   Color="Color.Inherit"
-                                   Class="pa-0"
-                                   OnClick="OpenThreadDialogAsync"/>
-                </div>
-            </MudChip>
-        </MudBadge>
-        break;
+    <MudBadge Content="@_replyCount" Color="Color.Primary" Overlap="true" Visible="@(_replyCount > 0)">
+        <MudChip T="string" Size="Size.Small" Color="@(_isAdd ? Color.Success : Color.Error)" Variant="Variant.Outlined"
+                 Icon="@(_isAdd ? Icons.Material.Filled.Add : Icons.Material.Filled.Remove)">
+            <div class="d-flex align-center">
+                <a class="chip-link mr-1" style="color: inherit;"
+                   @onclick="@(() => NavigationManager.NavigateTo($"/TagDetail/{Request.RequestedTagId}"))"
+                   @onclick:stopPropagation="true">
+                    @Request.RequestedTag?.Name
+                </a>
+                <MudIconButton Icon="@Icons.Material.Filled.ChatBubbleOutline" Size="Size.Small" Color="Color.Inherit"
+                               Class="pa-0" OnClick="OpenThreadDialogAsync" />
+            </div>
+        </MudChip>
+    </MudBadge>
 }
 
 @code {
-    [Parameter] [EditorRequired] public TaggingRequestEntity Request { get; set; } = null!;
-    [Parameter] [EditorRequired] public Item Item { get; set; } = null!;
+    [Parameter][EditorRequired] public TaggingRequestEntity Request { get; set; } = null!;
+    [Parameter][EditorRequired] public Item Item { get; set; } = null!;
     [Parameter] public EventCallback OnDataChanged { get; set; }
 
     private bool _visible;
@@ -63,14 +54,13 @@
             FullWidth = true
         };
 
-        var dialog = await DialogLauncher.ShowAsync<TaggingRequestThreadDialog>($"Request: {Request.RequestedTag?.Name}", parameters, options);
+        var dialog = await DialogLauncher.ShowAsync<TaggingRequestThreadDialog>($"Request: {Request.RequestedTag?.Name}",
+parameters, options);
         await dialog.Result;
 
-        switch (OnDataChanged.HasDelegate)
+        if (OnDataChanged.HasDelegate)
         {
-            case true:
-                await OnDataChanged.InvokeAsync();
-                break;
+            await OnDataChanged.InvokeAsync();
         }
     }
 }

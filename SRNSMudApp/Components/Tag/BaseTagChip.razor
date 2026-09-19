@@ -1,76 +1,54 @@
 <span id="@ChipId" class="position-relative d-inline-flex align-center">
-    <MudChip T="string" Size="Size.Small"
-             Class="@($"custom-chip {Class}")"
-             Style="@Style"
-             Color="@Color"
-             Variant="@Variant"
-             CloseIcon="@CloseIcon"
-             OnClose="@OnClose">
+    <MudChip T="string" Size="Size.Small" Class="@($"custom-chip {Class}")" Style="@Style" Color="@Color"
+             Variant="@Variant" CloseIcon="@CloseIcon" OnClose="@OnClose">
         <div class="d-flex align-center">
-            @switch (string.IsNullOrEmpty(TagName), OwnerName != null)
+            @if (!string.IsNullOrEmpty(TagName) || OwnerName != null)
             {
-                case (false, _):
-                case (_, true):
-                    <span class="d-flex align-center mr-1">
-                        @switch (string.IsNullOrEmpty(TagName))
-                        {
-                            case false:
-                                <a class="chip-link mr-1"
-                                   style="@TagStyle"
-                                   @onclick="HandleTagClick"
-                                   @onclick:stopPropagation="true">
-                                    @TagName
-                                </a>
-                                break;
-                        }
-                        @switch (OwnerName)
-                        {
-                            case not null:
-                                <span class="ml-1" @onclick:stopPropagation="true">(@OwnerName)</span>
-                                break;
-                        }
-                    </span>
-                    break;
+                <span class="d-flex align-center mr-1">
+                    @if (!string.IsNullOrEmpty(TagName))
+                    {
+                        <a class="chip-link mr-1" style="@TagStyle" @onclick="HandleTagClick" @onclick:stopPropagation="true">
+                            @TagName
+                        </a>
+                    }
+                    @if (OwnerName is not null)
+                    {
+                        <span class="ml-1" @onclick:stopPropagation="true">(@OwnerName)</span>
+                    }
+                </span>
             }
 
-            @switch (PrefixContent)
+            @if (PrefixContent is not null)
             {
-                case not null:
-                    <div class="d-flex align-center" @onclick:stopPropagation="true">
-                        @PrefixContent
-                    </div>
-                    break;
+                <div class="d-flex align-center" @onclick:stopPropagation="true">
+                    @PrefixContent
+                </div>
             }
             <span class="d-flex align-center">
-                @switch (WeightContent)
+                @if (WeightContent is not null)
                 {
-                    case not null:
-                        <span class="mx-1 d-flex align-center font-weight-bold" @onclick:stopPropagation="true">
-                            @WeightContent
-                        </span>
-                        break;
-                    case null when Weight != 0:
-                        <span class="mx-1 font-weight-bold" @onclick:stopPropagation="true">
-                            @Weight
-                        </span>
-                        break;
+                    <span class="mx-1 d-flex align-center font-weight-bold" @onclick:stopPropagation="true">
+                        @WeightContent
+                    </span>
+                }
+                else if (Weight != 0)
+                {
+                    <span class="mx-1 font-weight-bold" @onclick:stopPropagation="true">
+                        @Weight
+                    </span>
                 }
             </span>
-            @switch (ActionContent)
+            @if (ActionContent is not null)
             {
-                case not null:
-                    <div class="d-flex align-center" @onclick:stopPropagation="true">
-                        @ActionContent
-                    </div>
-                    break;
+                <div class="d-flex align-center" @onclick:stopPropagation="true">
+                    @ActionContent
+                </div>
             }
         </div>
     </MudChip>
-    @switch (PopoverContent)
+    @if (PopoverContent is not null)
     {
-        case not null:
-            @PopoverContent
-            break;
+        @PopoverContent
     }
 </span>
 
@@ -94,11 +72,9 @@
 
     private async Task HandleTagClick()
     {
-        switch (OnClick.HasDelegate)
+        if (OnClick.HasDelegate)
         {
-            case true:
-                await OnClick.InvokeAsync();
-                break;
+            await OnClick.InvokeAsync();
         }
     }
 

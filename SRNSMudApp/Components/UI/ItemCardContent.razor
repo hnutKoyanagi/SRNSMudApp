@@ -10,61 +10,57 @@
     <div id="@($"item-content-{ItemId}")" class="@($"resource-content {(!_isExpanded ? "line-clamp-2" : "")}")">
         @foreach (var segment in _segments)
         {
-            @switch (segment.IsUrl)
+            @if (segment.IsUrl)
             {
-                case true:
-                    <span @onclick:stopPropagation="true">
-                        <UrlPreviewCard Url="@segment.Text" LoadPreview="@LoadPreview" />
-                    </span>
-                    break;
-                case false:
-                    <MudText Typo="Typo.subtitle1" Class="font-inherit d-inline" Style="white-space: pre-wrap;">@segment.Text
-                    </MudText>
-                    break;
+                <span @onclick:stopPropagation="true">
+                    <UrlPreviewCard Url="@segment.Text" LoadPreview="@LoadPreview" />
+                </span>
+            }
+            else
+            {
+                <MudText Typo="Typo.subtitle1" Class="font-inherit d-inline" Style="white-space: pre-wrap;">@segment.Text
+                </MudText>
             }
         }
     </div>
 
-    @switch (_isOverflowing)
+    @if (_isOverflowing)
     {
-        case true:
-            <span @onclick:stopPropagation="true">
-                <MudLink OnClick="ToggleExpand" Color="Color.Primary" Typo="Typo.body2" Underline="Underline.Hover"
-                         Class="cursor-pointer">
-                    @(_isExpanded switch { true => "閉じる", false => "もっと見る" })
-                </MudLink>
-            </span>
-            break;
+        <span @onclick:stopPropagation="true">
+            <MudLink OnClick="ToggleExpand" Color="Color.Primary" Typo="Typo.body2" Underline="Underline.Hover"
+                     Class="cursor-pointer">
+                @(_isExpanded ? "閉じる" : "もっと見る")
+            </MudLink>
+        </span>
     }
 
     <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2 mt-2 d-block">
         投稿者:
-        @switch (string.IsNullOrEmpty(OwnerId))
+        @if (!string.IsNullOrEmpty(OwnerId))
         {
-            case false:
-                <span @onclick:stopPropagation="true">
-                    <MudLink Href="@($"/User/UserDetail/{OwnerId}")" Color="Color.Inherit" Underline="Underline.Hover">
-                        @OwnerUserName
-                    </MudLink>
-                </span>
-                break;
-            case true:
-                @(OwnerUserName ?? "不明")
-                break;
+            <span @onclick:stopPropagation="true">
+                <MudLink Href="@($"/User/UserDetail/{OwnerId}")" Color="Color.Inherit" Underline="Underline.Hover">
+                    @OwnerUserName
+                </MudLink>
+            </span>
+        }
+        else
+        {
+            @(OwnerUserName ?? "不明")
         }
         <span class="mx-1">|</span>
-        @switch (EnableNavigation)
+        @if (EnableNavigation)
         {
-            case true:
-                <span @onclick:stopPropagation="true">
-                    <MudLink Href="@($"/ItemDetail/{ItemId}")" OnClick="NavigateToDetail" Color="Color.Inherit" Underline="Underline.Hover">
-                        最終更新: @UpdatedDate.ToLocalTime().ToString("g")
-                    </MudLink>
-                </span>
-                break;
-            case false:
-                <span>最終更新: @UpdatedDate.ToLocalTime().ToString("g")</span>
-                break;
+            <span @onclick:stopPropagation="true">
+                <MudLink Href="@($"/ItemDetail/{ItemId}")" OnClick="NavigateToDetail" Color="Color.Inherit"
+                         Underline="Underline.Hover">
+                    最終更新: @UpdatedDate.ToLocalTime().ToString("g")
+                </MudLink>
+            </span>
+        }
+        else
+        {
+            <span>最終更新: @UpdatedDate.ToLocalTime().ToString("g")</span>
         }
         @if (IsPrivate)
         {
@@ -164,22 +160,19 @@
 
     private async Task UpdateOverflowStateAsync()
     {
-        switch (_isExpanded)
+        if (_isExpanded)
         {
-            case true:
-                return;
+            return;
         }
 
         try
         {
-            var overflowIds = await JS.InvokeAsync<int[]>("contentOverflowHelper.checkOverflow", new[] { ItemId });
+            var overflowIds = await JS.InvokeAsync<int[]>("contentOverflowHelper.checkOverflow", [ItemId]);
             var isOverflowing = overflowIds.Contains(ItemId);
-            switch (_isOverflowing != isOverflowing)
+            if (_isOverflowing != isOverflowing)
             {
-                case true:
-                    _isOverflowing = isOverflowing;
-                    StateHasChanged();
-                    break;
+                _isOverflowing = isOverflowing;
+                StateHasChanged();
             }
         }
         catch (Exception)
@@ -191,11 +184,9 @@
     private void ToggleExpand()
     {
         _isExpanded = !_isExpanded;
-        switch (!_isExpanded)
+        if (!_isExpanded)
         {
-            case true:
-                _needsOverflowCheck = true; // 折りたたみ時に再チェック
-                break;
+            _needsOverflowCheck = true; // 折りたたみ時に再チェック
         }
     }
 
@@ -206,19 +197,17 @@
 
     public async ValueTask DisposeAsync()
     {
-        switch (_dotNetRef)
+        if (_dotNetRef is not null)
         {
-            case not null:
-                try
-                {
-                    await JS.InvokeVoidAsync("contentOverflowHelper.removeDotNetRef", _dotNetRef);
-                }
-                catch (Exception)
-                {
-                    // ignored
-                }
-                _dotNetRef.Dispose();
-                break;
+            try
+            {
+                await JS.InvokeVoidAsync("contentOverflowHelper.removeDotNetRef", _dotNetRef);
+            }
+            catch (Exception)
+            {
+                // ignored
+            }
+            _dotNetRef.Dispose();
         }
     }
 }

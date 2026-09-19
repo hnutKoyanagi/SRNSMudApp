@@ -91,8 +91,8 @@
                                                         </div>
                                                         <MudText Typo="Typo.body2" Class="mt-1">
                                                             提案内容: <span class="font-italic ml-1">「@(proposalNote.ProposedContent.Length > 50
-                                                                                                        ? $"{proposalNote.ProposedContent[..50]}..." :
-                                                                                                        proposalNote.ProposedContent)」</span>
+                                                                                                                                                                    ? $"{proposalNote.ProposedContent[..50]}..." :
+                                                                                                                                                                    proposalNote.ProposedContent)」</span>
                                                         </MudText>
                                                         @if (!string.IsNullOrWhiteSpace(proposalNote.Reason))
                                                         {
@@ -201,7 +201,7 @@
                                                                              Color="Color.Info" Class="mr-2" />
                                                                     <MudText Typo="Typo.body2">
                                                                         分割対象テキスト: <span class="font-italic ml-1">「@(splitNote.SelectedText.Length > 30 ?
-                                                                                                                                                                                                                                    $"{splitNote.SelectedText[..30]}..." : splitNote.SelectedText)」</span>
+                                                                                                                                                                                                                                                                                                            $"{splitNote.SelectedText[..30]}..." : splitNote.SelectedText)」</span>
                                                                         @switch (splitNote.Status)
                                                                         {
                                                                             case TradeStatus.Executed:
@@ -216,18 +216,16 @@
                                                                         }
                                                                     </MudText>
                                                                 </div>
-                                                                @switch (isPending)
+                                                                @if (isPending)
                                                                 {
-                                                                    case true:
-                                                                        <div class="d-flex align-center">
-                                                                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
-                                                                                       OnClick="@(() => ApproveSplitRequestAsync(notification))" Class="mr-1 py-0 px-2"
-                                                                                       StartIcon="@Icons.Material.Filled.Check">承認</MudButton>
-                                                                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
-                                                                                       OnClick="@(() => RejectSplitRequestAsync(notification))" Class="py-0 px-2"
-                                                                                       StartIcon="@Icons.Material.Filled.Close">却下</MudButton>
-                                                                        </div>
-                                                                        break;
+                                                                    <div class="d-flex align-center">
+                                                                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
+                                                                                   OnClick="@(() => ApproveSplitRequestAsync(notification))" Class="mr-1 py-0 px-2"
+                                                                                   StartIcon="@Icons.Material.Filled.Check">承認</MudButton>
+                                                                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+                                                                                   OnClick="@(() => RejectSplitRequestAsync(notification))" Class="py-0 px-2"
+                                                                                   StartIcon="@Icons.Material.Filled.Close">却下</MudButton>
+                                                                    </div>
                                                                 }
                                                             </div>
                                                         </MudAlert>

@@ -19,6 +19,8 @@ using SRNSMudApp.Services.Dialogs;
 // IDE0010: union 型・enum の網羅的 switch に対する「Populate switch」は、
 // 全ケース列挙済み・default 併記済みでも解消されない解析器の誤検知のため抑制する。
 #pragma warning disable IDE0010
+// CA1508: union 型 (AsyncPageState) のパターンマッチにおける解析器の誤検知のため抑制する。
+#pragma warning disable CA1508
 
 namespace SRNSMudApp.Components.Item;
 
@@ -45,7 +47,7 @@ public partial class ItemDetail
         public IReadOnlyList<Data.Item> Quotes { get; init; } = Quotes ?? [];
     }
 
-    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
 
     [Parameter] public int ItemId { get; set; }
 
@@ -105,11 +107,9 @@ public partial class ItemDetail
 
     protected override async Task OnParametersSetAsync()
     {
-        switch (_pageState)
+        if (_pageState is Loaded<ItemDetailData> loaded && loaded.Data.Item.Id != ItemId)
         {
-            case Loaded<ItemDetailData> loaded when loaded.Data.Item.Id != ItemId:
-                await LoadDataAsync();
-                break;
+            await LoadDataAsync();
         }
 
         var state = ItemDetailQueryStateFactory.ParseFromUri(new Uri(NavigationManager.Uri));
@@ -130,19 +130,17 @@ public partial class ItemDetail
     {
         await base.OnAfterRenderAsync(firstRender);
 
-        switch (_pageState)
+        if (_pageState is Loaded<ItemDetailData> && !_hasScrolledToFocus)
         {
-            case Loaded<ItemDetailData> when !_hasScrolledToFocus:
-                _hasScrolledToFocus = true;
-                try
-                {
-                    await JS.InvokeVoidAsync("contentOverflowHelper.scrollToElement", $"#item-card-{ItemId}, #current-focused-item-{ItemId}");
-                }
-                catch (Exception ex) when (ex is JSException or JSDisconnectedException or TaskCanceledException)
-                {
-                    // 静的プリレンダリング時や切断時の例外は無視する
-                }
-                break;
+            _hasScrolledToFocus = true;
+            try
+            {
+                await JS.InvokeVoidAsync("contentOverflowHelper.scrollToElement", $"#item-card-{ItemId}, #current-focused-item-{ItemId}");
+            }
+            catch (Exception ex) when (ex is JSException or JSDisconnectedException or TaskCanceledException)
+            {
+                // 静的プリレンダリング時や切断時の例外は無視する
+            }
         }
     }
 
@@ -166,28 +164,23 @@ public partial class ItemDetail
 
             ItemDetailPageData? data = await DetailData.GetItemDetailAsync(ItemId);
 
-            switch (data)
+            if (data is null)
             {
-                case null:
-                    _pageState = new Empty("アイテムが見つかりません。");
-                    return;
+                _pageState = new Empty("アイテムが見つかりません。");
+                return;
             }
 
             List<TaggingRequestEntity>? requests = (await TaggingContractService.GetRequestsByItemIdAsync(ItemId))?.ToList();
 
-            switch (SelectedRequestIdQuery.HasValue && requests != null)
+            if (SelectedRequestIdQuery.HasValue && requests != null)
             {
-                case true:
-                    _selectedRequest = requests?.FirstOrDefault(r => r.Id == SelectedRequestIdQuery.Value);
-                    break;
+                _selectedRequest = requests.FirstOrDefault(r => r.Id == SelectedRequestIdQuery.Value);
             }
 
-            switch (AuthState)
+            if (AuthState is not null)
             {
-                case not null:
-                    AuthenticationState authState = await AuthState;
-                    _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
-                    break;
+                AuthenticationState authState = await AuthState;
+                _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
             }
 
             _allTags = data.AllTags;
@@ -289,37 +282,33 @@ public partial class ItemDetail
         AuthenticationState authState = await AuthState;
         var currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-        switch (currentUserId)
+        if (currentUserId is null)
         {
-            case null: return;
+            return;
         }
 
         var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
         IDialogReference dialog = await DialogLauncher.ShowAsync<RejectRequestDialog>("リクエストを却下", options);
         DialogResult? result = await dialog.Result;
 
-        switch (result)
+        if (result is { Canceled: false })
         {
-            case { Canceled: false }:
-                try
-                {
-                    var comment = result.Data as string;
-                    await TaggingService.RejectRequestAsync(request.Id, currentUserId, comment);
-                    _ = Snackbar.Add("リクエストを却下しました。", Severity.Success);
+            try
+            {
+                var comment = result.Data as string;
+                await TaggingService.RejectRequestAsync(request.Id, currentUserId, comment);
+                _ = Snackbar.Add("リクエストを却下しました。", Severity.Success);
 
-                    switch (_pageState)
-                    {
-                        case Loaded<ItemDetailData> loaded:
-                            _ = loaded.Data.Requests.Remove(request);
-                            StateHasChanged();
-                            break;
-                    }
-                }
-                catch (Exception ex)
+                if (_pageState is Loaded<ItemDetailData> loaded)
                 {
-                    _ = Snackbar.Add($"却下に失敗しました: {ex.Message}", Severity.Error);
+                    _ = loaded.Data.Requests.Remove(request);
+                    StateHasChanged();
                 }
-                break;
+            }
+            catch (Exception ex)
+            {
+                _ = Snackbar.Add($"却下に失敗しました: {ex.Message}", Severity.Error);
+            }
         }
     }
 

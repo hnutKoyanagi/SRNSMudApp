@@ -20,35 +20,29 @@
                    @onclick:stopPropagation="true">
                     @(Relation.Tag?.Name ?? "不明")
                 </a>
-                @switch (Display.IsDeleted)
+                @if (!Display.IsDeleted)
                 {
-                    case false:
-                        <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small"
-                                       Color="Color.Inherit" Class="chip-icon-btn pa-0 mx-1"
-                                       OnClick="@(() => OnDecreaseWeight.InvokeAsync())"
-                                       title="Weightを減らす"/>
-                        break;
+                    <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small"
+                                   Color="Color.Inherit" Class="chip-icon-btn pa-0 mx-1"
+                                   OnClick="@(() => OnDecreaseWeight.InvokeAsync())"
+                                   title="Weightを減らす"/>
                 }
                 <MudLink Color="Color.Inherit" Underline="Underline.Hover"
                          Class="mx-1 cursor-pointer font-weight-bold"
                          OnClick="@(() => (Display.IsDeleted ? Task.CompletedTask : OnEditWeight.InvokeAsync()))">
-                    @switch (Display.IsDeleted)
+                    @if (Display.IsDeleted)
                     {
-                        case true:
-                            <MudIcon Icon="@Icons.Material.Outlined.Delete" Size="Size.Small"
-                                     Class="mr-1" Style="font-size: 1rem; vertical-align: middle;"/>
-                            break;
+                        <MudIcon Icon="@Icons.Material.Outlined.Delete" Size="Size.Small"
+                                 Class="mr-1" Style="font-size: 1rem; vertical-align: middle;"/>
                     }
                     <span style="vertical-align: middle;">@Display.DisplayWeight</span>
                 </MudLink>
-                @switch (Display.IsDeleted)
+                @if (!Display.IsDeleted)
                 {
-                    case false:
-                        <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
-                                       Color="@Display.AddButtonColor" Class="chip-icon-btn pa-0 mx-1"
-                                       OnClick="@(() => OnIncreaseWeight.InvokeAsync())"
-                                       title="Weightを増やす"/>
-                        break;
+                    <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
+                                   Color="@Display.AddButtonColor" Class="chip-icon-btn pa-0 mx-1"
+                                   OnClick="@(() => OnIncreaseWeight.InvokeAsync())"
+                                   title="Weightを増やす"/>
                 }
                 <span class="ml-1">(@SRNSMudApp.Components.UI.TagCardViewModel.GetShortOwnerName(Relation.Tag?.Owner?.UserName))</span>
             </span>

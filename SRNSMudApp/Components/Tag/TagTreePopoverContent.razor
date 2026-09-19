@@ -5,8 +5,7 @@
     <MudList T="object" Dense="true" Class="pa-0">
         @foreach (var line in _treeLines)
         {
-            <MudListItem id="@(line.IsCurrent ? "tag-tree-current-line" : null)"
-                         OnClick="@(() => OnLineClicked(line))"
+            <MudListItem id="@(line.IsCurrent ? "tag-tree-current-line" : null)" OnClick="@(() => OnLineClicked(line))"
                          Class="@($"pa-0 px-2 rounded {(line.IsCurrent ? "current" : "")} {(line.IsParent ? "parent" : "")} {(line.IsChild ? "child" : "")} {(line.IsSibling ? "sibling" : "")} {(EnableExpand ? "cursor-pointer" : "")}")"
                          Style="@(line.IsCurrent ? "background: rgba(103, 80, 164, 0.08);" : null)">
                 <div class="d-flex align-center tag-tree-line" style="gap: 4px; padding: 2px 0;">
@@ -18,51 +17,44 @@
                     </span>
                     <span class="tag-tree-icon" style="font-size: 10px; width: 14px; flex-shrink: 0;">@line.Icon</span>
 
-                    @switch (OnTagClick.HasDelegate || EnableNavigation)
+                    @if (OnTagClick.HasDelegate || EnableNavigation)
                     {
-                        case true:
-                            <span @onclick:stopPropagation="true" class="tag-tree-name tag-link"
-                                  style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                                <MudLink Typo="Typo.body2" Color="Color.Primary" Style="font-weight: 500;"
-                                         OnClick="@(() => NavigateToTag(line.TagId))">
-                                    @line.Name
-                                </MudLink>
-                            </span>
-                            break;
-                        case false:
-                            <MudText Typo="Typo.body2" Color="Color.Primary"
-                                     Style="font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
-                                     Class="tag-tree-name">
+                        <span @onclick:stopPropagation="true" class="tag-tree-name tag-link"
+                              style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                            <MudLink Typo="Typo.body2" Color="Color.Primary" Style="font-weight: 500;"
+                                     OnClick="@(() => NavigateToTag(line.TagId))">
                                 @line.Name
-                            </MudText>
-                            break;
+                            </MudLink>
+                        </span>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Primary"
+                                 Style="font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+                                 Class="tag-tree-name">
+                            @line.Name
+                        </MudText>
                     }
 
-                    @switch (string.IsNullOrEmpty(line.Role))
+                    @if (!string.IsNullOrEmpty(line.Role))
                     {
-                        case false:
-                            <span class="tag-tree-role">@line.Role</span>
-                            break;
+                        <span class="tag-tree-role">@line.Role</span>
                     }
                     <div style="flex: 1;"></div>
-                    @switch (!line.IsCurrent && EnableSwap)
+                    @if (!line.IsCurrent && EnableSwap)
                     {
-                        case true:
-                            <span class="tag-tree-swap-btn" @onclick:stopPropagation="true">
-                                <MudIconButton Icon="@Icons.Material.Filled.SwapHoriz" Size="Size.Small" Color="Color.Primary"
-                                               Class="pa-1" OnClick="@(() => OnSwap.InvokeAsync(line.TagId))" title="このタグに入れ替える" />
-                            </span>
-                            break;
+                        <span class="tag-tree-swap-btn" @onclick:stopPropagation="true">
+                            <MudIconButton Icon="@Icons.Material.Filled.SwapHoriz" Size="Size.Small" Color="Color.Primary"
+                                           Class="pa-1" OnClick="@(() => OnSwap.InvokeAsync(line.TagId))" title="このタグに入れ替える" />
+                        </span>
                     }
-                    @switch (EnableAddChild)
+                    @if (EnableAddChild)
                     {
-                        case true:
-                            <span class="tag-tree-add-btn" @onclick:stopPropagation="true">
-                                <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small"
-                                               Color="Color.Primary" Class="pa-1" OnClick="@(() => AddChildTagClicked(line.TagId))"
-                                               title="このタグの子にタグを追加" />
-                            </span>
-                            break;
+                        <span class="tag-tree-add-btn" @onclick:stopPropagation="true">
+                            <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small"
+                                           Color="Color.Primary" Class="pa-1" OnClick="@(() => AddChildTagClicked(line.TagId))"
+                                           title="このタグの子にタグを追加" />
+                        </span>
                     }
                 </div>
             </MudListItem>
@@ -85,17 +77,13 @@
 
     private async Task AddChildTagClicked(int tagId)
     {
-        switch (OnAddChildTag.HasDelegate)
+        if (OnAddChildTag.HasDelegate)
         {
-            case true:
-                var targetTag = AllTags.FirstOrDefault(t => t.Id == tagId);
-                switch (targetTag)
-                {
-                    case not null:
-                        await OnAddChildTag.InvokeAsync(targetTag);
-                        break;
-                }
-                break;
+            var targetTag = AllTags.FirstOrDefault(t => t.Id == tagId);
+            if (targetTag is not null)
+            {
+                await OnAddChildTag.InvokeAsync(targetTag);
+            }
         }
     }
 
@@ -104,22 +92,18 @@
 
     protected override void OnParametersSet()
     {
-        switch ((TargetTag, AllTags))
+        if (TargetTag is null || AllTags is null)
         {
-            case (null, _):
-            case (_, null):
-                return;
+            return;
         }
 
-        switch (_expandedTreeTagIds.Any())
+        if (_expandedTreeTagIds.Count == 0)
         {
-            case false:
-                // Auto-expand parents of TargetTag
-                foreach (var id in TagTreePopoverViewModel.GetAutoExpandIds(TargetTag, AllTags.ToList()))
-                {
-                    _expandedTreeTagIds.Add(id);
-                }
-                break;
+            // Auto-expand parents of TargetTag
+            foreach (var id in TagTreePopoverViewModel.GetAutoExpandIds(TargetTag, AllTags.ToList()))
+            {
+                _expandedTreeTagIds.Add(id);
+            }
         }
 
         BuildTree();
@@ -128,9 +112,9 @@
     private void BuildTree()
     {
         _treeLines.Clear();
-        switch (TargetTag == null || !AllTags.Any())
+        if (TargetTag == null || !AllTags.Any())
         {
-            case true: return;
+            return;
         }
 
         _treeLines.AddRange(TagTreePopoverViewModel.BuildTreeLines(
@@ -139,16 +123,14 @@
 
     private void OnLineClicked(TagTreeLine line)
     {
-        switch (EnableExpand)
+        if (!EnableExpand)
         {
-            case false: return;
+            return;
         }
 
-        switch (_expandedTreeTagIds.Remove(line.TagId))
+        if (!_expandedTreeTagIds.Remove(line.TagId))
         {
-            case false:
-                _expandedTreeTagIds.Add(line.TagId);
-                break;
+            _expandedTreeTagIds.Add(line.TagId);
         }
 
         BuildTree();
@@ -156,14 +138,13 @@
 
     private async Task NavigateToTag(int tagId)
     {
-        switch (OnTagClick.HasDelegate)
+        if (OnTagClick.HasDelegate)
         {
-            case true:
-                await OnTagClick.InvokeAsync(tagId);
-                break;
-            case false when EnableNavigation:
-                NavigationManager.NavigateTo($"/TagDetail/{tagId}");
-                break;
+            await OnTagClick.InvokeAsync(tagId);
+        }
+        else if (EnableNavigation)
+        {
+            NavigationManager.NavigateTo($"/TagDetail/{tagId}");
         }
     }
 

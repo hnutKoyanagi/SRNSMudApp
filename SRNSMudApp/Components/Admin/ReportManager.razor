@@ -21,12 +21,8 @@
 <MudPaper Class="pa-4 mb-4" Elevation="1">
     <MudGrid>
         <MudItem xs="12" md="4">
-            <MudSelect T="ReportStatus?"
-                       Label="ステータス絞り込み"
-                       Value="_selectedStatus"
-                       ValueChanged="OnStatusFilterChangedAsync"
-                       Variant="Variant.Outlined"
-                       Dense="true">
+            <MudSelect T="ReportStatus?" Label="ステータス絞り込み" Value="_selectedStatus"
+                       ValueChanged="OnStatusFilterChangedAsync" Variant="Variant.Outlined" Dense="true">
                 <MudSelectItem Value="@((ReportStatus?)null)">すべてのステータス</MudSelectItem>
                 <MudSelectItem Value="@((ReportStatus?)ReportStatus.Pending)">未対応 (Pending)</MudSelectItem>
                 <MudSelectItem Value="@((ReportStatus?)ReportStatus.ActionTaken)">処置済み (ActionTaken)</MudSelectItem>
@@ -35,30 +31,24 @@
             </MudSelect>
         </MudItem>
         <MudItem xs="12" md="4">
-            <MudSelect T="ReportTargetType?"
-                       Label="対象種別絞り込み"
-                       Value="_selectedTargetType"
-                       ValueChanged="OnTargetTypeFilterChangedAsync"
-                       Variant="Variant.Outlined"
-                       Dense="true">
+            <MudSelect T="ReportTargetType?" Label="対象種別絞り込み" Value="_selectedTargetType"
+                       ValueChanged="OnTargetTypeFilterChangedAsync" Variant="Variant.Outlined" Dense="true">
                 <MudSelectItem Value="@((ReportTargetType?)null)">すべての対象種別</MudSelectItem>
                 <MudSelectItem Value="@((ReportTargetType?)ReportTargetType.Item)">アイテムのみ</MudSelectItem>
                 <MudSelectItem Value="@((ReportTargetType?)ReportTargetType.Tag)">タグのみ</MudSelectItem>
             </MudSelect>
         </MudItem>
         <MudItem xs="12" md="4" Class="d-flex align-center justify-end">
-            <MudButton Variant="Variant.Outlined"
-                       Color="Color.Primary"
-                       StartIcon="@Icons.Material.Filled.Refresh"
-                       OnClick="LoadReportsAsync"
-                       Disabled="_isLoading">
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Refresh"
+                       OnClick="LoadReportsAsync" Disabled="_isLoading">
                 再読み込み
             </MudButton>
         </MudItem>
     </MudGrid>
 </MudPaper>
 
-<MudTable Items="@_reports" Hover="true" Dense="true" Elevation="1" Loading="@_isLoading" LoadingProgressColor="Color.Primary">
+<MudTable Items="@_reports" Hover="true" Dense="true" Elevation="1" Loading="@_isLoading"
+          LoadingProgressColor="Color.Primary">
     <HeaderContent>
         <MudTh>ID</MudTh>
         <MudTh>通報日時</MudTh>
@@ -73,16 +63,13 @@
         <MudTd DataLabel="ID">@context.Id</MudTd>
         <MudTd DataLabel="通報日時">@context.CreatedDate.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</MudTd>
         <MudTd DataLabel="種別">
-            @if (context.TargetType == ReportTargetType.Item)
-            {
-                <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Outlined">アイテム</MudChip>
-            }
-            else
-            {
-                <MudChip T="string" Color="Color.Secondary" Size="Size.Small" Variant="Variant.Outlined">タグ</MudChip>
-            }
+            <MudChip T="string" Color="@ReportManagerViewModel.GetTargetTypeColor(context.TargetType)" Size="Size.Small"
+                     Variant="Variant.Outlined">
+                @ReportManagerViewModel.GetTargetTypeText(context.TargetType)
+            </MudChip>
         </MudTd>
-        <MudTd DataLabel="通報対象" Style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+        <MudTd DataLabel="通報対象"
+               Style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
             <MudTooltip Text="@context.TargetContentSnapshot">
                 <span>@context.TargetContentSnapshot</span>
             </MudTooltip>
@@ -94,28 +81,14 @@
         </MudTd>
         <MudTd DataLabel="通報者">@(context.Owner?.UserName ?? "不明")</MudTd>
         <MudTd DataLabel="ステータス">
-            @switch (context.Status)
-            {
-                case ReportStatus.Pending:
-                    <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Filled">未対応</MudChip>
-                    break;
-                case ReportStatus.Reviewed:
-                    <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Filled">確認済み</MudChip>
-                    break;
-                case ReportStatus.ActionTaken:
-                    <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">処置済み</MudChip>
-                    break;
-                case ReportStatus.Dismissed:
-                    <MudChip T="string" Color="Color.Default" Size="Size.Small" Variant="Variant.Filled">却下</MudChip>
-                    break;
-            }
+            <MudChip T="string" Color="@ReportManagerViewModel.GetStatusColor(context.Status)" Size="Size.Small"
+                     Variant="Variant.Filled">
+                @ReportManagerViewModel.GetStatusText(context.Status)
+            </MudChip>
         </MudTd>
         <MudTd DataLabel="対応">
-            <MudButton Variant="Variant.Filled"
-                       Color="Color.Primary"
-                       Size="Size.Small"
-                       StartIcon="@Icons.Material.Filled.Visibility"
-                       OnClick="@(() => OpenDetailDialogAsync(context))">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                       StartIcon="@Icons.Material.Filled.Visibility" OnClick="@(() => OpenDetailDialogAsync(context))">
                 詳細・対応
             </MudButton>
         </MudTd>
@@ -196,4 +169,3 @@
         }
     }
 }
-

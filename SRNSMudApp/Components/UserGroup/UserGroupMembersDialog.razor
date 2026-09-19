@@ -15,14 +15,11 @@
             <MudPaper Elevation="0" Outlined="true" Class="pa-3 mb-4 rounded-lg">
                 <MudText Typo="Typo.subtitle2" Class="mb-2">新規メンバー追加</MudText>
                 <div class="d-flex align-center gap-2">
-                    <MudAutocomplete T="ApplicationUser" @bind-Value="_selectedUser"
-                                     SearchFunc="@SearchUsersAsync"
-                                     ToStringFunc="@(u => u?.UserName ?? string.Empty)"
-                                     Label="ユーザー名で検索" Variant="Variant.Outlined" Dense="true"
-                                     Margin="Margin.Dense" Class="flex-grow-1"
-                                     Placeholder="追加するユーザーを検索..." />
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                               OnClick="@AddMemberAsync" Disabled="@(_selectedUser is null || _isAdding)">
+                    <MudAutocomplete T="ApplicationUser" @bind-Value="_selectedUser" SearchFunc="@SearchUsersAsync"
+                                     ToStringFunc="@(u => u?.UserName ?? string.Empty)" Label="ユーザー名で検索" Variant="Variant.Outlined"
+                                     Dense="true" Margin="Margin.Dense" Class="flex-grow-1" Placeholder="追加するユーザーを検索..." />
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@AddMemberAsync"
+                               Disabled="@(_selectedUser is null || _isAdding)">
                         追加
                     </MudButton>
                 </div>
@@ -60,9 +57,8 @@
                             </div>
                             @if (IsOwner && member.UserId != Group.OwnerId)
                             {
-                                <MudIconButton Icon="@Icons.Material.Filled.PersonRemove" Color="Color.Error"
-                                               Size="Size.Small" Title="メンバーから削除"
-                                               OnClick="@(() => RemoveMemberAsync(member.UserId))" />
+                                <MudIconButton Icon="@Icons.Material.Filled.PersonRemove" Color="Color.Error" Size="Size.Small"
+                                               Title="メンバーから削除" OnClick="@(() => RemoveMemberAsync(member.UserId))" />
                             }
                         </div>
                     </MudListItem>
@@ -176,4 +172,3 @@
         MudDialog.Close(DialogResult.Ok(true));
     }
 }
-

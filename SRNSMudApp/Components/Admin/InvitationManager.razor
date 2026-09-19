@@ -1,6 +1,5 @@
 @page "/Admin/Invitations"
 @using System.Security.Claims
-@using System.Security.Cryptography
 
 @attribute [Authorize(Roles = "Admin")]
 @using SRNSMudApp.Services
@@ -15,7 +14,7 @@
     <MudText Typo="Typo.h6">Create New Invitation</MudText>
     <MudGrid>
         <MudItem xs="12" md="8">
-            <MudTextField @bind-Value="_newEmail" Label="Invitee Email Address" Variant="Variant.Outlined"/>
+            <MudTextField @bind-Value="_newEmail" Label="Invitee Email Address" Variant="Variant.Outlined" />
         </MudItem>
         <MudItem xs="12" md="4" Class="d-flex align-center">
             <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateInvitation"
@@ -39,28 +38,22 @@
         <MudTd DataLabel="Code">
             <MudTooltip Text="Copy Link">
                 <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
-                               OnClick="@(() => CopyLink(context.InvitationCode))"/>
+                               OnClick="@(() => CopyLink(context.InvitationCode))" />
             </MudTooltip>
             @context.InvitationCode
         </MudTd>
         <MudTd DataLabel="Expiration">@context.ExpirationDate.ToLocalTime().ToString("g")</MudTd>
         <MudTd DataLabel="Status">
-            @if (context.IsUsed)
-            {
-                <MudChip T="string" Color="Color.Success" Size="Size.Small">Used</MudChip>
+            @{
+                var status = InvitationManagerViewModel.GetInvitationStatus(context, DateTime.UtcNow);
             }
-            else if (context.ExpirationDate < DateTime.UtcNow)
-            {
-                <MudChip T="string" Color="Color.Error" Size="Size.Small">Expired</MudChip>
-            }
-            else
-            {
-                <MudChip T="string" Color="Color.Warning" Size="Size.Small">Pending</MudChip>
-            }
+            <MudChip T="string" Color="@InvitationManagerViewModel.GetStatusColor(status)" Size="Size.Small">
+                @InvitationManagerViewModel.GetStatusText(status)
+            </MudChip>
         </MudTd>
         <MudTd DataLabel="Action">
             <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
-                           OnClick="@(() => DeleteInvitation(context))"/>
+                           OnClick="@(() => DeleteInvitation(context))" />
         </MudTd>
     </RowTemplate>
 </MudTable>
@@ -69,7 +62,7 @@
     [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
 
     private string _newEmail = "";
-    private List<Invitation> _invitations = new();
+    private List<Invitation> _invitations = [];
     private string? _currentUserId;
 
     protected override async Task OnInitializedAsync()
@@ -93,7 +86,7 @@
             return;
         }
 
-        var code = GenerateRandomCode(16);
+        var code = InvitationManagerViewModel.GenerateRandomCode(16);
         var invitation = new Invitation
         {
             Email = _newEmail,
@@ -124,19 +117,4 @@
         // For simplicity, just show snackbar. JS interop needed for real clipboard copy.
         Snackbar.Add($"Link to copy: /Account/Login?inviteCode={code}", Severity.Info);
     }
-
-    private string GenerateRandomCode(int length)
-    {
-        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-        var randomBytes = new byte[length];
-        RandomNumberGenerator.Fill(randomBytes);
-        var code = new char[length];
-        for (var i = 0; i < length; i++)
-        {
-            code[i] = chars[randomBytes[i] % chars.Length];
-        }
-
-        return new string(code);
-    }
-
 }

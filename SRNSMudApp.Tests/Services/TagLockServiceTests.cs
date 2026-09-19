@@ -67,16 +67,14 @@ public class TagLockServiceTests : IAsyncLifetime
         {
             await sut.SetLockedHierarchyLevelAsync(0); // 階層ロック無効
 
-            Tag? rootTag = await db.Tags.FirstAsync(t => t.Name == Tag.RootTagName);
-
-            // Level 1 親タグ作成
-            HierarchyId parentNode = rootTag.Node.GetDescendant(null, null);
+            var branchId = (Math.Abs(tid.GetHashCode()) % 100000) + 1000;
+            HierarchyId parentNode = HierarchyId.Parse($"/{branchId}/");
             var parentTag = new Tag
             {
                 Name = $"Parent_{tid}",
                 OwnerId = userId,
                 Node = parentNode,
-                ParentTagId = rootTag.Id,
+                ParentTagId = null,
                 IsLocked = false
             };
             db.Tags.Add(parentTag);
@@ -138,16 +136,16 @@ public class TagLockServiceTests : IAsyncLifetime
         var (db, sut, userId, tid) = await CreateScopeAsync();
         await using (db)
         {
-            Tag? rootTag = await db.Tags.FirstAsync(t => t.Name == Tag.RootTagName);
+            var branchId = (Math.Abs(tid.GetHashCode()) % 100000) + 2000;
 
             // Level 1 タグ
-            HierarchyId level1Node = rootTag.Node.GetDescendant(null, null);
+            HierarchyId level1Node = HierarchyId.Parse($"/{branchId}/");
             var tagLevel1 = new Tag
             {
                 Name = $"L1_{tid}",
                 OwnerId = userId,
                 Node = level1Node,
-                ParentTagId = rootTag.Id,
+                ParentTagId = null,
                 IsLocked = false
             };
             db.Tags.Add(tagLevel1);
@@ -191,16 +189,16 @@ public class TagLockServiceTests : IAsyncLifetime
         {
             await sut.SetLockedHierarchyLevelAsync(0);
 
-            Tag? rootTag = await db.Tags.FirstAsync(t => t.Name == Tag.RootTagName);
+            var branchId = (Math.Abs(tid.GetHashCode()) % 100000) + 3000;
 
             // GrandParent (Level 1)
-            HierarchyId gpNode = rootTag.Node.GetDescendant(null, null);
+            HierarchyId gpNode = HierarchyId.Parse($"/{branchId}/");
             var grandParent = new Tag
             {
                 Name = $"GP_{tid}",
                 OwnerId = userId,
                 Node = gpNode,
-                ParentTagId = rootTag.Id,
+                ParentTagId = null,
                 IsLocked = false
             };
             db.Tags.Add(grandParent);

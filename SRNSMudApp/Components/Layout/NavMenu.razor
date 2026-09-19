@@ -109,19 +109,16 @@
             </MudNavLink>
         </NotAuthorized>
     </AuthorizeView>
-    @switch (Env.IsDevelopment())
+    @if (Env.IsDevelopment())
     {
-        case true:
-            <MudNavLink Href="User/MakeMeAdmin" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.AdminPanelSettings">
-                Make Me Admin
-            </MudNavLink>
-            break;
+        <MudNavLink Href="User/MakeMeAdmin" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.AdminPanelSettings">
+            Make Me Admin
+        </MudNavLink>
     }
 </MudNavMenu>
 
-
 @code {
-    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
 
     private string? currentUrl;
     private string? currentUserId;
@@ -129,7 +126,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var authState = await AuthState!;
+        var authState = await AuthStateTask;
         currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
         currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
@@ -195,5 +192,4 @@
         NavigationManager.LocationChanged -= OnLocationChanged;
         NotificationService.NotificationsChanged -= OnNotificationsChanged;
     }
-
 }

@@ -72,17 +72,10 @@ public class TagDetailDataProvider(
             .FirstOrDefaultAsync(t => t.Id == tagId);
 
         var isFollowing = false;
-        if (tag is not null)
+        if (tag is not null && currentUserId is not null)
         {
-            switch (currentUserId)
-            {
-                case not null:
-                    isFollowing = await context.UserTagFollows!
-                        .AnyAsync(utf => utf.TagId == tagId && utf.OwnerId == currentUserId);
-                    break;
-                default:
-                    break;
-            }
+            isFollowing = await context.UserTagFollows!
+                .AnyAsync(utf => utf.TagId == tagId && utf.OwnerId == currentUserId);
         }
 
         List<Item> relatedItems = await context.Items
@@ -153,24 +146,21 @@ public class TagDetailDataProvider(
         UserTagFollow? followRecord = await context.UserTagFollows!
             .FirstOrDefaultAsync(utf => utf.TagId == tagId && utf.OwnerId == currentUserId);
 
-        switch (followRecord)
+        if (followRecord is not null)
         {
-            case not null:
-                _ = context.UserTagFollows!.Remove(followRecord);
-                _ = await context.SaveChangesAsync();
-                return false;
-            default:
-                {
-                    var newFollow = new UserTagFollow
-                    {
-                        TagId = tagId,
-                        OwnerId = currentUserId
-                    };
-                    _ = context.UserTagFollows!.Add(newFollow);
-                    _ = await context.SaveChangesAsync();
-                    return true;
-                }
+            _ = context.UserTagFollows!.Remove(followRecord);
+            _ = await context.SaveChangesAsync();
+            return false;
         }
+
+        var newFollow = new UserTagFollow
+        {
+            TagId = tagId,
+            OwnerId = currentUserId
+        };
+        _ = context.UserTagFollows!.Add(newFollow);
+        _ = await context.SaveChangesAsync();
+        return true;
     }
 
     /// <inheritdoc />

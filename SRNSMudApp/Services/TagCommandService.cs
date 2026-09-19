@@ -16,16 +16,6 @@ using Tag = SRNSMudApp.Data.Tag;
 
 namespace SRNSMudApp.Services;
 
-/// <summary>タグ検索・一覧取得を担う CQS の Query 契約。</summary>
-public interface ITagSearchQueryService
-{
-    Task<List<Tag>> GetAllTagsAsync();
-    Task<List<Tag>> SearchTagsAsync(string searchText);
-    Task<Tag?> FindTagByNameAsync(string tagName);
-    Task<List<Tag>> SearchTagsWithFallbackAsync(string? value, CancellationToken token = default);
-    Task<List<Tag>> GetTagsWithDetailsAsync();
-}
-
 /// <summary>
 ///     タグ削除操作の結果を表す。
 /// </summary>
@@ -33,12 +23,16 @@ public enum TagDeleteOperationResult
 {
     /// <summary>削除成功。</summary>
     Success,
+
     /// <summary>対象タグが見つからない。</summary>
     NotFound,
+
     /// <summary>タグまたはその兄弟がロックされているため削除不可。</summary>
     Locked,
+
     /// <summary>システムタグのため削除不可。</summary>
     SystemTag,
+
     /// <summary>タグの作成者ではないため削除権限がない。</summary>
     Unauthorized
 }
@@ -46,9 +40,15 @@ public enum TagDeleteOperationResult
 /// <summary>タグの作成・更新・削除を担う CQS の Command 契約。</summary>
 public interface ITagCommandService
 {
+    /// <summary>タグを作成する。</summary>
     Task CreateTagAsync(Tag newTag, bool isAdmin = false);
+
+    /// <summary>埋め込みを生成せずにタグを作成する。</summary>
     Task CreateTagWithoutEmbeddingAsync(Tag newTag, bool isAdmin = false);
+
+    /// <summary>タグを更新する。</summary>
     Task<bool> UpdateTagAsync(int tagId, string name, string? content, bool autoAcceptIncomingTaggingRequests = false, IEnumerable<int>? allowedUserGroupIds = null, bool isAdmin = false);
+
     /// <summary>タグを削除する。</summary>
     /// <param name="tagId">削除対象のタグID。</param>
     /// <param name="currentUserId">現在のユーザーID。</param>
@@ -57,6 +57,9 @@ public interface ITagCommandService
     Task<TagDeleteOperationResult> DeleteTagAsync(int tagId, string? currentUserId, bool isAdmin = false);
 }
 
+/// <summary>
+///     タグの作成・更新・削除コマンドを実行するドメインサービス実装。
+/// </summary>
 public class TagCommandService(
     IDbContextFactory<ApplicationDbContext> dbFactory,
     ITagEmbeddingService tagEmbeddingService,
@@ -71,10 +74,13 @@ public class TagCommandService(
     private readonly ILogger<TagCommandService> _logger =
         logger ?? NullLogger<TagCommandService>.Instance;
 
+    /// <inheritdoc />
     [SuppressMessage("Design", "CA1031:Do not catch general exception types",
         Justification = "ユーザー入力由来の任意の例外を UI 向けメッセージに変換するため広く捕捉する")]
     public async Task CreateTagAsync(Tag newTag, bool isAdmin = false)
     {
+        ArgumentNullException.ThrowIfNull(newTag);
+
         if (_tagLockService != null && !isAdmin)
         {
             var isRestricted = await _tagLockService.IsChildCreationRestrictedAsync(newTag.ParentTagId);
@@ -100,6 +106,7 @@ public class TagCommandService(
         _ = dbContext.Tags.Add(newTag);
         _ = await dbContext.SaveChangesAsync();
     }
+
     /// <inheritdoc />
     [SuppressMessage("Design", "CA1031:Do not catch general exception types",
         Justification = "ユーザー入力由来の任意の例外を UI 向けメッセージに変換するため広く捕捉する")]
@@ -162,7 +169,6 @@ public class TagCommandService(
                         });
                     }
                 }
-
             }
 
             _ = await context.SaveChangesAsync();
@@ -201,8 +207,11 @@ public class TagCommandService(
         }
     }
 
+    /// <inheritdoc />
     public async Task CreateTagWithoutEmbeddingAsync(Tag newTag, bool isAdmin = false)
     {
+        ArgumentNullException.ThrowIfNull(newTag);
+
         if (_tagLockService != null && !isAdmin)
         {
             var isRestricted = await _tagLockService.IsChildCreationRestrictedAsync(newTag.ParentTagId);

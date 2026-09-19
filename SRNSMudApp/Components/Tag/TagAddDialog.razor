@@ -18,61 +18,59 @@
                 </div>
 
                 <!-- 検索結果表示エリア -->
-                @switch (_isSearching)
+                @if (_isSearching)
                 {
-                    case true:
-                        <div class="d-flex justify-center pa-4">
-                            <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
-                        </div>
-                        break;
-                    case false when _searchResults != null:
-                        switch (_searchResults.Any())
-                        {
-                            case true:
-                                <MudText Typo="Typo.subtitle2" Class="mb-2">検索候補から1つ選択してください：</MudText>
+                    <div class="d-flex justify-center pa-4">
+                        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+                    </div>
+                }
+                else if (_searchResults != null)
+                {
+                    @if (_searchResults.Any())
+                    {
+                        <MudText Typo="Typo.subtitle2" Class="mb-2">検索候補から1つ選択してください：</MudText>
 
-                                <!-- スクロール可能な一覧エリア -->
-                                <div class="tag-search-results">
-                                    <MudRadioGroup T="Tag" @bind-Value="SelectedTag">
-                                        @foreach (var tag in _searchResults)
-                                        {
-                                            var isActive = _activeTreeTagId == tag.Id;
-                                            <div class="d-flex align-center search-result-item">
-                                                <MudRadio Value="@tag" Color="Color.Primary" Class="flex-grow-1 py-2">
-                                                    <div class="d-flex flex-column">
-                                                        <MudText Typo="Typo.body1">@tag.Name</MudText>
-                                                        <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                                            ウェイト: @tag.CachedWeight | 内容: @tag.Content
-                                                        </MudText>
-                                                    </div>
-                                                </MudRadio>
-                                                <MudIconButton Icon="@Icons.Material.Filled.AccountTree" Size="Size.Small"
-                                                               OnClick="@(() => ToggleTree(tag.Id))" title="タグツリーを表示" Class="ml-2" />
-                                                <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small"
-                                                               Color="Color.Info" OnClick="@(() => SelectParentAndOpenCreateTab(tag))"
-                                                               title="このタグの子タグを作成" Class="ml-1" />
-
-                                                @* タグツリーポップオーバー *@
-                                                <MudOverlay Visible="@isActive" OnClick="@(() => _activeTreeTagId = null)" AutoClose="true"
-                                                            DarkBackground="false" ZIndex="1450" />
-                                                <MudPopover Open="@isActive" AnchorOrigin="Origin.TopRight" TransformOrigin="Origin.TopLeft"
-                                                            OverflowBehavior="OverflowBehavior.FlipAlways" Class="tree-popover" Paper="false"
-                                                            Style="z-index: 1500; margin-left: 10px;">
-                                                    <TagTreePopoverContent TargetTag="@tag" AllTags="@_allTags" EnableSwap="false"
-                                                                           EnableExpand="false" EnableNavigation="false" />
-                                                </MudPopover>
+                        <!-- スクロール可能な一覧エリア -->
+                        <div class="tag-search-results">
+                            <MudRadioGroup T="Tag" @bind-Value="SelectedTag">
+                                @foreach (var tag in _searchResults)
+                                {
+                                    var isActive = _activeTreeTagId == tag.Id;
+                                    <div class="d-flex align-center search-result-item">
+                                        <MudRadio Value="@tag" Color="Color.Primary" Class="flex-grow-1 py-2">
+                                            <div class="d-flex flex-column">
+                                                <MudText Typo="Typo.body1">@tag.Name</MudText>
+                                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                                    ウェイト: @tag.CachedWeight | 内容: @tag.Content
+                                                </MudText>
                                             </div>
-                                        }
-                                    </MudRadioGroup>
-                                </div>
-                                break;
-                            case false:
-                                <MudText Align="Align.Center" Class="px-4 py-2" Color="Color.Error">
-                                    一致するタグが見つかりません
-                                </MudText>
-                                break;
-                        }
-                        break;
+                                        </MudRadio>
+                                        <MudIconButton Icon="@Icons.Material.Filled.AccountTree" Size="Size.Small"
+                                                       OnClick="@(() => ToggleTree(tag.Id))" title="タグツリーを表示" Class="ml-2" />
+                                        <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small"
+                                                       Color="Color.Info" OnClick="@(() => SelectParentAndOpenCreateTab(tag))"
+                                                       title="このタグの子タグを作成" Class="ml-1" />
+
+                                        @* タグツリーポップオーバー *@
+                                        <MudOverlay Visible="@isActive" OnClick="@(() => _activeTreeTagId = null)" AutoClose="true"
+                                                    DarkBackground="false" ZIndex="1450" />
+                                        <MudPopover Open="@isActive" AnchorOrigin="Origin.TopRight" TransformOrigin="Origin.TopLeft"
+                                                    OverflowBehavior="OverflowBehavior.FlipAlways" Class="tree-popover" Paper="false"
+                                                    Style="z-index: 1500; margin-left: 10px;">
+                                            <TagTreePopoverContent TargetTag="@tag" AllTags="@_allTags" EnableSwap="false"
+                                                                   EnableExpand="false" EnableNavigation="false" />
+                                        </MudPopover>
+                                    </div>
+                                }
+                            </MudRadioGroup>
+                        </div>
+                    }
+                    else
+                    {
+                        <MudText Align="Align.Center" Class="px-4 py-2" Color="Color.Error">
+                            一致するタグが見つかりません
+                        </MudText>
+                    }
                 }
             </MudTabPanel>
 
@@ -94,47 +92,44 @@
 
     <DialogActions>
         <MudButton OnClick="@Cancel">キャンセル</MudButton>
-        @switch (_activeTabIndex)
+        @if (_activeTabIndex == 0)
         {
-            case 0:
-                <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="@SubmitSearch"
-                           Disabled="@(SelectedTag == null)">
-                    選択して追加
-                </MudButton>
-                break;
-            default:
-                <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="@SubmitCreateChildAsync"
-                           Disabled="@(_parentTag == null || string.IsNullOrWhiteSpace(_newTagName))">
-                    子タグを作成して追加
-                </MudButton>
-                break;
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="@SubmitSearch"
+                       Disabled="@(SelectedTag == null)">
+                選択して追加
+            </MudButton>
+        }
+        else
+        {
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="@SubmitCreateChildAsync"
+                       Disabled="@(_parentTag == null || string.IsNullOrWhiteSpace(_newTagName))">
+                子タグを作成して追加
+            </MudButton>
         }
     </DialogActions>
 </MudDialog>
 
 @code {
-    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
 
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
 
     [Parameter] public Tag? DefaultParentTag { get; set; }
 
-    private Tag? SelectedTag { get; set; }
-    private string _searchText = string.Empty;
-
-    // 状態管理用
-    private bool _isSearching;
-    private List<Tag>? _searchResults;
-
-    // ===== タグツリーポップオーバー用 =====
     private List<Tag> _allTags = [];
-    private int? _activeTreeTagId;
+    private string _searchText = string.Empty;
+    private List<Tag>? _searchResults;
+    private bool _isSearching;
+    private Tag? SelectedTag { get; set; }
 
-    // ===== 子タグ作成用 =====
+    // 子タグ作成タブ用フィールド
     private int _activeTabIndex;
     private Tag? _parentTag;
     private string _newTagName = string.Empty;
-    private string _newTagContent = string.Empty;
+    private string? _newTagContent;
+
+    // ツリーポップオーバー用
+    private int? _activeTreeTagId;
 
     private void OnActiveTabIndexChanged(int newIndex)
     {
@@ -153,30 +148,21 @@
 
     private Task<IEnumerable<Tag>> SearchParentTagsAsync(string value, CancellationToken token)
     {
-        switch (string.IsNullOrWhiteSpace(value))
+        if (string.IsNullOrWhiteSpace(value))
         {
-            case true:
-                return Task.FromResult<IEnumerable<Tag>>(_allTags.Take(15));
-            case false:
-                var filtered = _allTags
-                    .Where(t => t.Name.Contains(value, StringComparison.OrdinalIgnoreCase) ||
-                                t.Content.Contains(value, StringComparison.OrdinalIgnoreCase))
-                    .Take(15);
-                return Task.FromResult(filtered);
+            return Task.FromResult<IEnumerable<Tag>>(_allTags.Take(15));
         }
+
+        var filtered = _allTags
+            .Where(t => t.Name.Contains(value, StringComparison.OrdinalIgnoreCase) ||
+                        t.Content.Contains(value, StringComparison.OrdinalIgnoreCase))
+            .Take(15);
+        return Task.FromResult(filtered);
     }
 
     private void ToggleTree(int tagId)
     {
-        switch (_activeTreeTagId == tagId)
-        {
-            case true:
-                _activeTreeTagId = null;
-                break;
-            case false:
-                _activeTreeTagId = tagId;
-                break;
-        }
+        _activeTreeTagId = _activeTreeTagId == tagId ? null : tagId;
     }
 
     protected override async Task OnInitializedAsync()
@@ -197,12 +183,11 @@
 
     private async Task SearchAsync()
     {
-        switch (string.IsNullOrWhiteSpace(_searchText))
+        if (string.IsNullOrWhiteSpace(_searchText))
         {
-            case true:
-                _searchResults = null;
-                SelectedTag = null;
-                return;
+            _searchResults = null;
+            SelectedTag = null;
+            return;
         }
 
         _isSearching = true;
@@ -212,11 +197,9 @@
         {
             _searchResults = await TagSearchQueryService.SearchTagsAsync(_searchText);
 
-            switch (_searchResults.Count)
+            if (_searchResults.Count == 1)
             {
-                case 1:
-                    SelectedTag = _searchResults.First();
-                    break;
+                SelectedTag = _searchResults[0];
             }
         }
         finally
@@ -227,11 +210,9 @@
 
     private async Task HandleKeyDown(KeyboardEventArgs e)
     {
-        switch (e.Key)
+        if (e.Key == "Enter")
         {
-            case "Enter":
-                await SearchAsync();
-                break;
+            await SearchAsync();
         }
     }
 
@@ -242,26 +223,22 @@
 
     private async Task SubmitCreateChildAsync()
     {
-        switch (string.IsNullOrWhiteSpace(_newTagName))
+        if (string.IsNullOrWhiteSpace(_newTagName))
         {
-            case true: return;
+            return;
         }
 
-        switch (_parentTag)
+        if (_parentTag is null)
         {
-            case null:
-                Snackbar.Add("親タグを選択してください。", Severity.Warning);
-                return;
+            Snackbar.Add("親タグを選択してください。", Severity.Warning);
+            return;
         }
 
         var isAdmin = false;
         string? userId = null;
-        if (AuthState != null)
-        {
-            var authState = await AuthState;
-            userId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            isAdmin = authState.User.IsInRole("Admin");
-        }
+        var authState = await AuthStateTask;
+        userId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        isAdmin = authState.User.IsInRole("Admin");
 
         var isRestricted = await TagLockService.IsChildCreationRestrictedAsync(_parentTag.Id);
         if (isRestricted && !isAdmin)
@@ -270,19 +247,17 @@
             return;
         }
 
-        switch (string.IsNullOrEmpty(userId))
+        if (string.IsNullOrEmpty(userId))
         {
-            case true:
-                Snackbar.Add("ユーザーが見つかりません。", Severity.Error);
-                return;
+            Snackbar.Add("ユーザーが見つかりません。", Severity.Error);
+            return;
         }
 
         Tag? existingTag = await TagSearchQueryService.FindTagByNameAsync(_newTagName);
-        switch (existingTag)
+        if (existingTag is not null)
         {
-            case not null:
-                Snackbar.Add("同じ名前のタグが既に存在します。", Severity.Error);
-                return;
+            Snackbar.Add("同じ名前のタグが既に存在します。", Severity.Error);
+            return;
         }
 
         var newTag = new Tag

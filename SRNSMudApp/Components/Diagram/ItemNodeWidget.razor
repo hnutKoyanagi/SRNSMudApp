@@ -31,16 +31,15 @@
                 <div class="item-content flex-grow-1">
                     @foreach (var segment in ItemNodeViewModel.GetTruncatedSegments(Node.Item.Content))
                     {
-                        @switch (segment.IsUrl)
+                        @if (segment.IsUrl)
                         {
-                            case true:
-                                <span @onclick:stopPropagation="true">
-                                    <UrlPreviewCard Url="@segment.Text" LoadPreview="@GetPreviewAsync" />
-                                </span>
-                                break;
-                            case false:
-                                <MudText Typo="Typo.body2" Class="d-inline font-inherit">@segment.Text</MudText>
-                                break;
+                            <span @onclick:stopPropagation="true">
+                                <UrlPreviewCard Url="@segment.Text" LoadPreview="@GetPreviewAsync" />
+                            </span>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.body2" Class="d-inline font-inherit">@segment.Text</MudText>
                         }
                     }
                 </div>
