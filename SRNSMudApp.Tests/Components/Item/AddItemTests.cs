@@ -13,6 +13,7 @@ using MudBlazor.Services;
 
 using SRNSMudApp.Components.Item;
 using SRNSMudApp.Data;
+using SRNSMudApp.Models;
 using SRNSMudApp.Services;
 
 namespace SRNSMudApp.Tests.Components.Item;
@@ -320,6 +321,66 @@ public sealed class AddItemTests : IAsyncLifetime
             Assert.NotNull(capturedTagIds);
             Assert.Contains(7, capturedTagIds);   // InitialTag
             Assert.Contains(42, capturedTagIds);  // 自動提案タグ
+        });
+    }
+
+    [Fact]
+    public void Initialize_WhenUserHasSavedThresholds_PassesThemToTagSuggestionPanel()
+    {
+        var appUser = new ApplicationUser
+        {
+            Id = ExistingUserId,
+            UserName = "testuser",
+            TagSuggestionStrongThreshold = 0.80f,
+            TagSuggestionCandidateThreshold = 0.50f
+        };
+        _ = _userDataProviderMock
+            .Setup(u => u.FindUserByIdAsync(ExistingUserId))
+            .ReturnsAsync(appUser);
+
+        IRenderedComponent<AddItem> cut = _ctx.Render<AddItem>();
+        cut.WaitForState(() => cut.FindAll("form").Count > 0);
+
+        var suggestionPanel = cut.FindComponent<TagSuggestionPanel>();
+        Assert.NotNull(suggestionPanel);
+        Assert.Equal(0.80f, suggestionPanel.Instance.StrongThreshold);
+        Assert.Equal(0.50f, suggestionPanel.Instance.CandidateThreshold);
+    }
+
+    [Fact]
+    public void ThresholdsChanged_CallsUpdateTagSuggestionThresholdsAsync()
+    {
+        _tagSuggestionMock
+            .Setup(s => s.SuggestTagsAsync(It.IsAny<string>(), It.IsAny<float>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new SuggestedTag(1, "TestTag", 0.8f)]);
+
+        _ = _userDataProviderMock
+            .Setup(u => u.FindUserByIdAsync(ExistingUserId))
+            .ReturnsAsync(new ApplicationUser { Id = ExistingUserId, UserName = "testuser" });
+
+        _ = _userDataProviderMock
+            .Setup(u => u.UpdateTagSuggestionThresholdsAsync(ExistingUserId, It.IsAny<float>(), It.IsAny<float>()))
+            .Returns(Task.CompletedTask);
+
+        IRenderedComponent<AddItem> cut = _ctx.Render<AddItem>();
+        cut.WaitForState(() => cut.FindAll("form").Count > 0);
+
+        cut.Find("textarea").Input("テストテキスト");
+        cut.WaitForState(() => cut.FindAll("[data-testid='toggle-threshold-settings-button']").Count > 0);
+
+        // パネルの設定展開ボタンを押す
+        cut.Find("[data-testid='toggle-threshold-settings-button']").Click();
+
+        // リセットボタン（またはスライダー操作）で閾値変更を発火
+        var resetButton = cut.Find("[data-testid='reset-thresholds-button']");
+        resetButton.Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            _userDataProviderMock.Verify(u => u.UpdateTagSuggestionThresholdsAsync(
+                ExistingUserId,
+                SuggestedTag.DefaultStrongThreshold,
+                SuggestedTag.DefaultCandidateThreshold), Times.Once);
         });
     }
 

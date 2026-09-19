@@ -97,6 +97,8 @@
                     @* コンテンツに基づく関連タグ提案パネル *@
                     <TagSuggestionPanel Suggestions="@_suggestedTags" IsLoading="@_isLoadingSuggestions"
                                         ExcludedTagIds="@(InitialTags?.Select(t => t.Id).ToList() ?? [])"
+                                        InitialStrongThreshold="@_userStrongThreshold"
+                                        InitialCandidateThreshold="@_userCandidateThreshold"
                                         OnConfirmedTagIdsChanged="HandleConfirmedSuggestedTagIdsChanged"
                                         OnThresholdsChanged="HandleThresholdsChanged" />
 
@@ -151,6 +153,8 @@
     private bool _isLoadingSuggestions;
     private CancellationTokenSource? _suggestionCts;
     private float _currentCandidateThreshold = SuggestedTag.DefaultCandidateThreshold;
+    private float? _userStrongThreshold;
+    private float? _userCandidateThreshold;
 
     protected override async Task OnInitializedAsync()
     {
@@ -173,10 +177,24 @@
             {
                 _userGroups = await UserGroupData.GetUserGroupsForUserAsync(userId);
                 var appUser = await UserDataProvider.FindUserByIdAsync(userId);
-                if (appUser != null && appUser.IsPrivateModeDefault)
+                if (appUser != null)
                 {
-                    _isPrivate = true;
-                    _selectedGroupId = appUser.DefaultPrivateUserGroupId;
+                    if (appUser.IsPrivateModeDefault)
+                    {
+                        _isPrivate = true;
+                        _selectedGroupId = appUser.DefaultPrivateUserGroupId;
+                    }
+
+                    if (appUser.TagSuggestionStrongThreshold.HasValue)
+                    {
+                        _userStrongThreshold = appUser.TagSuggestionStrongThreshold.Value;
+                    }
+
+                    if (appUser.TagSuggestionCandidateThreshold.HasValue)
+                    {
+                        _userCandidateThreshold = appUser.TagSuggestionCandidateThreshold.Value;
+                        _currentCandidateThreshold = _userCandidateThreshold.Value;
+                    }
                 }
             }
         }
@@ -281,7 +299,17 @@
 
     private async Task HandleThresholdsChanged((float Strong, float Candidate) thresholds)
     {
+        _userStrongThreshold = thresholds.Strong;
+        _userCandidateThreshold = thresholds.Candidate;
         _currentCandidateThreshold = thresholds.Candidate;
+
+        var authState = await AuthenticationStateTask;
+        var userId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!string.IsNullOrEmpty(userId))
+        {
+            await UserDataProvider.UpdateTagSuggestionThresholdsAsync(userId, thresholds.Strong, thresholds.Candidate);
+        }
+
         if (!string.IsNullOrWhiteSpace(_newItem?.Content))
         {
             await TriggerTagSuggestionsAsync(_newItem.Content);

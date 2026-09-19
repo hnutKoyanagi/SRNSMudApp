@@ -215,6 +215,7 @@ Services/
  TagWeightLedgerServiceTests.cs
  TimelineRecorderTests.cs
  UserDataProviderFollowTests.cs
+ UserDataProviderTagSuggestionThresholdTests.cs
  UserGroupDataProviderTests.cs
 TestSupport/
  BunitTestSetup.cs

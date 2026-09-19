@@ -24,4 +24,14 @@ public class ApplicationUser : IdentityUser
     ///     デフォルト公開対象ユーザーグループへのナビゲーションプロパティ。
     /// </summary>
     public UserGroup? DefaultPrivateUserGroup { get; set; }
+
+    /// <summary>
+    ///     タグ提案の自動関連付け（強い関連）類似度閾値（null の場合はデフォルト 0.65f）。
+    /// </summary>
+    public float? TagSuggestionStrongThreshold { get; set; }
+
+    /// <summary>
+    ///     タグ提案の候補推薦類似度閾値（null の場合はデフォルト 0.40f）。
+    /// </summary>
+    public float? TagSuggestionCandidateThreshold { get; set; }
 }

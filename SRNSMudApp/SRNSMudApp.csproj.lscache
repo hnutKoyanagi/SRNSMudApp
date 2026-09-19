@@ -251,6 +251,8 @@ Migrations/
  20260914083649_AddConversationOptOut.Designer.cs
  20260918222720_AddTagLocking.cs
  20260918222720_AddTagLocking.Designer.cs
+ 20260919133000_AddTagSuggestionThresholdsToUser.cs
+ 20260919133000_AddTagSuggestionThresholdsToUser.Designer.cs
  ApplicationDbContextModelSnapshot.cs
 Models/
  Unions/

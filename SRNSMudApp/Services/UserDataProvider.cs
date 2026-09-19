@@ -73,6 +73,9 @@ public interface IUserDataProvider
 
     /// <summary>指定したユーザーの Admin ロールを更新する。</summary>
     Task<IdentityResult> UpdateUserAdminRoleAsync(string userId, bool isAdmin);
+
+    /// <summary>ユーザーのタグ提案類似度閾値設定を更新する。</summary>
+    Task UpdateTagSuggestionThresholdsAsync(string userId, float strongThreshold, float candidateThreshold);
 }
 
 public class UserDataProvider(
@@ -319,5 +322,17 @@ public class UserDataProvider(
         return isAdmin
             ? await _userManager.AddToRoleAsync(user, "Admin")
             : await _userManager.RemoveFromRoleAsync(user, "Admin");
+    }
+
+    public async Task UpdateTagSuggestionThresholdsAsync(string userId, float strongThreshold, float candidateThreshold)
+    {
+        await using ApplicationDbContext dbContext = await _dbFactory.CreateDbContextAsync();
+        ApplicationUser? user = await dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        if (user is not null)
+        {
+            user.TagSuggestionStrongThreshold = strongThreshold;
+            user.TagSuggestionCandidateThreshold = candidateThreshold;
+            _ = await dbContext.SaveChangesAsync();
+        }
     }
 }

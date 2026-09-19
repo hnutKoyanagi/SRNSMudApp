@@ -41,6 +41,18 @@ public partial class TagSuggestionPanel : ComponentBase
     [Parameter]
     public EventCallback<(float Strong, float Candidate)> OnThresholdsChanged { get; set; }
 
+    /// <summary>
+    ///     ユーザーごとの初期強い関連閾値（未指定時はデフォルト）。
+    /// </summary>
+    [Parameter]
+    public float? InitialStrongThreshold { get; set; }
+
+    /// <summary>
+    ///     ユーザーごとの初期候補推薦閾値（未指定時はデフォルト）。
+    /// </summary>
+    [Parameter]
+    public float? InitialCandidateThreshold { get; set; }
+
     /// <summary>強い関連（自動関連付け）の閾値</summary>
     public float StrongThreshold { get; private set; } = SuggestedTag.DefaultStrongThreshold;
 
@@ -53,6 +65,7 @@ public partial class TagSuggestionPanel : ComponentBase
     private readonly HashSet<int> _manuallyRemovedTagIds = [];
 
     private bool _showSettings;
+    private bool _thresholdsInitialized;
     private IReadOnlyList<SuggestedTag> _previousSuggestions = [];
     private IReadOnlyCollection<int> _previousExcludedTagIds = [];
     private HashSet<int> _lastNotifiedConfirmedIds = [];
@@ -61,6 +74,19 @@ public partial class TagSuggestionPanel : ComponentBase
 
     protected override async Task OnParametersSetAsync()
     {
+        if (!_thresholdsInitialized && (InitialStrongThreshold.HasValue || InitialCandidateThreshold.HasValue))
+        {
+            _thresholdsInitialized = true;
+            if (InitialStrongThreshold.HasValue)
+            {
+                StrongThreshold = InitialStrongThreshold.Value;
+            }
+            if (InitialCandidateThreshold.HasValue)
+            {
+                CandidateThreshold = InitialCandidateThreshold.Value;
+            }
+        }
+
         bool suggestionsChanged = !ReferenceEquals(_previousSuggestions, Suggestions);
         bool excludedChanged = !ReferenceEquals(_previousExcludedTagIds, ExcludedTagIds)
                                && !_previousExcludedTagIds.SequenceEqual(ExcludedTagIds);
