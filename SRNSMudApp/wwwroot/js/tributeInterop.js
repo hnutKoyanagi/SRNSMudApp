@@ -1,40 +1,6 @@
 window.tributeInterop = {
     instances: {},
-    extractText: function (element) {
-        if (!element) return '';
-        if (element.textContent.trim() === '' && element.querySelectorAll('[data-url]').length === 0) {
-            return '';
-        }
-        function traverse(node) {
-            if (!node) return '';
-            if (node.nodeType === Node.TEXT_NODE) {
-                return node.textContent.replace(/\u00A0/g, ' ');
-            }
-            if (node.nodeType === Node.ELEMENT_NODE) {
-                if (node.hasAttribute('data-url')) {
-                    return node.getAttribute('data-url');
-                }
-                if (node.tagName === 'BR') {
-                    return '\n';
-                }
-                var result = '';
-                var isBlock = ['DIV', 'P'].includes(node.tagName);
-                for (var i = 0; i < node.childNodes.length; i++) {
-                    result += traverse(node.childNodes[i]);
-                }
-                if (isBlock && result.length > 0 && !result.endsWith('\n')) {
-                    result += '\n';
-                }
-                return result;
-            }
-            return '';
-        }
-        var text = '';
-        for (var i = 0; i < element.childNodes.length; i++) {
-            text += traverse(element.childNodes[i]);
-        }
-        return text;
-    },
+    extractText: window.tributeInteropCore.extractText,
     init: function (elementId, dotNetHelper) {
         var wrapper = document.getElementById(elementId);
         if (!wrapper) {
@@ -110,10 +76,9 @@ window.tributeInterop = {
 
         if (element.isContentEditable) {
             var hiddenInput = document.getElementById(elementId + '-hidden') || document.querySelector('textarea[name="_newItem.Content"]');
-            var isComposing = false;
+            var compositionSync = window.tributeInteropCore.createCompositionSyncController(sync);
 
             function sync() {
-                if (isComposing) return;
                 var text = window.tributeInterop.extractText(element);
                 if (hiddenInput) {
                     hiddenInput.value = text;
@@ -123,19 +88,17 @@ window.tributeInterop = {
             }
 
             element.addEventListener('compositionstart', function () {
-                isComposing = true;
+                compositionSync.start();
             });
 
             element.addEventListener('compositionend', function () {
-                isComposing = false;
-                sync();
+                compositionSync.end();
             });
 
-            element.addEventListener('input', sync);
+            element.addEventListener('input', compositionSync.input);
             element.addEventListener('tribute-replaced', function (e) {
                 console.log('TributeInterop: tribute-replaced on contenteditable');
-                isComposing = false;
-                sync();
+                compositionSync.end();
             });
 
             element.addEventListener('keydown', function (e) {
