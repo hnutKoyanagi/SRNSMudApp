@@ -197,8 +197,8 @@ public sealed class TagDetailDeleteTests : IAsyncLifetime
             .ReturnsAsync(CreatePageData(tag));
         _ = _tagLockServiceMock.Setup(l => l.IsTagOrSiblingLockedAsync(10))
             .ReturnsAsync(false);
-        _ = _tagDetailDataMock.Setup(d => d.DeleteTagAsync(10, false))
-            .ReturnsAsync(true);
+        _ = _tagDetailDataMock.Setup(d => d.DeleteTagWithResultAsync(10, ownerId, false))
+            .ReturnsAsync(TagDeleteOperationResult.Success);
 
         var dialogMock = new Mock<IDialogReference>();
         _ = dialogMock.Setup(d => d.Result).ReturnsAsync(DialogResult.Ok(true));
@@ -224,8 +224,43 @@ public sealed class TagDetailDeleteTests : IAsyncLifetime
             It.IsAny<DialogParameters>(),
             It.IsAny<DialogOptions>()), Times.Once);
 
-        _tagDetailDataMock.Verify(d => d.DeleteTagAsync(10, false), Times.Once);
+        _tagDetailDataMock.Verify(d => d.DeleteTagWithResultAsync(10, ownerId, false), Times.Once);
         Assert.Contains("Item/ItemList", nav.Uri);
     }
-}
 
+    [Fact]
+    public async Task WhenDeleteFailsDueToLocked_ShowsWarningSnackbar()
+    {
+        // Arrange
+        const string adminId = "admin-user";
+        var tag = new TagEntity { Id = 10, Name = "LockedTag", OwnerId = "other-user", IsSystem = false };
+        _ = _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(10, adminId))
+            .ReturnsAsync(CreatePageData(tag));
+        _ = _tagLockServiceMock.Setup(l => l.IsTagOrSiblingLockedAsync(10))
+            .ReturnsAsync(true);
+        _ = _tagDetailDataMock.Setup(d => d.DeleteTagWithResultAsync(10, adminId, true))
+            .ReturnsAsync(TagDeleteOperationResult.Locked);
+
+        var dialogMock = new Mock<IDialogReference>();
+        _ = dialogMock.Setup(d => d.Result).ReturnsAsync(DialogResult.Ok(true));
+
+        _ = _dialogLauncherMock.Setup(l => l.ShowAsync(
+                typeof(ConfirmDeleteDialog),
+                "タグの削除",
+                It.IsAny<DialogParameters>(),
+                It.IsAny<DialogOptions>()))
+            .ReturnsAsync(dialogMock.Object);
+
+        // Act
+        var cut = RenderTagDetail(10, adminId, "Admin");
+        var deleteButton = cut.Find("button[data-testid='delete-tag-button']");
+        await cut.InvokeAsync(() => deleteButton.Click());
+
+        // Assert
+        _snackbarMock.Verify(s => s.Add(
+            It.Is<string>(msg => msg.Contains("ロックされているため削除できません")),
+            Severity.Warning,
+            It.IsAny<Action<SnackbarOptions>>(),
+            It.IsAny<string>()), Times.Once);
+    }
+}

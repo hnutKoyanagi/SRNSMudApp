@@ -461,6 +461,12 @@
         }
     }
 
+    /// <summary>
+    /// タグ削除処理。
+    /// 誤操作を防ぐため確認ダイアログを表示し、ユーザー承認後に DataProvider を通じて安全に削除を実行して一覧へ戻る。
+    /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types",
+        Justification = "UI 層で発生した例外の内容をユーザーへ通知するために広く捕捉する")]
     private async Task DeleteTagAsync()
     {
         if (_tag is null)
@@ -492,14 +498,26 @@
         {
             try
             {
-                if (await TagDetailData.DeleteTagAsync(_tag.Id, _isAdmin))
+                var deleteResult = await TagDetailData.DeleteTagWithResultAsync(_tag.Id, _currentUserId, _isAdmin);
+                switch (deleteResult)
                 {
-                    _ = Snackbar.Add($"タグ「{_tag.Name}」を削除しました。", Severity.Success);
-                    NavigationManager.NavigateTo("Item/ItemList");
-                }
-                else
-                {
-                    _ = Snackbar.Add("対象のタグが既に削除されているか、ロックされているため削除できません。", Severity.Warning);
+                    case TagDeleteOperationResult.Success:
+                        _ = Snackbar.Add($"タグ「{_tag.Name}」を削除しました。", Severity.Success);
+                        NavigationManager.NavigateTo("Item/ItemList");
+                        break;
+                    case TagDeleteOperationResult.Locked:
+                        _ = Snackbar.Add("このタグまたはその兄弟タグはロックされているため削除できません。", Severity.Warning);
+                        break;
+                    case TagDeleteOperationResult.SystemTag:
+                        _ = Snackbar.Add("システムタグは削除できません。", Severity.Error);
+                        break;
+                    case TagDeleteOperationResult.Unauthorized:
+                        _ = Snackbar.Add("タグの作成者本人ではないため、削除する権限がありません。", Severity.Error);
+                        break;
+                    case TagDeleteOperationResult.NotFound:
+                    default:
+                        _ = Snackbar.Add("対象のタグが既に削除されているか、見つかりません。", Severity.Warning);
+                        break;
                 }
             }
             catch (Exception ex)

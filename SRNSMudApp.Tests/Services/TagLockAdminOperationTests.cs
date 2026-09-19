@@ -235,4 +235,40 @@ public class TagLockAdminOperationTests : IAsyncLifetime
             Assert.Null(reloaded);
         }
     }
+
+    [Fact]
+    public async Task TagCommandService_DeleteTagAsync_WhenLocked_AdminSucceeds_NonAdminFails()
+    {
+        var (dbContext, dbFactory, lockServiceMock, embeddingMock, tid) = CreateScope();
+        await using (dbContext)
+        {
+            var userId = $"u_{tid}";
+            await dbContext.SeedUsersAsync(userId);
+
+            var tag = new Tag
+            {
+                Name = $"CmdDelTag_{tid}",
+                OwnerId = userId
+            };
+            dbContext.Tags.Add(tag);
+            await dbContext.SaveChangesAsync();
+
+            lockServiceMock.Setup(s => s.IsTagOrSiblingLockedAsync(tag.Id, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(true);
+
+            var sut = new TagCommandService(dbFactory, embeddingMock.Object, lockServiceMock.Object);
+
+            // 非管理者はロックされているため Locked を返却
+            var nonAdminResult = await sut.DeleteTagAsync(tag.Id, userId, isAdmin: false);
+            Assert.Equal(TagDeleteOperationResult.Locked, nonAdminResult);
+
+            // 管理者はロックをバイパスして Success を返却し削除完了
+            var adminResult = await sut.DeleteTagAsync(tag.Id, userId, isAdmin: true);
+            Assert.Equal(TagDeleteOperationResult.Success, adminResult);
+
+            dbContext.ChangeTracker.Clear();
+            var reloaded = await dbContext.Tags.FindAsync(tag.Id);
+            Assert.Null(reloaded);
+        }
+    }
 }

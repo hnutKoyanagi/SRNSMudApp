@@ -26,12 +26,35 @@ public interface ITagSearchQueryService
     Task<List<Tag>> GetTagsWithDetailsAsync();
 }
 
-/// <summary>タグの作成・更新を担う CQS の Command 契約。</summary>
+/// <summary>
+///     タグ削除操作の結果を表す。
+/// </summary>
+public enum TagDeleteOperationResult
+{
+    /// <summary>削除成功。</summary>
+    Success,
+    /// <summary>対象タグが見つからない。</summary>
+    NotFound,
+    /// <summary>タグまたはその兄弟がロックされているため削除不可。</summary>
+    Locked,
+    /// <summary>システムタグのため削除不可。</summary>
+    SystemTag,
+    /// <summary>タグの作成者ではないため削除権限がない。</summary>
+    Unauthorized
+}
+
+/// <summary>タグの作成・更新・削除を担う CQS の Command 契約。</summary>
 public interface ITagCommandService
 {
     Task CreateTagAsync(Tag newTag, bool isAdmin = false);
     Task CreateTagWithoutEmbeddingAsync(Tag newTag, bool isAdmin = false);
     Task<bool> UpdateTagAsync(int tagId, string name, string? content, bool autoAcceptIncomingTaggingRequests = false, IEnumerable<int>? allowedUserGroupIds = null, bool isAdmin = false);
+    /// <summary>タグを削除する。</summary>
+    /// <param name="tagId">削除対象のタグID。</param>
+    /// <param name="currentUserId">現在のユーザーID。</param>
+    /// <param name="isAdmin">管理者フラグ（管理者の場合はロックや所有権制限をバイパス）。</param>
+    /// <returns>削除操作の結果。</returns>
+    Task<TagDeleteOperationResult> DeleteTagAsync(int tagId, string? currentUserId, bool isAdmin = false);
 }
 
 public class TagCommandService(
@@ -232,5 +255,40 @@ public class TagCommandService(
                 newTag.Node = parentTag.Node.GetDescendant(lastChildNode, null);
             }
         }
+    }
+
+    /// <inheritdoc />
+    public async Task<TagDeleteOperationResult> DeleteTagAsync(int tagId, string? currentUserId, bool isAdmin = false)
+    {
+        await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
+        Tag? tagToDelete = await context.Tags.FindAsync(tagId);
+        if (tagToDelete is null)
+        {
+            return TagDeleteOperationResult.NotFound;
+        }
+
+        if (tagToDelete.IsSystem || tagToDelete.Name == Tag.RootTagName)
+        {
+            return TagDeleteOperationResult.SystemTag;
+        }
+
+        if (!isAdmin && tagToDelete.OwnerId != currentUserId)
+        {
+            return TagDeleteOperationResult.Unauthorized;
+        }
+
+        if (_tagLockService != null && !isAdmin)
+        {
+            var isLocked = await _tagLockService.IsTagOrSiblingLockedAsync(tagId);
+            if (isLocked)
+            {
+                _logger.LogWarning("タグ ID {TagId} またはその兄弟がロックされているため削除できません。", tagId);
+                return TagDeleteOperationResult.Locked;
+            }
+        }
+
+        _ = context.Tags.Remove(tagToDelete);
+        _ = await context.SaveChangesAsync();
+        return TagDeleteOperationResult.Success;
     }
 }

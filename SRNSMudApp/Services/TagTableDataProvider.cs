@@ -28,11 +28,13 @@ public interface ITagTableDataProvider
 
 public class TagTableDataProvider(
     IDbContextFactory<ApplicationDbContext> dbFactory,
-    ITagLockService? tagLockService = null) : ITagTableDataProvider
+    ITagLockService? tagLockService = null,
+    ITagCommandService? tagCommandService = null) : ITagTableDataProvider
 {
     private readonly IDbContextFactory<ApplicationDbContext> _dbFactory =
         dbFactory ?? throw new ArgumentNullException(nameof(dbFactory));
     private readonly ITagLockService? _tagLockService = tagLockService;
+    private readonly ITagCommandService? _tagCommandService = tagCommandService;
     public async Task<List<Tag>> GetAllTagsAsync()
     {
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
@@ -123,6 +125,12 @@ public class TagTableDataProvider(
 
     public async Task<bool> DeleteTagAsync(int tagId, bool isAdmin = false)
     {
+        if (_tagCommandService is not null)
+        {
+            var result = await _tagCommandService.DeleteTagAsync(tagId, null, isAdmin);
+            return result == TagDeleteOperationResult.Success;
+        }
+
         if (_tagLockService != null && !isAdmin)
         {
             var isLocked = await _tagLockService.IsTagOrSiblingLockedAsync(tagId);

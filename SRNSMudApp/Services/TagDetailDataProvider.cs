@@ -27,22 +27,40 @@ public sealed record TagDetailPageData(
 public interface ITagDetailDataProvider
 {
     /// <summary>タグ詳細の表示データを取得する。</summary>
+    /// <param name="tagId">取得対象のタグID。</param>
+    /// <param name="currentUserId">現在のログインユーザーID（未ログイン時は null）。</param>
+    /// <returns>タグ詳細、関連アイテム、関連タグ、履歴などの集約データ。</returns>
     Task<TagDetailPageData> GetTagDetailAsync(int tagId, string? currentUserId);
 
     /// <summary>タグのフォロー状態を切り替え、切替後の状態を返す。</summary>
+    /// <param name="tagId">フォロー対象のタグID。</param>
+    /// <param name="currentUserId">現在のログインユーザーID。</param>
+    /// <returns>フォロー中になった場合は true、解除された場合は false。</returns>
     Task<bool> ToggleFollowAsync(int tagId, string currentUserId);
 
     /// <summary>タグを削除する。削除に成功した場合は true を返す。</summary>
+    /// <param name="tagId">削除対象のタグID。</param>
+    /// <param name="isAdmin">管理者の場合は true（ロックをバイパスして削除可能）。</param>
+    /// <returns>削除に成功した場合は true、見つからないかロックされている場合は false。</returns>
     Task<bool> DeleteTagAsync(int tagId, bool isAdmin = false);
+
+    /// <summary>タグを削除し、詳細な操作結果を返す。</summary>
+    /// <param name="tagId">削除対象のタグID。</param>
+    /// <param name="currentUserId">現在のユーザーID。</param>
+    /// <param name="isAdmin">管理者の場合は true。</param>
+    /// <returns>削除操作の結果。</returns>
+    Task<TagDeleteOperationResult> DeleteTagWithResultAsync(int tagId, string? currentUserId, bool isAdmin = false);
 }
 
 public class TagDetailDataProvider(
     IDbContextFactory<ApplicationDbContext> dbFactory,
-    ITagLockService? tagLockService = null) : ITagDetailDataProvider
+    ITagLockService? tagLockService = null,
+    ITagCommandService? tagCommandService = null) : ITagDetailDataProvider
 {
     private readonly IDbContextFactory<ApplicationDbContext> _dbFactory =
         dbFactory ?? throw new ArgumentNullException(nameof(dbFactory));
     private readonly ITagLockService? _tagLockService = tagLockService;
+    private readonly ITagCommandService? _tagCommandService = tagCommandService;
     public async Task<TagDetailPageData> GetTagDetailAsync(int tagId, string? currentUserId)
     {
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
@@ -155,27 +173,49 @@ public class TagDetailDataProvider(
         }
     }
 
+    /// <inheritdoc />
     public async Task<bool> DeleteTagAsync(int tagId, bool isAdmin = false)
     {
+        var result = await DeleteTagWithResultAsync(tagId, null, isAdmin);
+        return result == TagDeleteOperationResult.Success;
+    }
+
+    /// <inheritdoc />
+    public async Task<TagDeleteOperationResult> DeleteTagWithResultAsync(int tagId, string? currentUserId, bool isAdmin = false)
+    {
+        if (_tagCommandService is not null)
+        {
+            return await _tagCommandService.DeleteTagAsync(tagId, currentUserId, isAdmin);
+        }
+
         if (_tagLockService != null && !isAdmin)
         {
             var isLocked = await _tagLockService.IsTagOrSiblingLockedAsync(tagId);
             if (isLocked)
             {
-                return false;
+                return TagDeleteOperationResult.Locked;
             }
         }
 
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
         Tag? tagToDelete = await context.Tags.FindAsync(tagId);
-        switch (tagToDelete)
+        if (tagToDelete is null)
         {
-            case not null:
-                _ = context.Tags.Remove(tagToDelete);
-                _ = await context.SaveChangesAsync();
-                return true;
-            default:
-                return false;
+            return TagDeleteOperationResult.NotFound;
         }
+
+        if (tagToDelete.IsSystem || tagToDelete.Name == Tag.RootTagName)
+        {
+            return TagDeleteOperationResult.SystemTag;
+        }
+
+        if (!isAdmin && currentUserId is not null && tagToDelete.OwnerId != currentUserId)
+        {
+            return TagDeleteOperationResult.Unauthorized;
+        }
+
+        _ = context.Tags.Remove(tagToDelete);
+        _ = await context.SaveChangesAsync();
+        return TagDeleteOperationResult.Success;
     }
 }
