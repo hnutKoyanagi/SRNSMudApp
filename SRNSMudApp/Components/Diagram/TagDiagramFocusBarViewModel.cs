@@ -49,4 +49,3 @@ public static class TagDiagramFocusBarViewModel
         return allTags.Count(t => t.ParentTagId == tagId);
     }
 }
-

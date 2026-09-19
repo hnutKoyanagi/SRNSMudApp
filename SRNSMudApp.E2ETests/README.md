@@ -42,6 +42,18 @@ Playwright によるE2Eテストプロジェクト。Phase 1〜4 のテスト移
 
 | 元ファイル | 移行先 |
 |---|---|
+| `ItemReactionE2ETests.cs` | `Components/UI/ReactionBarTests.cs`（ボタン・チップ描画・ナビゲーション）＋ `Services/ItemReactionServiceTests.cs`（投票・重み計算）＋ `Services/ItemCardVoteCoordinatorTests.cs`（Phase 7） |
+| `ItemQuoteE2ETests.cs` | `Components/Item/QuotedItemListDialogTests.cs` ＋ `Components/UI/ItemCardQuoteFocusTests.cs` ＋ `ItemQuoteServiceTests.cs`（Phase 7） |
+| `ItemSplitRequestE2ETests.cs` | `Components/UI/ItemCardSplitRequestTests.cs` ＋ `Services/ItemSplitServiceTests.cs`（Phase 7） |
+| `UserFollowE2ETests.cs` | `Components/User/UserDetailFollowTests.cs` ＋ `Services/UserDataProviderFollowTests.cs`（Phase 7） |
+| `ItemPrivateModeE2ETests.cs` | `Components/UI/ItemCardPrivacyBadgeTests.cs` ＋ `Services/ItemPrivateModeTests.cs`（Phase 7） |
+| `ItemListTagFilterE2ETests.cs` | `Components/Item/ItemListTagSearchTests.cs` ＋ `Services/ItemListDataProviderTests.cs`（Phase 7） |
+| `ItemDetailScrollE2ETests.cs` | `Components/Item/ItemDetailThreadTests.cs`（`scrollToElement` 呼び出し検証）（Phase 7） |
+| `TagDiagramContextE2ETests.cs` / `TagDiagramQuotedItemE2ETests.cs` | `Services/TagDiagramDataProviderTests.cs` ＋ `Components/Diagram/TagDiagramPageTests.cs`（Phase 7） |
+| `ItemReplyNotificationE2ETests.cs` | `Components/UI/ItemReplyThreadTests.cs` ＋ `Components/UI/NotificationBadgeTests.cs` ＋ `ItemReplyServiceTests.cs` ＋ `Services/NotificationServiceTests.cs`（Phase 7） |
+| `AddItemMentionE2ETests.cs` / `AddItemUserMentionE2ETests.cs` | `Components/Item/AddItemTests.cs` ＋ `tributeInteropCore.test.js`（Phase 7） |
+| `AddItemImeCompositionE2ETests.cs` / `ImeTestHelpers.cs` | `Components/Item/AddItemTests.cs` ＋ `tributeInteropCore.test.js`（Phase 7） |
+| `InspectItem12006Test.cs` / `RegexTest.cs` | 一時デバッグコード削除 / `SRNSMudApp.Tests/RegexTest.cs` に集約（Phase 7） |
 | `DuplicateTaggingRequestCancelE2ETests.cs` | `Components/Contract/DuplicateTaggingRequestCancelTests.cs`（承認の分離性 + 送信済みからの取り下げを2ケースに分解）（Phase 6） |
 | `ItemDetailTagWeightE2ETests.cs` | `Components/Item/ItemDetailTagWeightTests.cs`（Weight減ボタン→アクション列表示＋DB反映）（Phase 6） |
 | `TagDeletionTrackingE2ETests.cs` | `Components/Tag/TagDeletionTrackingTests.cs`（タグ追加ダイアログ→チップ削除・トラッキング例外回帰。IDialogLauncher モック活用により専用コンテナ起動も解消）（Phase 6） |
@@ -55,13 +67,14 @@ Playwright によるE2Eテストプロジェクト。Phase 1〜4 のテスト移
 
 ## Before / After サマリー
 
-| 指標 | Before（移行前） | After（Phase 6 移行後） |
+| 指標 | Before（初期状態） | After（Phase 7 移行後） |
 |---|---|---|
-| E2Eテストファイル数 | 30+ | 5テストクラス＋基盤3ファイル |
-| E2Eテストケース数 | 37+ | 13 |
+| E2Eテストファイル数 | 30+ | 6テストクラス＋基盤3ファイル |
+| E2Eテストケース数 | 37+ | 14 |
 | E2E実行時間 | 約3〜4分（コンテナ起動×クラス数） | 約50秒（コンテナ起動1回・Phase 5-4後の実測） |
-| bUnit/サービステスト | 120 | 175 |
+| bUnit/サービステスト | 120 | 175+ |
 | 単体テスト実行時間 | 数秒 | 約2秒 |
+
 
 ### カバレッジ（移行対象コンポーネント、Phase 5-6 実測）
 

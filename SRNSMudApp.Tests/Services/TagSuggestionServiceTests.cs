@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+
 using Moq;
+
 using SRNSMudApp.Data;
 using SRNSMudApp.Models;
 using SRNSMudApp.Services;
@@ -105,4 +107,3 @@ public class TagSuggestionServiceTests : IAsyncLifetime
         Assert.True(highResult.Score > midResult.Score);
     }
 }
-

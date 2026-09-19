@@ -59,4 +59,3 @@ public class ReportManagerViewModelTests
         Assert.Equal(expectedColor, actual);
     }
 }
-

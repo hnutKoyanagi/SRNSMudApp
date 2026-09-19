@@ -15,4 +15,3 @@ public sealed record SuggestedTag(int TagId, string TagName, float Score)
     /// <summary>既定の候補（推薦）の閾値</summary>
     public const float DefaultCandidateThreshold = 0.40f;
 }
-

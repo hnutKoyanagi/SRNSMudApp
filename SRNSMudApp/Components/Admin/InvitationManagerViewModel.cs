@@ -84,4 +84,3 @@ public static class InvitationManagerViewModel
         _ => Color.Default
     };
 }
-

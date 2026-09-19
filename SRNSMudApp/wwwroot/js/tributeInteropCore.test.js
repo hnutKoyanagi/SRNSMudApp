@@ -54,3 +54,25 @@ test('composition input is ignored until compositionend', () => {
     controller.input();
     assert.deepEqual(syncCalls, ['sync', 'sync']);
 });
+
+test('tribute-replaced followed by IME composition correctly suppresses sync until compositionend', () => {
+    const syncCalls = [];
+    const controller = createCompositionSyncController(() => syncCalls.push('sync'));
+
+    // 1. Tribute で選択が確定し tribute-replaced が発火 (compositionSync.end() 相当)
+    controller.end();
+    assert.deepEqual(syncCalls, ['sync']);
+
+    // 2. その直後に IME 入力が開始 (compositionstart)
+    controller.start();
+
+    // 3. IME 変換中の入力イベント (input) -> sync は抑制される
+    controller.input();
+    controller.input();
+    assert.deepEqual(syncCalls, ['sync']);
+
+    // 4. IME 確定 (compositionend) -> sync が実行される
+    controller.end();
+    assert.deepEqual(syncCalls, ['sync', 'sync']);
+});
+

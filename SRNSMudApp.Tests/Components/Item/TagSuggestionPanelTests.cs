@@ -1,6 +1,8 @@
 using Bunit;
+
 using MudBlazor;
 using MudBlazor.Services;
+
 using SRNSMudApp.Components.Item;
 using SRNSMudApp.Models;
 
@@ -146,4 +148,3 @@ public sealed class TagSuggestionPanelTests : IAsyncLifetime
         await _ctx.DisposeAsync();
     }
 }
-

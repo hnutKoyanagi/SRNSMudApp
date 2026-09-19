@@ -59,4 +59,3 @@ public static class ReportManagerViewModel
         _ => Color.Default
     };
 }
-

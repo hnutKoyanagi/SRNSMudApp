@@ -20,4 +20,3 @@ public interface ITagSuggestionService
         float minScore = SuggestedTag.DefaultCandidateThreshold,
         CancellationToken cancellationToken = default);
 }
-

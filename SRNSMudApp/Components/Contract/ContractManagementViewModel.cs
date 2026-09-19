@@ -54,4 +54,3 @@ public static class ContractManagementViewModel
         return contract.Status == TradeStatus.Proposed;
     }
 }
-

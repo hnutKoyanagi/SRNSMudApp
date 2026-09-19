@@ -54,4 +54,3 @@ public static class BountyBoardViewModel
         return bounty.RequesterUserId != currentUserId;
     }
 }
-
