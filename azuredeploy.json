@@ -52,7 +52,7 @@
     },
     "appServiceSku": {
       "type": "string",
-      "defaultValue": "B1",
+      "defaultValue": "F1",
       "allowedValues": [
         "B1",
         "F1",
@@ -125,7 +125,7 @@
         "capacity": 1
       },
       "properties": {
-        "collation": "SQL_Latin1_General_CP1_CI_AS",
+        "collation": "Latin1_General_100_CI_AS_SC_UTF8",
         "maxSizeBytes": 34359738368,
         "useFreeLimit": true,
         "freeLimitExhaustionBehavior": "AutoPause",
