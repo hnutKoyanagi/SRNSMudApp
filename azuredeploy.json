@@ -71,9 +71,9 @@
     },
     "location": {
       "type": "string",
-      "defaultValue": "[resourceGroup().location]",
+      "defaultValue": "eastus2",
       "metadata": {
-        "description": "リソースを配置する Azure リージョン。"
+        "description": "リソースを配置する Azure リージョン。無料枠 (F1) は東日本 (japaneast) 等でクォータ 0 制限があるため、既定で枠に余裕のある eastus2 (米国東部 2) を指定しています。"
       }
     }
   },
