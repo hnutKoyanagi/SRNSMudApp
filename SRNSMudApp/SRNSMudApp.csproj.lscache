@@ -260,6 +260,8 @@ Migrations/
  20260919133000_AddTagSuggestionThresholdsToUser.Designer.cs
  20260919133144_AddLinkConversionSettings.cs
  20260919133144_AddLinkConversionSettings.Designer.cs
+ 20260920100603_AddUserBanStatus.cs
+ 20260920100603_AddUserBanStatus.Designer.cs
  ApplicationDbContextModelSnapshot.cs
 Models/
  Unions/
@@ -307,7 +309,6 @@ Models/
  TagSuggestion.cs
 obj/Debug/net11.0/
  .NETCoreApp,Version=v11.0.AssemblyAttributes.cs
- EFCoreSqlServerHierarchyId.cs
  SRNSMudApp.AssemblyInfo.cs
  SRNSMudApp.GlobalUsings.g.cs
 Resources/ErrorMessages.cs

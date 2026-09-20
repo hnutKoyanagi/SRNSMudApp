@@ -1,13 +1,16 @@
 @page "/User/Management"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = "Admin")]
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using SRNSMudApp.Data
 @using SRNSMudApp.Services
 @inject IUserDataProvider UserData
 @inject ISnackbar Snackbar
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-10">
     <MudText Typo="Typo.h4" GutterBottom="true">ユーザー管理</MudText>
-    <MudText Typo="Typo.body1" Class="mb-4">管理者（Admin）権限の付与・剥奪を行います。</MudText>
+    <MudText Typo="Typo.body1" Class="mb-4">管理者（Admin）権限の付与・剥奪およびアカウントの利用停止（BAN）管理を行います。</MudText>
 
     @if (_users is null)
     {
@@ -20,13 +23,24 @@
                 <MudTh>ID</MudTh>
                 <MudTh>Email (Username)</MudTh>
                 <MudTh>Admin権限</MudTh>
+                <MudTh>BAN（利用停止）</MudTh>
             </HeaderContent>
             <RowTemplate>
                 <MudTd DataLabel="ID">@context.User.Id</MudTd>
                 <MudTd DataLabel="Email">@context.User.UserName</MudTd>
                 <MudTd DataLabel="Admin権限">
                     <MudSwitch T="bool" Value="@context.IsAdmin" ValueChanged="@(val => ToggleAdminAsync(context, val))"
-                               Color="Color.Primary" />
+                               Color="Color.Primary"
+                               Disabled="@IsProtectedUser(context.User)" />
+                </MudTd>
+                <MudTd DataLabel="BAN（利用停止）">
+                    <MudSwitch T="bool" Value="@context.IsBanned" ValueChanged="@(val => ToggleBanAsync(context, val))"
+                               Color="Color.Error"
+                               Disabled="@IsProtectedUser(context.User)" />
+                    @if (context.IsBanned)
+                    {
+                        <MudChip T="string" Color="Color.Error" Size="Size.Small" Class="ml-2">利用停止中</MudChip>
+                    }
                 </MudTd>
             </RowTemplate>
             <PagerContent>
@@ -37,17 +51,35 @@
 </MudContainer>
 
 @code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
     private List<UserViewModel>? _users;
+    private string? _currentUserId;
 
     public class UserViewModel
     {
         public ApplicationUser User { get; set; } = null!;
         public bool IsAdmin { get; set; }
+        public bool IsBanned { get; set; }
     }
 
     protected override async Task OnInitializedAsync()
     {
+        if (AuthStateTask is not null)
+        {
+            AuthenticationState authState = await AuthStateTask;
+            _currentUserId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        }
+
         await LoadUsersAsync();
+    }
+
+    private bool IsProtectedUser(ApplicationUser user)
+    {
+        // ログイン中の管理者自身およびシステムアカウントは自己BANや権限剥奪を防止
+        return string.Equals(user.Id, _currentUserId, StringComparison.Ordinal)
+            || string.Equals(user.UserName, "system", StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task LoadUsersAsync()
@@ -58,7 +90,12 @@
         foreach (var u in users)
         {
             var isAdmin = await UserData.IsUserInRoleAsync(u, "Admin");
-            vms.Add(new UserViewModel { User = u, IsAdmin = isAdmin });
+            vms.Add(new UserViewModel
+            {
+                User = u,
+                IsAdmin = isAdmin,
+                IsBanned = u.IsBanned
+            });
         }
 
         _users = vms;
@@ -76,13 +113,34 @@
         if (result.Succeeded)
         {
             vm.IsAdmin = newIsAdmin;
-            Snackbar.Add(newIsAdmin ? $"{vm.User.UserName} にAdmin権限を付与しました。" : $"{vm.User.UserName} のAdmin権限を剥奪しました。",
-Severity.Success);
+            Snackbar.Add(newIsAdmin ? $"{vm.User.UserName} にAdmin権限を付与しました。" : $"{vm.User.UserName} のAdmin権限を剥奪しました。", Severity.Success);
         }
         else
         {
             var errors = string.Join(", ", result.Errors.Select(e => e.Description));
             Snackbar.Add($"権限の変更に失敗しました: {errors}", Severity.Error);
+        }
+    }
+
+    private async Task ToggleBanAsync(UserViewModel vm, bool newIsBanned)
+    {
+        if (vm.IsBanned == newIsBanned)
+        {
+            return;
+        }
+
+        var result = await UserData.SetUserBanStatusAsync(vm.User.Id, newIsBanned);
+
+        if (result.Succeeded)
+        {
+            vm.IsBanned = newIsBanned;
+            vm.User.IsBanned = newIsBanned;
+            Snackbar.Add(newIsBanned ? $"{vm.User.UserName} を利用停止（BAN）にしました。" : $"{vm.User.UserName} の利用停止（BAN）を解除しました。", newIsBanned ? Severity.Warning : Severity.Success);
+        }
+        else
+        {
+            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+            Snackbar.Add($"利用停止状態の変更に失敗しました: {errors}", Severity.Error);
         }
     }
 }

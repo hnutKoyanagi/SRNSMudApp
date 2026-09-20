@@ -1,10 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
 
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
+using SRNSMudApp.Data;
 using SRNSMudApp.Models.Unions;
 using SRNSMudApp.Services.Auth;
 
@@ -91,5 +93,45 @@ public class ExternalLoginCallbackIntegrationTests(WebApplicationFactory<Program
 
         // Assert: 401 Unauthorized
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ExternalLogin_WhenUserIsBanned_ReturnsForbiddenAndNoAuthCookie()
+    {
+        // Arrange
+        using HttpClient client = CreateCustomClient();
+
+        var uniqueKey = Guid.NewGuid().ToString("N")[..8];
+        var token = $"mock-ban-{uniqueKey}";
+        var expectedEmail = $"ban-{uniqueKey}@example.com";
+        var requestPayload = new
+        {
+            Provider = "Google",
+            Token = token
+        };
+
+        // 1回目のログインでユーザー作成
+        HttpResponseMessage firstResponse = await client.PostAsJsonAsync("/api/auth/external-login", requestPayload);
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+
+        // データベースから対象ユーザーを取得し、BAN状態にする
+        using (var scope = factory.Services.CreateScope())
+        {
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var user = await userManager.FindByEmailAsync(expectedEmail);
+            Assert.NotNull(user);
+            user.IsBanned = true;
+            user.LockoutEnabled = true;
+            user.LockoutEnd = DateTimeOffset.MaxValue;
+            _ = await userManager.UpdateSecurityStampAsync(user);
+            _ = await userManager.UpdateAsync(user);
+        }
+
+        // Act: BANされた後に再度ログインを試みる
+        HttpResponseMessage bannedResponse = await client.PostAsJsonAsync("/api/auth/external-login", requestPayload);
+
+        // Assert: 403 Forbidden が返り、Cookie は発行されない
+        Assert.Equal(HttpStatusCode.Forbidden, bannedResponse.StatusCode);
+        Assert.False(bannedResponse.Headers.Contains("Set-Cookie"));
     }
 }

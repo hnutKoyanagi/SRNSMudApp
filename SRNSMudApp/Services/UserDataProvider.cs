@@ -74,6 +74,9 @@ public interface IUserDataProvider
     /// <summary>指定したユーザーの Admin ロールを更新する。</summary>
     Task<IdentityResult> UpdateUserAdminRoleAsync(string userId, bool isAdmin);
 
+    /// <summary>指定したユーザーのBAN（利用停止）状態を設定する。</summary>
+    Task<IdentityResult> SetUserBanStatusAsync(string userId, bool isBanned, string? reason = null);
+
     /// <summary>ユーザーのタグ提案類似度閾値設定を更新する。</summary>
     Task UpdateTagSuggestionThresholdsAsync(string userId, float strongThreshold, float candidateThreshold);
 
@@ -325,6 +328,42 @@ public class UserDataProvider(
         return isAdmin
             ? await _userManager.AddToRoleAsync(user, "Admin")
             : await _userManager.RemoveFromRoleAsync(user, "Admin");
+    }
+
+    public async Task<IdentityResult> SetUserBanStatusAsync(string userId, bool isBanned, string? reason = null)
+    {
+        if (_userManager is null)
+        {
+            throw new InvalidOperationException("UserManager is not configured.");
+        }
+
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user is null)
+        {
+            return IdentityResult.Failed(new IdentityError { Description = "ユーザーが見つかりません。" });
+        }
+
+        if (string.Equals(user.UserName, "system", StringComparison.OrdinalIgnoreCase))
+        {
+            return IdentityResult.Failed(new IdentityError { Description = "システムユーザーをBANすることはできません。" });
+        }
+
+        user.IsBanned = isBanned;
+        user.BannedAt = isBanned ? DateTimeOffset.UtcNow : null;
+        user.BanReason = isBanned ? reason : null;
+
+        if (isBanned)
+        {
+            user.LockoutEnabled = true;
+            user.LockoutEnd = DateTimeOffset.MaxValue;
+        }
+        else
+        {
+            user.LockoutEnd = null;
+        }
+
+        _ = await _userManager.UpdateSecurityStampAsync(user);
+        return await _userManager.UpdateAsync(user);
     }
 
     public async Task UpdateTagSuggestionThresholdsAsync(string userId, float strongThreshold, float candidateThreshold)

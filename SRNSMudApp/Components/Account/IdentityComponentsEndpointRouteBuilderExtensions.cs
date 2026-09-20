@@ -133,6 +133,11 @@ internal static class IdentityComponentsEndpointRouteBuilderExtensions
             await antiforgery.ValidateRequestAsync(context);
 
             ApplicationUser? user = string.IsNullOrEmpty(username) ? null : await userManager.FindByNameAsync(username);
+            if (user is not null && (user.IsBanned || await userManager.IsLockedOutAsync(user)))
+            {
+                return Results.Forbid();
+            }
+
             var optionsJson = await signInManager.MakePasskeyRequestOptionsAsync(user);
             return TypedResults.Content(optionsJson, "application/json");
         });

@@ -44,4 +44,19 @@ public class ApplicationUser : IdentityUser
     ///     内部リンク自動変換の類似度閾値（null の場合はデフォルト 0.85f）。
     /// </summary>
     public float? LinkConversionThreshold { get; set; }
+
+    /// <summary>
+    ///     アカウントがBAN（利用停止）されているかどうか。
+    /// </summary>
+    public bool IsBanned { get; set; }
+
+    /// <summary>
+    ///     BANされた日時（UTC）。
+    /// </summary>
+    public DateTimeOffset? BannedAt { get; set; }
+
+    /// <summary>
+    ///     BAN理由。
+    /// </summary>
+    public string? BanReason { get; set; }
 }

@@ -223,6 +223,7 @@ Services/
  TagTreeDataProviderTests.cs
  TagWeightLedgerServiceTests.cs
  TimelineRecorderTests.cs
+ UserDataProviderBanTests.cs
  UserDataProviderFollowTests.cs
  UserDataProviderTagSuggestionThresholdTests.cs
  UserGroupDataProviderTests.cs

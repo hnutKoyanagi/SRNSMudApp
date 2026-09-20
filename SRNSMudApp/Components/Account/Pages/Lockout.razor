@@ -1,8 +1,22 @@
-﻿@page "/Account/Lockout"
+@page "/Account/Lockout"
 
 <PageTitle>Locked out</PageTitle>
+<PageTitle>アカウント利用停止 / Locked out</PageTitle>
 
 <header>
     <h1 class="text-danger">Locked out</h1>
     <p class="text-danger" role="alert">This account has been locked out, please try again later.</p>
 </header>
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-10">
+    <MudPaper Class="pa-8 text-center" Elevation="3">
+        <MudIcon Icon="@Icons.Material.Filled.Block" Color="Color.Error" Size="Size.Large" Class="mb-4" />
+        <MudText Typo="Typo.h4" Color="Color.Error" GutterBottom="true">アカウント利用停止</MudText>
+        <MudText Typo="Typo.body1" Class="mb-6">
+            このアカウントは利用停止（BAN）またはロックされています。<br />
+            ご不明な点がある場合は、管理者までお問い合わせください。
+        </MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/">
+            トップページへ戻る
+        </MudButton>
+    </MudPaper>
+</MudContainer>

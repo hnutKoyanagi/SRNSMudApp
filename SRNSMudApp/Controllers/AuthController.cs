@@ -74,6 +74,12 @@ public partial class AuthController(
             return await CreateNewUserAsync(payload, userLoginInfo, cancellationToken);
         }
 
+        if (existingUser.IsBanned || await userManager.IsLockedOutAsync(existingUser))
+        {
+            LogUserBannedLoginAttempt(existingUser.Id, existingUser.UserName ?? string.Empty);
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "このアカウントは利用停止されています。" });
+        }
+
         return await LinkAndSignInAsync(existingUser, userLoginInfo, request.Provider, cancellationToken);
     }
 
@@ -134,4 +140,7 @@ public partial class AuthController(
 
     [LoggerMessage(EventId = 1002, Level = LogLevel.Error, Message = "Failed to add login to user: {Errors}")]
     private partial void LogFailedToAddLogin(string errors);
+
+    [LoggerMessage(EventId = 1003, Level = LogLevel.Warning, Message = "Banned or locked-out user attempted login: {UserId}, {UserName}")]
+    private partial void LogUserBannedLoginAttempt(string userId, string userName);
 }
