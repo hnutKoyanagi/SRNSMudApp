@@ -17,6 +17,21 @@ Blazor Server + MudBlazor 製のタグベースSNSアプリケーション（SRN
 1. **リソース グループ**: 既存または新規作成
 2. **sqlAdministratorLoginPassword**: Azure SQL Server 管理者パスワード（大文字・小文字・数字・記号を含む8文字以上）
 3. **systemUserInitialPassword**: アプリ内 `system` 管理者アカウントの初期パスワード
+4. **googleClientId**（任意）: Google OAuth 2.0 クライアント ID（`xxxxxx.apps.googleusercontent.com`）。未入力でデプロイし、後から設定することも可能です。
+
+### Google 認証 (Google Auth Platform) の設定手順
+Google ログインを有効化するには、[Google Cloud Console](https://console.cloud.google.com/) で以下の設定を行います。
+
+1. **認証情報の作成**:
+   - 「API とサービス」>「認証情報」>「認証情報を作成」>「OAuth クライアント ID」
+   - アプリケーションの種類: **ウェブ アプリケーション**
+2. **承認済みの JavaScript 送信元**:
+   - `https://<作成されたアプリ名>.azurewebsites.net` を追加（※末尾のスラッシュは不要）
+3. **クライアント ID の反映**:
+   - **デプロイ時**: テンプレートの `googleClientId` 入力欄に指定
+   - **デプロイ後（または変更時）**: Azure Portal の App Service > **「設定」>「環境変数」**（または「構成」）にて、以下のキーを追加/編集して保存（再起動）:
+     - 名前: `Authentication__Google__ClientId`
+     - 値: `<取得したクライアントID>`
 
 > 💡 **`SubscriptionIsOverQuotaForSku (Limit: 0)` エラーが出る場合:**
 > 東日本 (japaneast) 等の一部混雑リージョンでは、Azure 側のキャパシティ制限により F1 (無料) プランのクォータ上限が 0 に制限されていることがあります。
