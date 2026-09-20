@@ -2,6 +2,23 @@
 
 Blazor Server + MudBlazor 製のタグベースSNSアプリケーション（SRNSMudApp）。
 
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fkoyakei%2FSRNSMudApp%2Fmaster%2Fazuredeploy.json)
+
+## Azure へのデプロイ (Free Tier)
+
+上記「Deploy to Azure」ボタンから、Azure の無料枠（Free Tier）を利用してワンクリックで本アプリケーションをデプロイできます。
+
+### 構成リソース (Free Tier)
+- **Azure App Service Plan**: `F1` (Free Tier) - 1GB RAM, 60 CPU分/日
+- **Azure App Service (Web App)**: Blazor Server 用に WebSockets を有効化、GitHub からの自動ビルド・デプロイ (`sourcecontrols`)
+- **Azure SQL Database**: `GP_S_Gen5_1` (Serverless Free Offer) - 毎月 100,000 vCore 秒 & 32GB ストレージ無料（アイドル時自動一時停止: 60分）
+
+### デプロイ時に入力が必要な項目
+1. **リソース グループ**: 既存または新規作成
+2. **sqlAdministratorLoginPassword**: Azure SQL Server 管理者パスワード（大文字・小文字・数字・記号を含む8文字以上）
+3. **systemUserInitialPassword**: アプリ内 `system` 管理者アカウントの初期パスワード
+
+
 ## テスト戦略
 
 テストは2プロジェクトに役割分担されている。新しくテストを書く際は以下の判断基準に従うこと。

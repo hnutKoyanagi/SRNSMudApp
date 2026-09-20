@@ -142,17 +142,18 @@ using (IServiceScope scope = app.Services.CreateScope())
         try
         {
             if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
-            {
-                try
+                if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing") || string.Equals(Environment.GetEnvironmentVariable("AUTO_MIGRATE"), "true", StringComparison.OrdinalIgnoreCase))
                 {
-                    await db.Database.MigrateAsync();
+                    try
+                    {
+                        await db.Database.MigrateAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        // Ignore if already migrated
+                        Console.WriteLine($"[WARNING] db.Database.MigrateAsync failed: {ex.Message}");
+                    }
                 }
-                catch (Exception ex)
-                {
-                    // Ignore if already migrated
-                    Console.WriteLine($"[WARNING] db.Database.MigrateAsync failed: {ex.Message}");
-                }
-            }
 
             if (!await roleManager.RoleExistsAsync("Admin"))
             {
