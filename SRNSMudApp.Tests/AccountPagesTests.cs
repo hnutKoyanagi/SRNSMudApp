@@ -88,10 +88,10 @@ public class AccountPagesTests : BunitContext
         // Assert: Google button container is rendered
         Assert.NotNull(cut.Find("#google-login-button-container"));
 
-        // Assert: LINE and GitHub buttons are rendered
+        // Assert: LINE and GitHub buttons are temporarily hidden
         var markup = cut.Markup;
-        Assert.Contains("Continue with LINE", markup);
-        Assert.Contains("Continue with GitHub", markup);
+        Assert.DoesNotContain("Continue with LINE", markup);
+        Assert.DoesNotContain("Continue with GitHub", markup);
 
         // Assert: customAuth.renderGoogleButton JS invocation was made
         JSInterop.VerifyInvoke("customAuth.renderGoogleButton");
