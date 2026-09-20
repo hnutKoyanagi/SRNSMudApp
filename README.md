@@ -18,6 +18,11 @@ Blazor Server + MudBlazor 製のタグベースSNSアプリケーション（SRN
 2. **sqlAdministratorLoginPassword**: Azure SQL Server 管理者パスワード（大文字・小文字・数字・記号を含む8文字以上）
 3. **systemUserInitialPassword**: アプリ内 `system` 管理者アカウントの初期パスワード
 
+> 💡 **`SubscriptionIsOverQuotaForSku (Limit: 0)` エラーが出る場合:**
+> 東日本 (japaneast) 等の一部混雑リージョンでは、Azure 側のキャパシティ制限により F1 (無料) プランのクォータ上限が 0 に制限されていることがあります。
+> - **完全無料で動かしたい場合**: デプロイ先リージョン（リソースグループの場所またはテンプレートの `location`）に、無料枠の空きが多い **`East US 2` (米国東部 2)** や **`Central US` (米国中央)** を選択してください。
+> - **同一リージョンで動かしたい場合**: テンプレートの `appServiceSku` パラメータを **`B1`** (Basic) に変更してください。
+
 
 ## テスト戦略
 
