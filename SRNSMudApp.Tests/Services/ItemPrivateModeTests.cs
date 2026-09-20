@@ -212,6 +212,48 @@ public class ItemPrivateModeTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public async Task AdminHiddenItem_ShouldNotBeVisibleToRegularUsers_ButVisibleToAdmin()
+    {
+        var (db, _, itemDetailProvider, _, authorId, followerId, strangerId, _, _) = await CreateScopeAsync();
+        await using (db)
+        {
+            var adminId = $"admin_{Guid.NewGuid().ToString("N")[..8]}";
+            await db.SeedUsersAsync(adminId);
+
+            var item = new Item
+            {
+                Content = "Item hidden by admin",
+                OwnerId = authorId,
+                IsPrivate = false,
+                IsAdminHidden = true,
+                AdminHiddenAt = DateTime.UtcNow,
+                AdminHiddenReason = "Violation"
+            };
+            db.Items.Add(item);
+            await db.SaveChangesAsync();
+
+            // 1. WhereVisibleToUser クエリの検証 (通常ユーザー vs 管理者)
+            var visibleItemsAnonymous = await db.Items.WhereVisibleToUser(db, null, isAdmin: false).ToListAsync();
+            var visibleItemsAuthor = await db.Items.WhereVisibleToUser(db, authorId, isAdmin: false).ToListAsync();
+            var visibleItemsFollower = await db.Items.WhereVisibleToUser(db, followerId, isAdmin: false).ToListAsync();
+            var visibleItemsStranger = await db.Items.WhereVisibleToUser(db, strangerId, isAdmin: false).ToListAsync();
+            var visibleItemsAdmin = await db.Items.WhereVisibleToUser(db, adminId, isAdmin: true).ToListAsync();
+
+            Assert.DoesNotContain(visibleItemsAnonymous, i => i.Id == item.Id);
+            Assert.DoesNotContain(visibleItemsAuthor, i => i.Id == item.Id);
+            Assert.DoesNotContain(visibleItemsFollower, i => i.Id == item.Id);
+            Assert.DoesNotContain(visibleItemsStranger, i => i.Id == item.Id);
+            Assert.Contains(visibleItemsAdmin, i => i.Id == item.Id);
+
+            // 2. IsItemVisibleToUserAsync の検証
+            Assert.False(await item.IsItemVisibleToUserAsync(db, null, isAdmin: false));
+            Assert.False(await item.IsItemVisibleToUserAsync(db, authorId, isAdmin: false));
+            Assert.False(await item.IsItemVisibleToUserAsync(db, followerId, isAdmin: false));
+            Assert.True(await item.IsItemVisibleToUserAsync(db, adminId, isAdmin: true));
+        }
+    }
+
     private sealed class DbContextFactoryStub(DbContextOptions<ApplicationDbContext> options)
         : IDbContextFactory<ApplicationDbContext>
     {

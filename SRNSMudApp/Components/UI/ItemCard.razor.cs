@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.JSInterop;
 
 using MudBlazor;
@@ -44,12 +45,14 @@ public partial class ItemCard : IAsyncDisposable
     [Inject] private IItemCardDataProvider ItemCardData { get; set; } = null!;
     [Inject] private ILinkPreviewService PreviewService { get; set; } = null!;
     [Inject] private NavigationManager NavigationManager { get; set; } = null!;
+    [CascadingParameter] private Task<AuthenticationState>? AuthStateTask { get; set; }
 
     [Parameter][EditorRequired] public Data.Item Item { get; set; } = null!;
     [Parameter] public EventCallback OnDataChanged { get; set; }
     [Parameter] public bool IsFocused { get; set; }
     [Parameter] public EventCallback<int> OnFocus { get; set; }
     [Parameter] public bool EnableNavigation { get; set; } = true;
+    [Parameter] public bool IsAdmin { get; set; }
     [Parameter] public IReadOnlyList<Data.Tag> AllTags { get; set; } = [];
     [Parameter] public IReadOnlyList<TagRelationToTag> AllTagRelationsToTags { get; set; } = [];
     [Parameter] public string CurrentUserId { get; set; } = "";
@@ -82,6 +85,7 @@ public partial class ItemCard : IAsyncDisposable
         builder.AddAttribute(11, nameof(HighlightEvents), HighlightEvents);
         builder.AddAttribute(12, nameof(OnEnsureSystemTags), OnEnsureSystemTags);
         builder.AddAttribute(13, nameof(EnableNavigation), true);
+        builder.AddAttribute(14, nameof(IsAdmin), _isAdmin);
         builder.CloseComponent();
     };
 
@@ -89,6 +93,7 @@ public partial class ItemCard : IAsyncDisposable
     private IReadOnlyList<TaggingRequestEntity> _taggingRequests = [];
     private IReadOnlyList<ItemSplitRequest> _pendingSplitRequests = [];
     private int _loadedItemId;
+    private bool _isAdmin;
 
     private int _replyCount;
     private int _quoteCount;
@@ -103,6 +108,16 @@ public partial class ItemCard : IAsyncDisposable
 
     protected override async Task OnParametersSetAsync()
     {
+        if (IsAdmin)
+        {
+            _isAdmin = true;
+        }
+        else if (AuthStateTask is not null)
+        {
+            AuthenticationState authState = await AuthStateTask;
+            _isAdmin = authState.User.IsInRole("Admin");
+        }
+
         if (_loadedItemId == Item.Id && Item.Id > 0)
         {
             return;
@@ -497,6 +512,49 @@ public partial class ItemCard : IAsyncDisposable
         await ItemCardData.DeleteItemAsync(Item.Id);
         await NotifyDataChangedAsync();
         _ = Snackbar.Add("アイテムを削除しました。", Severity.Success);
+    }
+
+    private async Task AdminForceDeleteItemAsync()
+    {
+        if (!_isAdmin)
+        {
+            _ = Snackbar.Add("管理者権限が必要です。", Severity.Error);
+            return;
+        }
+
+        var success = await ItemCardData.DeleteItemByAdminAsync(Item.Id, CurrentUserId);
+        if (success)
+        {
+            await NotifyDataChangedAsync();
+            _ = Snackbar.Add("【管理者】アイテムを強制削除しました。", Severity.Success);
+        }
+        else
+        {
+            _ = Snackbar.Add("アイテムの強制削除に失敗しました。", Severity.Error);
+        }
+    }
+
+    private async Task AdminToggleHideItemAsync()
+    {
+        if (!_isAdmin)
+        {
+            _ = Snackbar.Add("管理者権限が必要です。", Severity.Error);
+            return;
+        }
+
+        var newIsHidden = !Item.IsAdminHidden;
+        var success = await ItemCardData.SetAdminHiddenAsync(Item.Id, newIsHidden, null, CurrentUserId);
+        if (success)
+        {
+            Item.IsAdminHidden = newIsHidden;
+            await NotifyDataChangedAsync();
+            var message = newIsHidden ? "【管理者】アイテムを強制非公開化しました。" : "【管理者】アイテムの非公開を解除しました。";
+            _ = Snackbar.Add(message, newIsHidden ? Severity.Warning : Severity.Success);
+        }
+        else
+        {
+            _ = Snackbar.Add("アイテムの非公開状態の変更に失敗しました。", Severity.Error);
+        }
     }
 
     private async Task ReportItemAsync()

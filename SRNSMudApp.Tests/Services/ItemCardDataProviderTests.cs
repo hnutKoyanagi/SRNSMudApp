@@ -202,6 +202,57 @@ public class ItemCardDataProviderTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public async Task DeleteItemByAdminAsync_DeletesItemSuccessfully()
+    {
+        var (db, sut, _, _, itemId, tid) = await CreateScopeAsync();
+        await using (db)
+        {
+            var adminId = $"admin_{tid}";
+            await db.SeedUsersAsync(adminId);
+
+            var deleted = await sut.DeleteItemByAdminAsync(itemId, adminId);
+            Assert.True(deleted);
+
+            await using var verifyDb = new ApplicationDbContext(_sharedDb.Options);
+            var item = await verifyDb.Items.FindAsync(itemId);
+            Assert.Null(item);
+        }
+    }
+
+    [Fact]
+    public async Task SetAdminHiddenAsync_TogglesIsAdminHiddenAndSetsAuditFields()
+    {
+        var (db, sut, _, _, itemId, tid) = await CreateScopeAsync();
+        await using (db)
+        {
+            var adminId = $"admin_{tid}";
+            await db.SeedUsersAsync(adminId);
+
+            // 非公開化
+            var hidden = await sut.SetAdminHiddenAsync(itemId, true, "規約違反の疑い", adminId);
+            Assert.True(hidden);
+
+            await using var verifyDb1 = new ApplicationDbContext(_sharedDb.Options);
+            var itemHidden = await verifyDb1.Items.FindAsync(itemId);
+            Assert.NotNull(itemHidden);
+            Assert.True(itemHidden.IsAdminHidden);
+            Assert.NotNull(itemHidden.AdminHiddenAt);
+            Assert.Equal("規約違反の疑い", itemHidden.AdminHiddenReason);
+
+            // 非公開解除（再公開）
+            var unhidden = await sut.SetAdminHiddenAsync(itemId, false, null, adminId);
+            Assert.True(unhidden);
+
+            await using var verifyDb2 = new ApplicationDbContext(_sharedDb.Options);
+            var itemUnhidden = await verifyDb2.Items.FindAsync(itemId);
+            Assert.NotNull(itemUnhidden);
+            Assert.False(itemUnhidden.IsAdminHidden);
+            Assert.Null(itemUnhidden.AdminHiddenAt);
+            Assert.Null(itemUnhidden.AdminHiddenReason);
+        }
+    }
+
     /// <summary>テスト用のシンプルなファクトリ。</summary>
     private sealed class DbContextFactoryStub(DbContextOptions<ApplicationDbContext> options)
         : IDbContextFactory<ApplicationDbContext>

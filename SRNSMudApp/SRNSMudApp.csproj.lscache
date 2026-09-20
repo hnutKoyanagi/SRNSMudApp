@@ -262,6 +262,8 @@ Migrations/
  20260919133144_AddLinkConversionSettings.Designer.cs
  20260920100603_AddUserBanStatus.cs
  20260920100603_AddUserBanStatus.Designer.cs
+ 20260920111336_AddAdminItemModeration.cs
+ 20260920111336_AddAdminItemModeration.Designer.cs
  ApplicationDbContextModelSnapshot.cs
 Models/
  Unions/

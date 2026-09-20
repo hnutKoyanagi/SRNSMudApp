@@ -19,12 +19,14 @@ namespace SRNSMudApp.Services.Commands;
 /// <param name="DeleteTarget">対象コンテンツを削除するかどうか。</param>
 /// <param name="ResolutionNote">管理者対応メモ。</param>
 /// <param name="AdminUserId">対応を行った管理者ユーザーID。</param>
+/// <param name="HideTarget">対象アイテムを管理者権限で強制非公開化するかどうか。</param>
 public record ResolveContentReportCommand(
     int ReportId,
     ReportStatus Status,
     bool DeleteTarget,
     string? ResolutionNote,
-    string AdminUserId);
+    string AdminUserId,
+    bool HideTarget = false);
 
 /// <summary>
 ///     通報処置コマンドハンドラー。
@@ -73,6 +75,17 @@ public class ResolveContentReportHandler(
             {
                 IReportTargetHandler targetHandler = _handlerFactory.GetHandler(report.TargetType);
                 await targetHandler.DeleteTargetAsync(context, targetId.Value, cancellationToken);
+            }
+        }
+        else if (command.HideTarget && report.TargetType == ReportTargetType.Item && report.ItemId.HasValue)
+        {
+            Item? item = await context.Items.FindAsync([report.ItemId.Value], cancellationToken);
+            if (item is not null)
+            {
+                item.IsAdminHidden = true;
+                item.AdminHiddenAt = DateTimeOffset.UtcNow;
+                item.AdminHiddenReason = command.ResolutionNote;
+                item.UpdatedDate = DateTime.UtcNow;
             }
         }
 

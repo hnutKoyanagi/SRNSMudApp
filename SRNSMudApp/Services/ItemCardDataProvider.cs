@@ -37,6 +37,12 @@ public interface IItemCardDataProvider
 
     /// <summary>指定IDのアイテムを取得する（親アイテム等の参照用）。</summary>
     Task<Item?> GetItemByIdAsync(int itemId);
+
+    /// <summary>管理者権限によりアイテムを強制削除する。</summary>
+    Task<bool> DeleteItemByAdminAsync(int itemId, string adminUserId);
+
+    /// <summary>管理者権限によりアイテムの強制非公開状態（および解除）を設定する。</summary>
+    Task<bool> SetAdminHiddenAsync(int itemId, bool isHidden, string? reason, string adminUserId);
 }
 
 public class ItemCardDataProvider(IDbContextFactory<ApplicationDbContext> dbFactory) : IItemCardDataProvider
@@ -63,6 +69,38 @@ public class ItemCardDataProvider(IDbContextFactory<ApplicationDbContext> dbFact
             _ = context.Items.Remove(item);
             _ = await context.SaveChangesAsync();
         }
+    }
+
+    public async Task<bool> DeleteItemByAdminAsync(int itemId, string adminUserId)
+    {
+        await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
+        Item? item = await context.Items.FindAsync(itemId);
+        if (item is null)
+        {
+            return false;
+        }
+
+        _ = context.Items.Remove(item);
+        _ = await context.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<bool> SetAdminHiddenAsync(int itemId, bool isHidden, string? reason, string adminUserId)
+    {
+        await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
+        Item? item = await context.Items.FindAsync(itemId);
+        if (item is null)
+        {
+            return false;
+        }
+
+        item.IsAdminHidden = isHidden;
+        item.AdminHiddenAt = isHidden ? DateTimeOffset.UtcNow : null;
+        item.AdminHiddenReason = isHidden ? reason : null;
+        item.UpdatedDate = DateTime.UtcNow;
+
+        _ = await context.SaveChangesAsync();
+        return true;
     }
 
     public async Task<Tag?> GetTagWithOwnerAsync(int tagId)

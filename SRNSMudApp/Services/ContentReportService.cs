@@ -81,6 +81,15 @@ public interface IContentReportService
     Task<bool> ResolveReportWithActionAsync(int reportId, bool deleteTarget, string? resolutionNote, string adminUserId);
 
     /// <summary>
+    ///     通報の処置を確定し、対象コンテンツを非公開化する。
+    /// </summary>
+    /// <param name="reportId">通報ID。</param>
+    /// <param name="resolutionNote">管理者メモ・処置内容。</param>
+    /// <param name="adminUserId">対応を行った管理者のユーザーID。</param>
+    /// <returns>処理に成功した場合は true、通報が存在しない場合は false。</returns>
+    Task<bool> ResolveReportWithHideAsync(int reportId, string? resolutionNote, string adminUserId);
+
+    /// <summary>
     ///     通報記録を削除する。
     /// </summary>
     /// <param name="reportId">通報ID。</param>
@@ -200,6 +209,14 @@ public class ContentReportService(
     public async Task<bool> ResolveReportWithActionAsync(int reportId, bool deleteTarget, string? resolutionNote, string adminUserId)
     {
         var command = new ResolveContentReportCommand(reportId, ReportStatus.ActionTaken, deleteTarget, resolutionNote, adminUserId);
+        Result<bool> result = await _resolveCommandHandler.HandleAsync(command);
+        return result is Success<bool>(true);
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> ResolveReportWithHideAsync(int reportId, string? resolutionNote, string adminUserId)
+    {
+        var command = new ResolveContentReportCommand(reportId, ReportStatus.ActionTaken, false, resolutionNote, adminUserId, HideTarget: true);
         Result<bool> result = await _resolveCommandHandler.HandleAsync(command);
         return result is Success<bool>(true);
     }

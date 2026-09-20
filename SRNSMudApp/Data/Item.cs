@@ -62,4 +62,13 @@ public class Item : BaseEntity, ITaggable
 
     /// <summary>公開対象ユーザーグループへのナビゲーションプロパティ。</summary>
     public UserGroup? TargetUserGroup { get; set; }
+
+    /// <summary>管理者によって強制的に非公開化されたかどうか。</summary>
+    public bool IsAdminHidden { get; set; }
+
+    /// <summary>管理者によって非公開化された日時（UTC）。</summary>
+    public DateTimeOffset? AdminHiddenAt { get; set; }
+
+    /// <summary>管理者による非公開化の理由。</summary>
+    public string? AdminHiddenReason { get; set; }
 }

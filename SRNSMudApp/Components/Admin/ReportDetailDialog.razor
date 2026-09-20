@@ -138,8 +138,15 @@
         </MudButton>
         <MudButton Color="Color.Success" Variant="Variant.Outlined" OnClick="@ResolveWithoutDeleteAsync"
                    Disabled="@_isProcessing">
-            処置完了 (削除なし)
+            処置完了 (対応のみ)
         </MudButton>
+        @if (Report?.TargetType == ReportTargetType.Item && Report.ItemId.HasValue && Report.Item is not null)
+        {
+            <MudButton Color="Color.Warning" Variant="Variant.Outlined" OnClick="@ResolveAndHideTargetAsync"
+                       Disabled="@_isProcessing">
+                対象を非公開にして処置完了
+            </MudButton>
+        }
         <MudButton Color="Color.Error" Variant="Variant.Filled" OnClick="@ResolveAndDeleteTargetAsync"
                    Disabled="@_isProcessing">
             @if (_isProcessing)
@@ -218,6 +225,41 @@
             else
             {
                 Snackbar.Add("通報の更新に失敗しました。", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"エラーが発生しました: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isProcessing = false;
+        }
+    }
+
+    private async Task ResolveAndHideTargetAsync()
+    {
+        if (Report is null) return;
+
+        _isProcessing = true;
+        try
+        {
+            var adminId = await GetAdminUserIdAsync();
+            if (string.IsNullOrEmpty(adminId))
+            {
+                Snackbar.Add("管理者情報が取得できません。", Severity.Error);
+                return;
+            }
+
+            var success = await ContentReportService.ResolveReportWithHideAsync(Report.Id, _resolutionNote, adminId);
+            if (success)
+            {
+                Snackbar.Add("対象コンテンツを非公開化し、処置完了としました。", Severity.Success);
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+            else
+            {
+                Snackbar.Add("非公開化の実行に失敗しました。", Severity.Error);
             }
         }
         catch (Exception ex)

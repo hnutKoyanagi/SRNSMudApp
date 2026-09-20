@@ -76,6 +76,12 @@
                          Variant="Variant.Outlined" Class="ml-1">グループ: @TargetUserGroupName</MudChip>
             }
         }
+        @if (IsAdminHidden)
+        {
+            <span class="mx-1">|</span>
+            <MudChip T="string" Size="Size.Small" Color="Color.Error" Icon="@Icons.Material.Filled.VisibilityOff"
+                     Variant="Variant.Filled" Class="ml-1">管理者非公開</MudChip>
+        }
     </MudText>
 </div>
 
@@ -86,6 +92,7 @@
     [Parameter] public string? OwnerUserName { get; set; }
     [Parameter] public DateTime UpdatedDate { get; set; }
     [Parameter] public bool IsPrivate { get; set; }
+    [Parameter] public bool IsAdminHidden { get; set; }
     [Parameter] public string? TargetUserGroupName { get; set; }
     [Parameter] public bool EnableNavigation { get; set; } = true;
 

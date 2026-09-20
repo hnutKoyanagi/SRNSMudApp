@@ -76,6 +76,17 @@ public sealed class ItemCardPrivacyBadgeTests : IAsyncLifetime
     }
 
     [Fact]
+    public void ItemCardContent_WhenAdminHidden_RendersAdminHiddenBadge()
+    {
+        IRenderedComponent<ItemCardContent> cut = _ctx.Render<ItemCardContent>(parameters => parameters
+            .Add(p => p.ItemId, 4)
+            .Add(p => p.Content, "Hidden Content")
+            .Add(p => p.IsAdminHidden, true));
+
+        Assert.Contains("管理者非公開", cut.Markup);
+    }
+
+    [Fact]
     public void PrivacyBadgeStrategyResolver_ReturnsNoBadgeForPublicItem()
     {
         Assert.Null(PrivacyBadgeStrategyResolver.Resolve(false, null));

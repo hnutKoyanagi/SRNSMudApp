@@ -200,6 +200,72 @@ public class ResolveContentReportHandlerTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public async Task HandleAsync_WhenHideTargetIsTrue_HidesItemAndNotifies()
+    {
+        var (db, dbFactory, mockNotification, reporterId, authorId, adminId, tid) = await CreateScopeAsync();
+        await using (db)
+        {
+            var item = new Item
+            {
+                Content = $"Hideable item {tid}",
+                OwnerId = authorId,
+                IsAdminHidden = false
+            };
+            db.Items.Add(item);
+            await db.SaveChangesAsync();
+
+            var report = new ContentReport
+            {
+                TargetType = ReportTargetType.Item,
+                ItemId = item.Id,
+                OwnerId = reporterId,
+                Reason = "Inappropriate content",
+                TargetContentSnapshot = "Snapshot"
+            };
+            db.ContentReports.Add(report);
+            await db.SaveChangesAsync();
+
+            var mockTargetHandler = new Mock<IReportTargetHandler>();
+            mockTargetHandler.Setup(h => h.TargetType).Returns(ReportTargetType.Item);
+
+            var mockFactory = new Mock<IReportTargetHandlerFactory>();
+            mockFactory.Setup(f => f.GetHandler(ReportTargetType.Item)).Returns(mockTargetHandler.Object);
+
+            var sut = new ResolveContentReportHandler(dbFactory, mockFactory.Object, mockNotification.Object);
+
+            var command = new ResolveContentReportCommand(
+                report.Id,
+                ReportStatus.ActionTaken,
+                DeleteTarget: false,
+                ResolutionNote: "Hidden by admin",
+                AdminUserId: adminId,
+                HideTarget: true);
+
+            // Act
+            Result<bool> result = await sut.HandleAsync(command);
+
+            // Assert
+            Assert.True(result is Success<bool> success && success.Value);
+
+            mockTargetHandler.Verify(h => h.DeleteTargetAsync(It.IsAny<ApplicationDbContext>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+            mockNotification.Verify(n => n.NotifyNotificationsChanged(), Times.Once);
+
+            await using var verifyDb = new ApplicationDbContext(_sharedDb.Options);
+            Item? updatedItem = await verifyDb.Items.FindAsync(item.Id);
+            Assert.NotNull(updatedItem);
+            Assert.True(updatedItem.IsAdminHidden);
+            Assert.NotNull(updatedItem.AdminHiddenAt);
+            Assert.Equal("Hidden by admin", updatedItem.AdminHiddenReason);
+
+            ContentReport? updatedReport = await verifyDb.ContentReports.FindAsync(report.Id);
+            Assert.NotNull(updatedReport);
+            Assert.Equal(ReportStatus.ActionTaken, updatedReport.Status);
+            Assert.Equal(adminId, updatedReport.HandledByAdminId);
+            Assert.Equal("Hidden by admin", updatedReport.ResolutionNote);
+        }
+    }
+
     private sealed class DbContextFactoryStub(DbContextOptions<ApplicationDbContext> options)
         : IDbContextFactory<ApplicationDbContext>
     {

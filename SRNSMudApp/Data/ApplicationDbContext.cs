@@ -86,6 +86,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasIndex(i => i.IsPrivate);
 
         _ = builder.Entity<Item>()
+            .HasIndex(i => i.IsAdminHidden);
+
+        _ = builder.Entity<Item>()
             .HasIndex(i => i.TargetUserGroupId);
 
         // ユーザーのデフォルトプライベートユーザーグループ

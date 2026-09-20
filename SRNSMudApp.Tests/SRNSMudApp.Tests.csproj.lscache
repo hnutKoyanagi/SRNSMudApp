@@ -153,6 +153,7 @@ Components/
   AsyncPageStateTests.cs
   AsyncPageViewTests.cs
   ConfirmDeleteDialogTests.cs
+  ItemCardAdminActionTests.cs
   ItemCardPrivacyBadgeTests.cs
   ItemCardQuoteFocusTests.cs
   ItemCardReplyCountTests.cs

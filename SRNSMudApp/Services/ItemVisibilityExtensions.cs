@@ -16,6 +16,7 @@ public static class ItemVisibilityExtensions
 {
     /// <summary>
     ///     指定されたユーザーが閲覧可能なアイテムのみにフィルタリングする。
+    ///     管理者（isAdmin == true）でない場合、管理者により強制非公開化されたアイテム（IsAdminHidden）は除外される。
     ///     1. 閲覧者が未ログインの場合: パブリックアイテム（!IsPrivate）のみ閲覧可能。
     ///     2. 閲覧者がログイン済みの場合:
     ///        - 自身が投稿したアイテム（OwnerId == currentUserId）
@@ -26,10 +27,16 @@ public static class ItemVisibilityExtensions
     public static IQueryable<Item> WhereVisibleToUser(
         this IQueryable<Item> query,
         ApplicationDbContext context,
-        string? currentUserId)
+        string? currentUserId,
+        bool isAdmin = false)
     {
         ArgumentNullException.ThrowIfNull(query);
         ArgumentNullException.ThrowIfNull(context);
+
+        if (!isAdmin)
+        {
+            query = query.Where(i => !i.IsAdminHidden);
+        }
 
         if (string.IsNullOrEmpty(currentUserId))
         {
@@ -37,7 +44,8 @@ public static class ItemVisibilityExtensions
         }
 
         return query.Where(i =>
-            i.OwnerId == currentUserId
+            isAdmin
+            || i.OwnerId == currentUserId
             || !i.IsPrivate
             || (i.TargetUserGroupId == null && context.UserFollows.Any(f => f.OwnerId == currentUserId && f.FollowedUserId == i.OwnerId))
             || (i.TargetUserGroupId != null && (
@@ -53,10 +61,21 @@ public static class ItemVisibilityExtensions
     public static async Task<bool> IsItemVisibleToUserAsync(
         this Item item,
         ApplicationDbContext context,
-        string? currentUserId)
+        string? currentUserId,
+        bool isAdmin = false)
     {
         ArgumentNullException.ThrowIfNull(item);
         ArgumentNullException.ThrowIfNull(context);
+
+        if (isAdmin)
+        {
+            return true;
+        }
+
+        if (item.IsAdminHidden)
+        {
+            return false;
+        }
 
         if (!item.IsPrivate)
         {
