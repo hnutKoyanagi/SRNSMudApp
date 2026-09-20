@@ -11,7 +11,9 @@ public sealed record ItemPostDraft(
     string OwnerId,
     ItemVisibility Visibility,
     IReadOnlyList<string> RecipientUserIds,
-    IReadOnlyList<int> TagIds)
+    IReadOnlyList<int> TagIds,
+    int? ParentItemId = null,
+    int? RootItemId = null)
 {
     /// <summary>
     ///     データベース保存用の Item エンティティを生成する。
@@ -23,7 +25,9 @@ public sealed record ItemPostDraft(
             Content = Content,
             OwnerId = OwnerId,
             IsPrivate = Visibility.IsPrivate,
-            TargetUserGroupId = Visibility.TargetUserGroupId
+            TargetUserGroupId = Visibility.TargetUserGroupId,
+            ParentItemId = ParentItemId,
+            RootItemId = RootItemId
         };
 
         var recipients = RecipientUserIds

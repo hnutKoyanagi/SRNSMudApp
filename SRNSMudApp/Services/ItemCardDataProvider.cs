@@ -34,6 +34,9 @@ public interface IItemCardDataProvider
     ///     - タグの自動承認（全体またはユーザーが所属するグループ）が有効な場合
     /// </summary>
     Task<bool> CanUserAttachTagDirectlyAsync(int tagId, string userId);
+
+    /// <summary>指定IDのアイテムを取得する（親アイテム等の参照用）。</summary>
+    Task<Item?> GetItemByIdAsync(int itemId);
 }
 
 public class ItemCardDataProvider(IDbContextFactory<ApplicationDbContext> dbFactory) : IItemCardDataProvider
@@ -41,6 +44,15 @@ public class ItemCardDataProvider(IDbContextFactory<ApplicationDbContext> dbFact
     private readonly IDbContextFactory<ApplicationDbContext> _dbFactory =
         dbFactory ?? throw new ArgumentNullException(nameof(dbFactory));
 
+    public async Task<Item?> GetItemByIdAsync(int itemId)
+    {
+        await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
+        return await context.Items
+            .Include(i => i.Owner)
+            .Include(i => i.TagRelations)
+                .ThenInclude(tr => tr.Tag)
+            .FirstOrDefaultAsync(i => i.Id == itemId);
+    }
 
     public async Task DeleteItemAsync(int itemId)
     {

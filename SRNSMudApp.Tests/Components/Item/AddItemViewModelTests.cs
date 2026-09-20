@@ -219,4 +219,81 @@ public class AddItemViewModelTests
         Assert.Equal("@Koyanagi", item.Name);
         Assert.Equal("/User/UserDetail/u-42", item.Replacement);
     }
+
+    [Theory]
+    [InlineData("親アイテムの本文", "返信の本文", "親アイテムの本文\n返信の本文")]
+    [InlineData("  親アイテムの本文  ", "  返信の本文  ", "親アイテムの本文\n返信の本文")]
+    [InlineData("親アイテムの本文", null, "親アイテムの本文")]
+    [InlineData("親アイテムの本文", "", "親アイテムの本文")]
+    [InlineData("親アイテムの本文", "   ", "親アイテムの本文")]
+    [InlineData(null, "返信の本文", "返信の本文")]
+    [InlineData("", "返信の本文", "返信の本文")]
+    [InlineData("   ", "返信の本文", "返信の本文")]
+    [InlineData(null, null, "")]
+    [InlineData("", "", "")]
+    [InlineData("   ", "   ", "")]
+    public void BuildTagSuggestionQueryText_FormatsQueryCorrectly(string? parentContent, string? currentContent, string expected)
+    {
+        var result = AddItemViewModel.BuildTagSuggestionQueryText(currentContent, parentContent);
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void BuildTagSuggestionQueryText_WithItemEntity_ExtractsParentContent()
+    {
+        var parentItem = new Item { Content = "哲学と武道の関係", OwnerId = "parent-user" };
+        var result = AddItemViewModel.BuildTagSuggestionQueryText("新体道における技法", parentItem);
+        Assert.Equal("哲学と武道の関係\n新体道における技法", result);
+
+        var nullParentResult = AddItemViewModel.BuildTagSuggestionQueryText("新体道における技法", (Item?)null);
+        Assert.Equal("新体道における技法", nullParentResult);
+    }
+
+    [Fact]
+    public void CreateDraft_And_PrepareItemForSave_PreservesParentItemIdAndRootItemId()
+    {
+        // Act
+        var draft = AddItemViewModel.CreateDraft(
+            "返信テスト",
+            "user-1",
+            ItemVisibility.Public(),
+            ["user-2"],
+            [1],
+            [2],
+            parentItemId: 100,
+            rootItemId: 50);
+
+        (Item itemToSave, IReadOnlyList<int> tagIds) = AddItemViewModel.PrepareItemForSave(
+            "返信テスト",
+            "user-1",
+            ItemVisibility.Public(),
+            ["user-2"],
+            [1],
+            [2],
+            parentItemId: 100,
+            rootItemId: 50);
+
+        // Assert
+        Assert.Equal(100, draft.ParentItemId);
+        Assert.Equal(50, draft.RootItemId);
+
+        Assert.Equal(100, itemToSave.ParentItemId);
+        Assert.Equal(50, itemToSave.RootItemId);
+        Assert.Equal("返信テスト", itemToSave.Content);
+        Assert.Contains(1, tagIds);
+        Assert.Contains(2, tagIds);
+    }
+
+    [Fact]
+    public void CreateInitialItem_WithParentAndRootItemId_SetsPropertiesCorrectly()
+    {
+        var item = AddItemViewModel.CreateInitialItem("user-1", ItemVisibility.Public(), parentItemId: 77, rootItemId: 11);
+        Assert.Equal(77, item.ParentItemId);
+        Assert.Equal(11, item.RootItemId);
+
+        // rootItemId 省略時は parentItemId がデフォルト
+        var itemDefaultRoot = AddItemViewModel.CreateInitialItem("user-1", ItemVisibility.Public(), parentItemId: 77);
+        Assert.Equal(77, itemDefaultRoot.ParentItemId);
+        Assert.Equal(77, itemDefaultRoot.RootItemId);
+    }
 }

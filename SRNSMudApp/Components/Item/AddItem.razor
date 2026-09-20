@@ -149,7 +149,20 @@
     /// </summary>
     [Parameter] public EventCallback OnItemAdded { get; set; }
 
+    /// <summary>
+    /// リプライ先となる親アイテム（任意）
+    /// </summary>
+    [Parameter] public Data.Item? ParentItem { get; set; }
+
+    /// <summary>
+    /// リプライ先となる親アイテムID（任意。ParentItem が指定されていない場合に使用）
+    /// </summary>
+    [Parameter] public int? ParentItemId { get; set; }
+
     [SupplyParameterFromForm] private Data.Item? _newItem { get; set; }
+
+    private Data.Item? _loadedParentItem;
+    private Data.Item? EffectiveParentItem => ParentItem ?? _loadedParentItem;
 
     private bool _isPrivate;
     private List<ReplyTargetCandidate> _targetCandidates = [];
@@ -183,6 +196,22 @@
         {
             var authState = await AuthenticationStateTask;
             await InitializeItemDefaultsAsync(authState.User);
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await base.OnParametersSetAsync();
+
+        if (ParentItem == null && ParentItemId.HasValue && (_loadedParentItem == null || _loadedParentItem.Id != ParentItemId.Value))
+        {
+            _loadedParentItem = await ItemCardData.GetItemByIdAsync(ParentItemId.Value);
+        }
+
+        // リプライ時かつ未ロードの場合、初期状態（入力前）でも親アイテムに基づいたタグ提案をトリガーする
+        if (EffectiveParentItem != null && _suggestedTags.Count == 0 && !_isLoadingSuggestions && string.IsNullOrWhiteSpace(_newItem?.Content))
+        {
+            _ = TriggerTagSuggestionsAsync(_newItem?.Content ?? string.Empty);
         }
     }
 
@@ -226,7 +255,9 @@
             }
         }
 
-        _newItem = AddItemViewModel.CreateInitialItem(userId, _isPrivate, _selectedGroupId);
+        var parentId = EffectiveParentItem?.Id ?? ParentItemId;
+        var rootId = EffectiveParentItem?.RootItemId ?? parentId;
+        _newItem = AddItemViewModel.CreateInitialItem(userId, _isPrivate, _selectedGroupId, parentId, rootId);
     }
 
     private async Task HandleValidSubmit()
@@ -239,6 +270,9 @@
         try
         {
             var initialIds = InitialTags?.Select(t => t.Id) ?? [];
+            var parentId = EffectiveParentItem?.Id ?? ParentItemId;
+            var rootId = EffectiveParentItem?.RootItemId ?? parentId;
+
             (Data.Item itemToSave, IReadOnlyList<int> allTagIds) = AddItemViewModel.PrepareItemForSave(
                 _newItem!.Content,
                 _newItem.OwnerId,
@@ -246,11 +280,13 @@
                 _selectedGroupId,
                 _selectedTargetUserIds,
                 initialIds,
-                _confirmedSuggestedTagIds);
+                _confirmedSuggestedTagIds,
+                parentId,
+                rootId);
 
             await ItemCardData.CreateItemAsync(itemToSave, allTagIds);
 
-            _newItem = AddItemViewModel.CreateInitialItem(_newItem.OwnerId, _isPrivate, _selectedGroupId);
+            _newItem = AddItemViewModel.CreateInitialItem(_newItem.OwnerId, _isPrivate, _selectedGroupId, parentId, rootId);
 
             _suggestedTags = [];
             _confirmedSuggestedTagIds.Clear();
@@ -328,9 +364,9 @@
             await UserDataProvider.UpdateTagSuggestionThresholdsAsync(userId, thresholds.Strong, thresholds.Candidate);
         }
 
-        if (!string.IsNullOrWhiteSpace(_newItem?.Content))
+        if (!string.IsNullOrWhiteSpace(_newItem?.Content) || EffectiveParentItem != null)
         {
-            await TriggerTagSuggestionsAsync(_newItem.Content);
+            await TriggerTagSuggestionsAsync(_newItem?.Content ?? string.Empty);
         }
     }
 
@@ -343,7 +379,9 @@
             _suggestionCts = null;
         }
 
-        if (string.IsNullOrWhiteSpace(content))
+        var queryText = AddItemViewModel.BuildTagSuggestionQueryText(content, EffectiveParentItem?.Content);
+
+        if (string.IsNullOrWhiteSpace(queryText))
         {
             _suggestedTags = [];
             _confirmedSuggestedTagIds.Clear();
@@ -363,7 +401,7 @@
             // デバウンス 350ms
             await Task.Delay(350, token);
 
-            var suggestions = await TagSuggestionService.SuggestTagsAsync(content, _currentCandidateThreshold, token);
+            var suggestions = await TagSuggestionService.SuggestTagsAsync(queryText, _currentCandidateThreshold, token);
             if (!token.IsCancellationRequested)
             {
                 _suggestedTags = suggestions;

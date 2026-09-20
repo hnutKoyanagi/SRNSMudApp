@@ -37,20 +37,31 @@ public static class AddItemViewModel
     /// <summary>
     ///     初期化時のデフォルト Item オブジェクトを作成する。
     /// </summary>
-    public static Item CreateInitialItem(string userId, ItemVisibility visibility) =>
+    public static Item CreateInitialItem(
+        string userId,
+        ItemVisibility visibility,
+        int? parentItemId = null,
+        int? rootItemId = null) =>
         new()
         {
             Content = string.Empty,
             OwnerId = userId,
             IsPrivate = visibility.IsPrivate,
-            TargetUserGroupId = visibility.TargetUserGroupId
+            TargetUserGroupId = visibility.TargetUserGroupId,
+            ParentItemId = parentItemId,
+            RootItemId = rootItemId ?? parentItemId
         };
 
     /// <summary>
     ///     初期化時のデフォルト Item オブジェクトを作成する（bool / int? 互換オーバーロード）。
     /// </summary>
-    public static Item CreateInitialItem(string userId, bool isPrivateDefault, int? defaultGroupId) =>
-        CreateInitialItem(userId, ItemVisibility.FromBooleans(isPrivateDefault, defaultGroupId));
+    public static Item CreateInitialItem(
+        string userId,
+        bool isPrivateDefault,
+        int? defaultGroupId,
+        int? parentItemId = null,
+        int? rootItemId = null) =>
+        CreateInitialItem(userId, ItemVisibility.FromBooleans(isPrivateDefault, defaultGroupId), parentItemId, rootItemId);
 
     /// <summary>
     ///     テキスト中の /User/UserDetail/{userId} 形式の URL からメンション先ユーザーIDを抽出する。
@@ -139,14 +150,16 @@ public static class AddItemViewModel
         ItemVisibility visibility,
         IEnumerable<string>? selectedTargetUserIds,
         IEnumerable<int>? initialTagIds,
-        IEnumerable<int>? confirmedSuggestedTagIds)
+        IEnumerable<int>? confirmedSuggestedTagIds,
+        int? parentItemId = null,
+        int? rootItemId = null)
     {
         var recipients = (selectedTargetUserIds ?? []).Distinct().ToList();
         var initial = initialTagIds ?? [];
         var suggested = confirmedSuggestedTagIds ?? [];
         var allTagIds = initial.Concat(suggested).Distinct().ToList();
 
-        return new ItemPostDraft(content, ownerId, visibility, recipients, allTagIds);
+        return new ItemPostDraft(content, ownerId, visibility, recipients, allTagIds, parentItemId, rootItemId);
     }
 
     /// <summary>
@@ -159,10 +172,12 @@ public static class AddItemViewModel
         ItemVisibility visibility,
         IEnumerable<string>? selectedTargetUserIds,
         IEnumerable<int>? initialTagIds,
-        IEnumerable<int>? confirmedSuggestedTagIds)
+        IEnumerable<int>? confirmedSuggestedTagIds,
+        int? parentItemId = null,
+        int? rootItemId = null)
     {
         ItemPostDraft draft = CreateDraft(
-            content, ownerId, visibility, selectedTargetUserIds, initialTagIds, confirmedSuggestedTagIds);
+            content, ownerId, visibility, selectedTargetUserIds, initialTagIds, confirmedSuggestedTagIds, parentItemId, rootItemId);
 
         return (draft.ToItemEntity(), draft.TagIds);
     }
@@ -177,14 +192,45 @@ public static class AddItemViewModel
         int? selectedGroupId,
         IEnumerable<string>? selectedTargetUserIds,
         IEnumerable<int>? initialTagIds,
-        IEnumerable<int>? confirmedSuggestedTagIds) =>
+        IEnumerable<int>? confirmedSuggestedTagIds,
+        int? parentItemId = null,
+        int? rootItemId = null) =>
         PrepareItemForSave(
             content,
             ownerId,
             ItemVisibility.FromBooleans(isPrivate, selectedGroupId),
             selectedTargetUserIds,
             initialTagIds,
-            confirmedSuggestedTagIds);
+            confirmedSuggestedTagIds,
+            parentItemId,
+            rootItemId);
+
+    /// <summary>
+    ///     関連タグ提案の参考テキスト（クエリ文字列）を構築する。
+    ///     リプライの場合は親アイテムの本文も含める。
+    /// </summary>
+    /// <param name="currentContent">入力中のコンテンツ本文</param>
+    /// <param name="parentContent">リプライ先親アイテムの本文（リプライでない場合は null または空）</param>
+    /// <returns>タグ提案のベクトル検索に使用する参照文字列</returns>
+    public static string BuildTagSuggestionQueryText(string? currentContent, string? parentContent)
+    {
+        var hasParent = !string.IsNullOrWhiteSpace(parentContent);
+        var hasCurrent = !string.IsNullOrWhiteSpace(currentContent);
+
+        return (hasParent, hasCurrent) switch
+        {
+            (true, true) => $"{parentContent!.Trim()}\n{currentContent!.Trim()}",
+            (true, false) => parentContent!.Trim(),
+            (false, true) => currentContent!.Trim(),
+            _ => string.Empty
+        };
+    }
+
+    /// <summary>
+    ///     関連タグ提案の参考テキスト（クエリ文字列）を構築する（Item エンティティ オーバーロード）。
+    /// </summary>
+    public static string BuildTagSuggestionQueryText(string? currentContent, Item? parentItem) =>
+        BuildTagSuggestionQueryText(currentContent, parentItem?.Content);
 
     /// <summary>
     ///     タグ検索結果を Tribute.js 用の MentionItem へ整形する。

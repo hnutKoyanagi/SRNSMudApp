@@ -384,6 +384,92 @@ public sealed class AddItemTests : IAsyncLifetime
         });
     }
 
+    [Fact]
+    public void SuggestTags_WhenParentItemProvided_IncludesParentContentInQuery()
+    {
+        var parent = new SRNSMudApp.Data.Item
+        {
+            Id = 99,
+            OwnerId = "parent-user",
+            Content = "親アイテムの投稿内容"
+        };
+
+        _tagSuggestionMock
+            .Setup(s => s.SuggestTagsAsync(It.IsAny<string>(), It.IsAny<float>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new SuggestedTag(1, "TestTag", 0.85f)]);
+
+        IRenderedComponent<AddItem> cut = _ctx.Render<AddItem>(parameters => parameters
+            .Add(p => p.ParentItem, parent));
+        cut.WaitForState(() => cut.FindAll("form").Count > 0);
+
+        cut.Find("textarea").Input("返信の投稿内容");
+
+        cut.WaitForAssertion(() =>
+        {
+            _tagSuggestionMock.Verify(s => s.SuggestTagsAsync(
+                It.Is<string>(q => q.Contains("親アイテムの投稿内容") && q.Contains("返信の投稿内容")),
+                It.IsAny<float>(),
+                It.IsAny<CancellationToken>()), Times.AtLeastOnce);
+        });
+    }
+
+    [Fact]
+    public void SuggestTags_WhenParentItemProvidedInitially_TriggersSuggestionWithParentContent()
+    {
+        var parent = new SRNSMudApp.Data.Item
+        {
+            Id = 99,
+            OwnerId = "parent-user",
+            Content = "親アイテムの投稿内容"
+        };
+
+        _tagSuggestionMock
+            .Setup(s => s.SuggestTagsAsync(It.IsAny<string>(), It.IsAny<float>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new SuggestedTag(1, "TestTag", 0.85f)]);
+
+        IRenderedComponent<AddItem> cut = _ctx.Render<AddItem>(parameters => parameters
+            .Add(p => p.ParentItem, parent));
+        cut.WaitForState(() => cut.FindAll("form").Count > 0);
+
+        cut.WaitForAssertion(() =>
+        {
+            _tagSuggestionMock.Verify(s => s.SuggestTagsAsync(
+                "親アイテムの投稿内容",
+                It.IsAny<float>(),
+                It.IsAny<CancellationToken>()), Times.AtLeastOnce);
+        });
+    }
+
+    [Fact]
+    public void Save_WhenParentItemProvided_SavesItemWithParentItemId()
+    {
+        var parent = new SRNSMudApp.Data.Item
+        {
+            Id = 42,
+            OwnerId = "parent-user",
+            RootItemId = 10,
+            Content = "親アイテム"
+        };
+
+        SRNSMudApp.Data.Item? savedItem = null;
+        _ = _itemCardDataMock
+            .Setup(d => d.CreateItemAsync(It.IsAny<SRNSMudApp.Data.Item>(), It.IsAny<IReadOnlyCollection<int>?>()))
+            .Callback<SRNSMudApp.Data.Item, IReadOnlyCollection<int>?>((item, _) => savedItem = item)
+            .Returns(Task.CompletedTask);
+
+        IRenderedComponent<AddItem> cut = _ctx.Render<AddItem>(parameters => parameters
+            .Add(p => p.ParentItem, parent));
+        cut.WaitForState(() => cut.FindAll("form").Count > 0);
+
+        cut.Find("textarea").Input("リプライ本文");
+        cut.Find("form").Submit();
+
+        Assert.NotNull(savedItem);
+        Assert.Equal("リプライ本文", savedItem.Content);
+        Assert.Equal(42, savedItem.ParentItemId);
+        Assert.Equal(10, savedItem.RootItemId);
+    }
+
     [Fact(Skip = "UI timing issues with bUnit and LinkConversionPanel")]
     public void Save_WithLinkConversionEnabled_AppliesReplacementsBeforeSaving()
     {
