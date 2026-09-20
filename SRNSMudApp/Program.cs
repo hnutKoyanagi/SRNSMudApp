@@ -200,6 +200,9 @@ using (IServiceScope scope = app.Services.CreateScope())
                 _ = db.Tags.Add(rootTag);
                 _ = await db.SaveChangesAsync();
             }
+
+            // 公式システム分類タグツリーのシード（未投入の場合に自動投入）
+            _ = await SystemTagSeedService.SeedSystemTagsAsync(db, systemUser.Id, app.Logger);
         }
         finally
         {

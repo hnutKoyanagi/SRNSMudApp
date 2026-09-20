@@ -306,6 +306,7 @@ Models/
  ReplyTargetCandidate.cs
  SuggestedTag.cs
  SuggestionThresholds.cs
+ SystemTagSeedModel.cs
  TaggingImportModels.cs
  TagSearchQuery.cs
  TagSuggestion.cs
@@ -398,6 +399,7 @@ Services/
  NotificationService.cs
  StringSimilarity.cs
  SystemTagEnsurer.cs
+ SystemTagSeedService.cs
  TagCardDataProvider.cs
  TagCommandService.cs
  TagContentProposalService.cs
@@ -681,6 +683,7 @@ Components/
 Resources/ErrorMessages.resx
 
 [embeddedResources]
+Data/SeedData/system_tags_seed.json
 Resources/ErrorMessages.resx
 
 [projectReferences]

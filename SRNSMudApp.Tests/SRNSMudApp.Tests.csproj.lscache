@@ -212,6 +212,7 @@ Services/
  ResolveContentReportHandlerTests.cs
  StringSimilarityTests.cs
  SystemTagEnsurerTests.cs
+ SystemTagSeedServiceTests.cs
  TagContentProposalServiceTests.cs
  TagCqsServiceTests.cs
  TagDetailDataProviderTests.cs
