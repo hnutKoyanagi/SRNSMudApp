@@ -96,6 +96,7 @@ public partial class ItemDetail
     private int _activeTabIndex;
     private TaggingRequestEntity? _selectedRequest;
     private string? _searchQuery;
+    private bool _onlyMyRequests = true;
 
     protected override async Task OnInitializedAsync()
     {
@@ -110,6 +111,13 @@ public partial class ItemDetail
         if (_pageState is Loaded<ItemDetailData> loaded && loaded.Data.Item.Id != ItemId)
         {
             await LoadDataAsync();
+        }
+
+        // URL クエリの tab 変更（同一アイテム内での遷移含む）に合わせてアクティブタブを同期する
+        var tabIndex = ItemDetailQueryStateFactory.ToTabIndex(ActiveTabQuery);
+        if (_activeTabIndex != tabIndex)
+        {
+            _activeTabIndex = tabIndex;
         }
 
         var state = ItemDetailQueryStateFactory.ParseFromUri(new Uri(NavigationManager.Uri));
@@ -338,4 +346,10 @@ public partial class ItemDetail
         var uri = NavigationManager.GetUriWithQueryParameters(parameters);
         NavigationManager.NavigateTo(uri, replace: false);
     }
+
+    /// <summary>
+    ///     タグ付与依頼一覧を「自分のリクエストのみ」および「付けられたタグの検索条件」で絞り込む。
+    /// </summary>
+    private IEnumerable<TaggingRequestEntity> GetFilteredRequests(IEnumerable<TaggingRequestEntity>? requests) =>
+        ItemDetailRequestFilter.FilterRequests(requests, _currentUserId, _onlyMyRequests, _searchQuery, _allTags);
 }

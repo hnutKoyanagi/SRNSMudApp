@@ -91,6 +91,7 @@ public class ReactionBarTests : IAsyncDisposable
         await cut.WaitForAssertionAsync(() =>
         {
             Assert.Contains($"/ItemDetail/{itemId}", navManager.Uri);
+            Assert.Contains("tab=tags", navManager.Uri);
             Assert.Contains($"f=name%3A{Uri.EscapeDataString(expectedTag)}", navManager.Uri);
         });
     }
@@ -129,6 +130,7 @@ public class ReactionBarTests : IAsyncDisposable
         await cut.WaitForAssertionAsync(() =>
         {
             Assert.Contains($"/ItemDetail/{itemId}", navManager.Uri);
+            Assert.Contains("tab=tags", navManager.Uri);
             Assert.Contains($"f=name%3A{Uri.EscapeDataString("真実")}", navManager.Uri);
         });
     }

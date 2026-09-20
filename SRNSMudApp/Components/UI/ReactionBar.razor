@@ -97,10 +97,12 @@
 
         if (ItemId > 0)
         {
-            var parameters = ItemDetailQueryStateFactory.BuildParameters(new ItemDetailQueryState
-            {
-                Filters = [FilterEntry.FromName(tagName)]
-            });
+            // 他人に該当タグをつけてもらう（リクエストやタグ確認）ため、タグ管理タブ(tab=tags)を開いた状態でアイテム詳細に遷移する
+            var state = ItemDetailQueryStateFactory.Create(
+                tabIndex: 1,
+                selectedRequestId: null,
+                [FilterEntry.FromName(tagName)]);
+            var parameters = ItemDetailQueryStateFactory.BuildParameters(state);
             var uri = NavigationManager.GetUriWithQueryParameters($"/ItemDetail/{ItemId}", parameters);
             NavigationManager.NavigateTo(uri);
         }

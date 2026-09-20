@@ -92,6 +92,7 @@ Components/
   ItemCardViewModelTests.cs
   ItemDetailDeepLinkTests.cs
   ItemDetailQueryStateTests.cs
+  ItemDetailRequestFilterTests.cs
   ItemDetailTagWeightTests.cs
   ItemDetailThreadTests.cs
   ItemEditDialogTests.cs

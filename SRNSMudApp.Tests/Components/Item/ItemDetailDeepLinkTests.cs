@@ -240,6 +240,149 @@ public sealed class ItemDetailDeepLinkTests : IAsyncLifetime
         cut.WaitForAssertion(() => Assert.Contains("f=name%3AAlphaTag", navigationManager.Uri));
     }
 
+    [Fact]
+    public void QueryParameterChange_UpdatesActiveTab()
+    {
+        const int itemId = 1;
+        var item = new SRNSMudApp.Data.Item
+        {
+            Id = itemId,
+            Content = "Tab Switch Item",
+            OwnerId = UserId,
+            Owner = new ApplicationUser { Id = UserId, UserName = UserName }
+        };
+
+        _ = _itemDetailDataMock.Setup(d => d.GetItemDetailAsync(itemId))
+            .ReturnsAsync(new ItemDetailPageData(item, [], [], []));
+        _ = _contractServiceMock.Setup(s => s.GetRequestsByItemIdAsync(itemId))
+            .ReturnsAsync([]);
+
+        NavigationManager navigationManager = _ctx.Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo($"http://localhost/ItemDetail/{itemId}");
+
+        IRenderedComponent<ItemDetail> cut =
+            _ctx.Render<ItemDetail>(parameters => parameters.Add(p => p.ItemId, itemId));
+
+        cut.WaitForState(() => !cut.Markup.Contains("mud-progress-circular"));
+
+        IElement initialTab = cut.FindAll(".mud-tab.mud-tab-active")
+            .First(t => t.TextContent.Contains("詳細"));
+        Assert.Contains("詳細", initialTab.TextContent);
+
+        // クエリパラメータ tab=tags の反映によってタグ管理タブへ切り替わることを検証
+        navigationManager.NavigateTo($"http://localhost/ItemDetail/{itemId}?tab=tags");
+
+        cut.WaitForAssertion(() =>
+        {
+            IElement switchedTab = cut.FindAll(".mud-tab.mud-tab-active")
+                .First(t => t.TextContent.Contains("タグ管理"));
+            Assert.Contains("タグ管理", switchedTab.TextContent);
+        });
+    }
+
+    [Fact]
+    public async Task TaggingRequests_FilterByTagAndMyRequestsByDefault_ShowsEveryoneWhenUnchecked()
+    {
+        const int itemId = 1;
+        var tag1 = new SRNSMudApp.Data.Tag { Id = 10, Name = "AlphaTag", OwnerId = UserId };
+        var tag2 = new SRNSMudApp.Data.Tag { Id = 20, Name = "BetaTag", OwnerId = UserId };
+
+        var item = new SRNSMudApp.Data.Item
+        {
+            Id = itemId,
+            Content = "Request Filter Item",
+            OwnerId = UserId,
+            Owner = new ApplicationUser { Id = UserId, UserName = UserName }
+        };
+
+        var myRequestAlpha = new TaggingRequestEntity
+        {
+            Id = 101,
+            ContractType = "Gratis",
+            OwnerId = UserId,
+            RequesterUserId = UserId,
+            TagOwnerUserId = UserId,
+            TargetItemId = itemId,
+            RequestedTagId = tag1.Id,
+            RequestedTag = tag1,
+            TargetItem = item,
+            Owner = new ApplicationUser { Id = UserId, UserName = UserName },
+            RequestType = TaggingRequestType.Add,
+            CreatedDate = DateTime.UtcNow,
+            UpdatedDate = DateTime.UtcNow
+        };
+
+        var otherRequestAlpha = new TaggingRequestEntity
+        {
+            Id = 102,
+            ContractType = "Gratis",
+            OwnerId = "other-user-id",
+            RequesterUserId = "other-user-id",
+            TagOwnerUserId = UserId,
+            TargetItemId = itemId,
+            RequestedTagId = tag1.Id,
+            RequestedTag = tag1,
+            TargetItem = item,
+            Owner = new ApplicationUser { Id = "other-user-id", UserName = "other_user" },
+            RequestType = TaggingRequestType.Add,
+            CreatedDate = DateTime.UtcNow,
+            UpdatedDate = DateTime.UtcNow
+        };
+
+        var myRequestBeta = new TaggingRequestEntity
+        {
+            Id = 103,
+            ContractType = "Gratis",
+            OwnerId = UserId,
+            RequesterUserId = UserId,
+            TagOwnerUserId = UserId,
+            TargetItemId = itemId,
+            RequestedTagId = tag2.Id,
+            RequestedTag = tag2,
+            TargetItem = item,
+            Owner = new ApplicationUser { Id = UserId, UserName = UserName },
+            RequestType = TaggingRequestType.Add,
+            CreatedDate = DateTime.UtcNow,
+            UpdatedDate = DateTime.UtcNow
+        };
+
+        _ = _itemDetailDataMock.Setup(d => d.GetItemDetailAsync(itemId))
+            .ReturnsAsync(new ItemDetailPageData(item, [tag1, tag2], [], []));
+
+        _ = _contractServiceMock.Setup(s => s.GetRequestsByItemIdAsync(itemId))
+            .ReturnsAsync([myRequestAlpha, otherRequestAlpha, myRequestBeta]);
+
+        NavigationManager navigationManager = _ctx.Services.GetRequiredService<NavigationManager>();
+        // AlphaTag で絞り込まれた状態でタグ管理タブを開く
+        navigationManager.NavigateTo($"http://localhost/ItemDetail/{itemId}?tab=tags&f=name:AlphaTag");
+
+        IRenderedComponent<ItemDetail> cut =
+            _ctx.Render<ItemDetail>(parameters => parameters.Add(p => p.ItemId, itemId));
+
+        cut.WaitForState(() => !cut.Markup.Contains("mud-progress-circular"));
+
+        // 初期状態: 「自分のリクエストのみ表示」がチェックされており、AlphaTag かつ 自分のリクエストのみが表示される
+        var checkboxInput = (AngleSharp.Html.Dom.IHtmlInputElement)cut.Find("[data-testid='only-my-requests-checkbox'] input[type='checkbox']");
+        Assert.True(checkboxInput.IsChecked);
+
+        IRenderedComponent<SRNSMudApp.Components.Tag.TaggingRequestList> requestList =
+            cut.FindComponent<SRNSMudApp.Components.Tag.TaggingRequestList>();
+
+        // 自分の AlphaTag リクエスト (UserName) は表示され、他人のリクエスト (other_user) は非表示
+        Assert.Contains(UserName, requestList.Markup);
+        Assert.DoesNotContain("other_user", requestList.Markup);
+
+        // 「自分のリクエストのみ表示」のチェックを外す
+        checkboxInput.Change(false);
+
+        // チェック解除後: 全員の AlphaTag リクエストが表示される
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("other_user", requestList.Markup);
+            Assert.Contains(UserName, requestList.Markup);
+        });
+    }
+
     public async Task DisposeAsync()
     {
         await _ctx.DisposeAsync();

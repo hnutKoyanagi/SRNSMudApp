@@ -275,14 +275,26 @@
                         }
 
                         <MudDivider Class="my-6" />
-                        <MudText Typo="Typo.h6" Class="mb-3">タグ付与依頼 (関連リクエスト)</MudText>
-                        @if (!data.Requests.Any())
+                        <div class="d-flex justify-space-between align-center mb-3 flex-wrap">
+                            <MudText Typo="Typo.h6">タグ付与依頼 (関連リクエスト)</MudText>
+                            <div data-testid="only-my-requests-checkbox">
+                                <MudCheckBox T="bool" @bind-Value="_onlyMyRequests"
+                                             Disabled="@string.IsNullOrEmpty(_currentUserId)"
+                                             Label="自分のリクエストのみ表示"
+                                             Color="Color.Primary"
+                                             Dense="true" />
+                            </div>
+                        </div>
+                        @{
+                            var filteredRequests = GetFilteredRequests(data.Requests).ToList();
+                        }
+                        @if (filteredRequests.Count == 0)
                         {
                             <MudText Typo="Typo.body1" Color="Color.Default">関連するリクエストはありません。</MudText>
                         }
                         else
                         {
-                            <SRNSMudApp.Components.Tag.TaggingRequestList Requests="@data.Requests"
+                            <SRNSMudApp.Components.Tag.TaggingRequestList Requests="@filteredRequests"
                                                                           OnRequestChanged="LoadDataAsync" SelectedRequest="_selectedRequest"
                                                                           SelectedRequestChanged="OnSelectedRequestChanged">
                                 <RejectButtonTemplate Context="request">
