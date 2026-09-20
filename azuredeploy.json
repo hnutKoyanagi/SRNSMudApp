@@ -45,7 +45,7 @@
     },
     "branch": {
       "type": "string",
-      "defaultValue": "master",
+      "defaultValue": "item-kirinuki",
       "metadata": {
         "description": "デプロイ対象のブランチ名。"
       }

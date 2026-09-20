@@ -2,11 +2,11 @@
 
 Blazor Server + MudBlazor 製のタグベースSNSアプリケーション（SRNSMudApp）。
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fkoyakei%2FSRNSMudApp%2Fmaster%2Fazuredeploy.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fkoyakei%2FSRNSMudApp%2Fitem-kirinuki%2Fazuredeploy.json)
 
 ## Azure へのデプロイ (Free Tier)
 
-上記「Deploy to Azure」ボタンから、Azure の無料枠（Free Tier）を利用してワンクリックで本アプリケーションをデプロイできます。
+上記「Deploy to Azure」ボタンから、Azure の無料枠（Free Tier）を利用してワンクリックで本アプリケーションをデプロイできます（現在作業ブランチ `item-kirinuki` を対象としています）。
 
 ### 構成リソース (Free Tier)
 - **Azure App Service Plan**: `F1` (Free Tier) - 1GB RAM, 60 CPU分/日
