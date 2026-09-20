@@ -52,14 +52,14 @@
     },
     "appServiceSku": {
       "type": "string",
-      "defaultValue": "F1",
+      "defaultValue": "B1",
       "allowedValues": [
-        "F1",
         "B1",
+        "F1",
         "D1"
       ],
       "metadata": {
-        "description": "App Service プランの SKU。無料枠は F1。選択リージョンで F1 のクォータ制限 (Limit: 0) エラーが出る場合は、F1 の空きがある別リージョン (例: eastus2, centralus 等) を選択するか、B1 を選択してください。"
+        "description": "App Service プランの SKU。F1 (無料枠) クォータ制限 (Limit: 0) を回避するため既定で B1 (Basic) に設定しています。F1 クォータをお持ちの場合は F1 を選択可能です。"
       }
     },
     "googleClientId": {
@@ -71,9 +71,9 @@
     },
     "location": {
       "type": "string",
-      "defaultValue": "eastus2",
+      "defaultValue": "[resourceGroup().location]",
       "metadata": {
-        "description": "リソースを配置する Azure リージョン。無料枠 (F1) は東日本 (japaneast) 等でクォータ 0 制限があるため、既定で枠に余裕のある eastus2 (米国東部 2) を指定しています。"
+        "description": "リソースを配置する Azure リージョン（既定はリソース グループと同じ場所）。"
       }
     }
   },

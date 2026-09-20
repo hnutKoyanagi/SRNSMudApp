@@ -8,8 +8,8 @@ Blazor Server + MudBlazor 製のタグベースSNSアプリケーション（SRN
 
 上記「Deploy to Azure」ボタンから、Azure の無料枠（Free Tier）を利用してワンクリックで本アプリケーションをデプロイできます。
 
-### 構成リソース (Free Tier)
-- **Azure App Service Plan**: `F1` (Free Tier) - 1GB RAM, 60 CPU分/日
+### 構成リソース
+- **Azure App Service Plan**: `B1` (Basic) を既定値として設定（※F1 無料枠のクォータ `0` 制限を回避するため。F1 クォータをお持ちの場合は `appServiceSku` で `F1` も選択可能）
 - **Azure App Service (Web App)**: Blazor Server 用に WebSockets を有効化、GitHub からの自動ビルド・デプロイ (`sourcecontrols`)
 - **Azure SQL Database**: `GP_S_Gen5_1` (Serverless Free Offer) - 毎月 100,000 vCore 秒 & 32GB ストレージ無料（アイドル時自動一時停止: 60分）
 
