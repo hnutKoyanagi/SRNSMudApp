@@ -1,7 +1,7 @@
 @namespace SRNSMudApp.Components.Item
 @using SRNSMudApp.Models
 
-@if (IsLoading || HasAnySuggestions || _showSettings)
+@if (IsLoading || HasAnySuggestions || ShowSettings)
 {
     <MudPaper Class="tag-suggestion-panel pa-3 my-2" Elevation="0" Outlined="true" data-testid="tag-suggestion-panel">
         <MudStack Spacing="2">
@@ -18,14 +18,14 @@
                 <div class="d-flex align-center">
                     <MudTooltip Text="類似度閾値を調整">
                         <MudIconButton Icon="@Icons.Material.Filled.Tune" Size="Size.Small"
-                                       Color="@(_showSettings ? Color.Primary : Color.Default)" OnClick="ToggleSettings"
+                                       Color="@(ShowSettings ? Color.Primary : Color.Default)" OnClick="ToggleSettings"
                                        data-testid="toggle-threshold-settings-button" />
                     </MudTooltip>
                 </div>
             </div>
 
             @* 閾値調整設定エリア *@
-            @if (_showSettings)
+            @if (ShowSettings)
             {
                 <MudPaper Class="pa-3 rounded bg-surface-variant" Elevation="0">
                     <MudStack Spacing="1">
@@ -63,17 +63,17 @@
                 <div class="d-flex align-center gap-1">
                     <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" Color="Color.Success" />
                     <MudText Typo="Typo.caption" Class="fw-bold">
-                        自動で関連付けられるタグ (@_strongTags.Count)
+                        自動で関連付けられるタグ (@StrongTags.Count)
                     </MudText>
                     <MudText Typo="Typo.caption" Color="Color.Secondary">
                         — 保存時にアイテムへ自動付与されます
                     </MudText>
                 </div>
 
-                @if (_strongTags.Count > 0)
+                @if (StrongTags.Count > 0)
                 {
                     <div class="d-flex flex-wrap align-center gap-1" data-testid="strong-tags-container">
-                        @foreach (var tag in _strongTags)
+                        @foreach (var tag in StrongTags)
                         {
                             <MudChip T="string" Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small"
                                      OnClose="@(() => RemoveStrongTag(tag))" CloseIcon="@Icons.Material.Filled.Close"
@@ -97,17 +97,17 @@
                 <div class="d-flex align-center gap-1">
                     <MudIcon Icon="@Icons.Material.Filled.Lightbulb" Size="Size.Small" Color="Color.Warning" />
                     <MudText Typo="Typo.caption" Class="fw-bold">
-                        候補タグ (@_candidateTags.Count)
+                        候補タグ (@CandidateTags.Count)
                     </MudText>
                     <MudText Typo="Typo.caption" Color="Color.Secondary">
                         — ＋ボタンを押すと自動関連付けタグに追加されます
                     </MudText>
                 </div>
 
-                @if (_candidateTags.Count > 0)
+                @if (CandidateTags.Count > 0)
                 {
                     <div class="d-flex flex-wrap align-center gap-1" data-testid="candidate-tags-container">
-                        @foreach (var tag in _candidateTags)
+                        @foreach (var tag in CandidateTags)
                         {
                             <MudChip T="string" Color="Color.Default" Variant="Variant.Outlined" Size="Size.Small"
                                      OnClick="@(() => PromoteCandidateTag(tag))" data-testid="@($"candidate-tag-chip-{tag.TagId}")">

@@ -305,6 +305,57 @@ public sealed class ItemListFocusWithTagFilterTests : IAsyncLifetime
         cut.WaitForAssertion(() => Assert.Contains("/ItemDetail/1", navigationManager.Uri));
     }
 
+    [Fact]
+    public void ScrollObserver_InvokesOnElementFocusedByScroll_UpdatesUrlFocusParameter()
+    {
+        var tag = new SRNSMudApp.Data.Tag { Id = 10, Name = TagName, OwnerId = UserId };
+        var item1 = new SRNSMudApp.Data.Item
+        {
+            Id = 1,
+            Content = "Item 1",
+            OwnerId = UserId,
+            Owner = new ApplicationUser { Id = UserId, UserName = "tagfocus_user" },
+            TagRelations = [new TagRelation { TagId = 10, Tag = tag, ItemId = 1, OwnerId = UserId, Weight = 1 }]
+        };
+        var item2 = new SRNSMudApp.Data.Item
+        {
+            Id = 2,
+            Content = "Item 2",
+            OwnerId = UserId,
+            Owner = new ApplicationUser { Id = UserId, UserName = "tagfocus_user" },
+            TagRelations = [new TagRelation { TagId = 10, Tag = tag, ItemId = 2, OwnerId = UserId, Weight = 1 }]
+        };
+
+        _ = _itemListDataMock
+            .Setup(d => d.LoadItemsAndTagsAsync(It.IsAny<IReadOnlyList<ItemListFilter>>(), It.IsAny<IReadOnlyList<ItemListSort>>(), It.IsAny<string?>()))
+            .ReturnsAsync(new ItemListPageData([item1, item2], []));
+
+        _ = _itemListDataMock
+            .Setup(d => d.LoadItemsAndTagsAsync(It.IsAny<IReadOnlyList<ItemListFilter>>(), It.IsAny<IReadOnlyList<ItemListSort>>()))
+            .ReturnsAsync(new ItemListPageData([item1, item2], []));
+
+        _ = _itemListDataMock
+            .Setup(d => d.GetTagsByNamesAsync(It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync(new Dictionary<string, SRNSMudApp.Data.Tag>());
+
+        IRenderedComponent<ItemList> cut = _ctx.Render<ItemList>();
+        cut.WaitForState(() => cut.Markup.Contains("item-card-2"));
+        NavigationManager navigationManager = _ctx.Services.GetRequiredService<NavigationManager>();
+
+        // Act: JS (IntersectionObserver) がスクロールにより要素フォーカスを通知
+        var itemCard2 = cut.FindComponents<ItemCard>().First(c => c.Instance.Item.Id == 2);
+        cut.InvokeAsync(() => itemCard2.Instance.OnElementFocusedByScroll("item-card-2"));
+
+        // Assert: contentOverflowHelper.updateUrl が focus=2 を含む URI で呼ばれ、カードにフォーカススタイルが適用される
+        cut.WaitForAssertion(() =>
+        {
+            var invocation = _ctx.JSInterop.Invocations.FirstOrDefault(i => i.Identifier == "contentOverflowHelper.updateUrl");
+            Assert.Contains("focus=2", invocation.Arguments[0]?.ToString() ?? "");
+            var focusedStyle = cut.Find("#item-card-2").GetAttribute("style") ?? "";
+            Assert.Contains("border-width: 2px", focusedStyle);
+        });
+    }
+
     public async Task DisposeAsync()
     {
         await _ctx.DisposeAsync();

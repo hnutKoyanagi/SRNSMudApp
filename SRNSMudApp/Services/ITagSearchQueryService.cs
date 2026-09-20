@@ -27,4 +27,7 @@ public interface ITagSearchQueryService
 
     /// <summary>詳細情報（所有者・関連タグなど）を含むタグ一覧を取得する。</summary>
     Task<List<Tag>> GetTagsWithDetailsAsync();
+
+    /// <summary>内部リンク変換の対象となる候補タグ一覧を取得する（除外タグ適用・キャッシュ対応）。</summary>
+    Task<List<Tag>> GetCandidateTagsForLinkConversionAsync(CancellationToken cancellationToken = default);
 }

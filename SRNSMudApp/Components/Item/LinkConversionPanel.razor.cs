@@ -45,22 +45,20 @@ public partial class LinkConversionPanel : ComponentBase
     [Parameter]
     public EventCallback<float> OnThresholdChanged { get; set; }
 
-    private bool _showSettings;
+    protected bool ShowSettings { get; set; }
 
-    private bool HasAnyCandidates => AutoReplaceCandidates.Count > 0 || ManualCandidates.Count > 0;
-
-    private void ToggleSettings()
+    protected void ToggleSettings()
     {
-        _showSettings = !_showSettings;
+        ShowSettings = !ShowSettings;
     }
 
-    private async Task OnThresholdSliderChanged(float value)
+    protected async Task OnThresholdSliderChanged(float value)
     {
-        AutoReplaceThreshold = value;
+        AutoReplaceThreshold = LinkConversionPanelViewModel.ClampThreshold(value);
         await OnThresholdChanged.InvokeAsync(AutoReplaceThreshold);
     }
 
-    private async Task ResetThreshold()
+    protected async Task ResetThreshold()
     {
         AutoReplaceThreshold = LinkConversionCandidate.DefaultAutoReplaceThreshold;
         await OnThresholdChanged.InvokeAsync(AutoReplaceThreshold);

@@ -154,8 +154,6 @@
         }
     }
 
-    public record MentionItem(string name, string replacement);
-
     [JSInvokable]
     public async Task<IEnumerable<MentionItem>> SearchTags(string query)
     {

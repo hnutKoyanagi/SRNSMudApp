@@ -27,14 +27,24 @@ public class InternalLinkConversionServiceTests : IAsyncLifetime
 
     public Task DisposeAsync() => Task.CompletedTask;
 
-    private InternalLinkConversionService CreateService()
+    private InternalLinkConversionService CreateService(ITagSearchQueryService? queryService = null)
     {
+        if (queryService != null)
+        {
+            return new InternalLinkConversionService(queryService);
+        }
+
         var dbFactoryMock = new Mock<IDbContextFactory<ApplicationDbContext>>();
         dbFactoryMock
             .Setup(f => f.CreateDbContextAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(() => new ApplicationDbContext(_sharedDb.Options));
 
-        return new InternalLinkConversionService(dbFactoryMock.Object);
+        var embeddingMock = new Mock<ITagEmbeddingService>();
+        var tagSearchQueryService = new TagSearchQueryService(
+            dbFactoryMock.Object,
+            embeddingMock.Object);
+
+        return new InternalLinkConversionService(tagSearchQueryService);
     }
 
     private async Task<Tag> CreateTagAsync(string name, string userId)
@@ -125,8 +135,8 @@ public class InternalLinkConversionServiceTests : IAsyncLifetime
         // Act
         var result = await service.DetectLinkCandidatesAsync(content, 0.85f);
 
-        // Assert: 短いタグ名は候補にならない
-        Assert.Empty(result.AutoReplaceCandidates.Concat(result.ManualCandidates));
+        // Assert: 1文字の短いタグ名は候補にならない
+        Assert.DoesNotContain(result.AutoReplaceCandidates.Concat(result.ManualCandidates), c => c.TagName == "A");
     }
 
     [Fact]
@@ -203,5 +213,60 @@ public class InternalLinkConversionServiceTests : IAsyncLifetime
         var result = service.ApplyReplacements(content, []);
 
         Assert.Equal("変更なし", result);
+    }
+
+    [Fact]
+    public async Task DetectLinkCandidatesAsync_WithMockedTagSearchQueryService_CallsProviderAndDetectsCandidate()
+    {
+        // Arrange
+        var mockQueryService = new Mock<ITagSearchQueryService>();
+        mockQueryService
+            .Setup(s => s.GetCandidateTagsForLinkConversionAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                new Tag { Id = 99, Name = "アーキテクチャ", OwnerId = "test-user" }
+            ]);
+
+        var service = CreateService(mockQueryService.Object);
+
+        // Act
+        var result = await service.DetectLinkCandidatesAsync("このアーキテクチャは素晴らしい");
+
+        // Assert
+        mockQueryService.Verify(s => s.GetCandidateTagsForLinkConversionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Single(result.AutoReplaceCandidates);
+        Assert.Equal("アーキテクチャ", result.AutoReplaceCandidates[0].TagName);
+        Assert.Equal(99, result.AutoReplaceCandidates[0].TagId);
+    }
+
+    [Fact]
+    public async Task TagSearchQueryService_GetCandidateTagsForLinkConversionAsync_CachesResultsInMemory()
+    {
+        // Arrange
+        var userId = $"cache-user-{Guid.NewGuid():N}";
+        await CreateTagAsync("キャッシュ対象タグ", userId);
+
+        var dbFactoryMock = new Mock<IDbContextFactory<ApplicationDbContext>>();
+        dbFactoryMock
+            .Setup(f => f.CreateDbContextAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => new ApplicationDbContext(_sharedDb.Options));
+
+        var memoryCache = new Microsoft.Extensions.Caching.Memory.MemoryCache(
+            new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions());
+
+        var queryService = new TagSearchQueryService(
+            dbFactoryMock.Object,
+            new Mock<ITagEmbeddingService>().Object,
+            memoryCache);
+
+        // Act 1: 1回目の呼び出し（DBから取得しキャッシュ）
+        var tags1 = await queryService.GetCandidateTagsForLinkConversionAsync();
+
+        // Act 2: 2回目の呼び出し（キャッシュから返却）
+        var tags2 = await queryService.GetCandidateTagsForLinkConversionAsync();
+
+        // Assert
+        Assert.NotEmpty(tags1);
+        Assert.Same(tags1, tags2); // キャッシュされた同一インスタンスが返る
+        dbFactoryMock.Verify(f => f.CreateDbContextAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 }

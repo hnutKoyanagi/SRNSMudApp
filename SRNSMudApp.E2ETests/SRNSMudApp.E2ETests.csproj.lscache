@@ -62,12 +62,7 @@ obj/Debug/net11.0/
  SRNSMudApp.E2ETests.AssemblyInfo.cs
  SRNSMudApp.E2ETests.GlobalUsings.g.cs
 CustomWebApplicationFactory.cs
-ExternalLoginButtonsE2ETests.cs
-GlobalPopoverE2ETests.cs
-ItemListFocusE2ETests.cs
-LoginAndPostItemE2ETests.cs
 PasskeyLoginE2ETests.cs
-PasskeyRenameE2ETests.cs
 SharedTestServerFixture.cs
 WebAuthnTestHelpers.cs
 

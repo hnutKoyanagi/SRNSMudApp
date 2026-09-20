@@ -1,13 +1,14 @@
+namespace SRNSMudApp.Components.Item;
+
 using Microsoft.AspNetCore.Components;
 
 using SRNSMudApp.Models;
-
-namespace SRNSMudApp.Components.Item;
 
 /// <summary>
 ///     アイテム投稿時に、コンテンツと類似度の高いタグを提案するUIコンポーネント。
 ///     強い関連（自動関連付け）と候補（推薦）の2グループに分類し、
 ///     ユーザーは「＋追加」や「×除外」で移動可能。閾値のスライダー調整にも対応する。
+///     状態管理とビジネスルールは TagSuggestionPanelViewModel に委譲する。
 /// </summary>
 public partial class TagSuggestionPanel : ComponentBase
 {
@@ -53,38 +54,27 @@ public partial class TagSuggestionPanel : ComponentBase
     [Parameter]
     public float? InitialCandidateThreshold { get; set; }
 
-    /// <summary>強い関連（自動関連付け）の閾値</summary>
-    public float StrongThreshold { get; private set; } = SuggestedTag.DefaultStrongThreshold;
+    private readonly TagSuggestionPanelViewModel _vm = new();
 
-    /// <summary>候補（推薦）の閾値</summary>
-    public float CandidateThreshold { get; private set; } = SuggestedTag.DefaultCandidateThreshold;
+    public float StrongThreshold => _vm.StrongThreshold;
+    public float CandidateThreshold => _vm.CandidateThreshold;
 
-    private readonly List<SuggestedTag> _strongTags = [];
-    private readonly List<SuggestedTag> _candidateTags = [];
-    private readonly HashSet<int> _manuallyPromotedTagIds = [];
-    private readonly HashSet<int> _manuallyRemovedTagIds = [];
+    public IReadOnlyList<SuggestedTag> StrongTags => _vm.StrongTags;
+    public IReadOnlyList<SuggestedTag> CandidateTags => _vm.CandidateTags;
+    public bool HasAnySuggestions => _vm.HasAnySuggestions;
+    public bool ShowSettings => _vm.ShowSettings;
 
-    private bool _showSettings;
     private bool _thresholdsInitialized;
     private IReadOnlyList<SuggestedTag> _previousSuggestions = [];
     private IReadOnlyCollection<int> _previousExcludedTagIds = [];
     private HashSet<int> _lastNotifiedConfirmedIds = [];
-
-    private bool HasAnySuggestions => _strongTags.Count > 0 || _candidateTags.Count > 0;
 
     protected override async Task OnParametersSetAsync()
     {
         if (!_thresholdsInitialized && (InitialStrongThreshold.HasValue || InitialCandidateThreshold.HasValue))
         {
             _thresholdsInitialized = true;
-            if (InitialStrongThreshold.HasValue)
-            {
-                StrongThreshold = InitialStrongThreshold.Value;
-            }
-            if (InitialCandidateThreshold.HasValue)
-            {
-                CandidateThreshold = InitialCandidateThreshold.Value;
-            }
+            _vm.InitializeThresholds(InitialStrongThreshold, InitialCandidateThreshold);
         }
 
         bool suggestionsChanged = !ReferenceEquals(_previousSuggestions, Suggestions);
@@ -96,13 +86,10 @@ public partial class TagSuggestionPanel : ComponentBase
             _previousSuggestions = Suggestions;
             _previousExcludedTagIds = ExcludedTagIds;
 
-            if (suggestionsChanged)
-            {
-                _manuallyPromotedTagIds.Clear();
-                _manuallyRemovedTagIds.Clear();
-            }
+            _vm.SetExcludedTagIds(ExcludedTagIds);
+            _vm.SetSuggestions(Suggestions);
 
-            await ReclassifyAndNotifyAsync();
+            await NotifyConfirmedTagIdsChangedAsync();
         }
     }
 
@@ -111,9 +98,8 @@ public partial class TagSuggestionPanel : ComponentBase
     /// </summary>
     public async Task PromoteCandidateTag(SuggestedTag tag)
     {
-        _manuallyPromotedTagIds.Add(tag.TagId);
-        _manuallyRemovedTagIds.Remove(tag.TagId);
-        await ReclassifyAndNotifyAsync();
+        _vm.PromoteCandidateTag(tag.TagId);
+        await NotifyConfirmedTagIdsChangedAsync();
     }
 
     /// <summary>
@@ -121,33 +107,23 @@ public partial class TagSuggestionPanel : ComponentBase
     /// </summary>
     public async Task RemoveStrongTag(SuggestedTag tag)
     {
-        _manuallyRemovedTagIds.Add(tag.TagId);
-        _manuallyPromotedTagIds.Remove(tag.TagId);
-        await ReclassifyAndNotifyAsync();
+        _vm.RemoveStrongTag(tag.TagId);
+        await NotifyConfirmedTagIdsChangedAsync();
     }
 
     /// <summary>
     ///     設定パネルの表示/非表示を切り替える。
     /// </summary>
-    private void ToggleSettings()
-    {
-        _showSettings = !_showSettings;
-    }
+    private void ToggleSettings() => _vm.ToggleSettings();
 
     /// <summary>
     ///     強い関連の閾値スライダー変更時。
     /// </summary>
     private async Task OnStrongThresholdChanged(float value)
     {
-        StrongThreshold = value;
-        // Strong が Candidate より小さくならないよう補正
-        if (StrongThreshold < CandidateThreshold)
-        {
-            CandidateThreshold = StrongThreshold;
-        }
-
-        await OnThresholdsChanged.InvokeAsync((StrongThreshold, CandidateThreshold));
-        await ReclassifyAndNotifyAsync();
+        _vm.ChangeStrongThreshold(value);
+        await OnThresholdsChanged.InvokeAsync((_vm.StrongThreshold, _vm.CandidateThreshold));
+        await NotifyConfirmedTagIdsChangedAsync();
     }
 
     /// <summary>
@@ -155,15 +131,9 @@ public partial class TagSuggestionPanel : ComponentBase
     /// </summary>
     private async Task OnCandidateThresholdChanged(float value)
     {
-        CandidateThreshold = value;
-        // Candidate が Strong より大きくならないよう補正
-        if (CandidateThreshold > StrongThreshold)
-        {
-            StrongThreshold = CandidateThreshold;
-        }
-
-        await OnThresholdsChanged.InvokeAsync((StrongThreshold, CandidateThreshold));
-        await ReclassifyAndNotifyAsync();
+        _vm.ChangeCandidateThreshold(value);
+        await OnThresholdsChanged.InvokeAsync((_vm.StrongThreshold, _vm.CandidateThreshold));
+        await NotifyConfirmedTagIdsChangedAsync();
     }
 
     /// <summary>
@@ -171,48 +141,14 @@ public partial class TagSuggestionPanel : ComponentBase
     /// </summary>
     private async Task ResetThresholds()
     {
-        StrongThreshold = SuggestedTag.DefaultStrongThreshold;
-        CandidateThreshold = SuggestedTag.DefaultCandidateThreshold;
-        await OnThresholdsChanged.InvokeAsync((StrongThreshold, CandidateThreshold));
-        await ReclassifyAndNotifyAsync();
+        _vm.ResetThresholds();
+        await OnThresholdsChanged.InvokeAsync((_vm.StrongThreshold, _vm.CandidateThreshold));
+        await NotifyConfirmedTagIdsChangedAsync();
     }
 
-    /// <summary>
-    ///     提案されたタグ一覧をスコアおよび手動指定に基づき分類し、親へ確定タグID一覧を通知する。
-    /// </summary>
-    private async Task ReclassifyAndNotifyAsync()
+    private async Task NotifyConfirmedTagIdsChangedAsync()
     {
-        _strongTags.Clear();
-        _candidateTags.Clear();
-
-        var availableSuggestions = Suggestions
-            .Where(s => !ExcludedTagIds.Contains(s.TagId));
-
-        foreach (var suggestion in availableSuggestions)
-        {
-            if (_manuallyPromotedTagIds.Contains(suggestion.TagId))
-            {
-                _strongTags.Add(suggestion);
-            }
-            else if (_manuallyRemovedTagIds.Contains(suggestion.TagId))
-            {
-                // 手動除外されたタグは、CandidateThreshold を満たしていれば候補側へ
-                if (suggestion.Score >= CandidateThreshold)
-                {
-                    _candidateTags.Add(suggestion);
-                }
-            }
-            else if (suggestion.Score >= StrongThreshold)
-            {
-                _strongTags.Add(suggestion);
-            }
-            else if (suggestion.Score >= CandidateThreshold)
-            {
-                _candidateTags.Add(suggestion);
-            }
-        }
-
-        var confirmedIds = _strongTags.Select(t => t.TagId).ToHashSet();
+        var confirmedIds = _vm.ConfirmedTagIds.ToHashSet();
         if (!_lastNotifiedConfirmedIds.SetEquals(confirmedIds))
         {
             _lastNotifiedConfirmedIds = confirmedIds;

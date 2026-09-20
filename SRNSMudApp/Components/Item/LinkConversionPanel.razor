@@ -1,7 +1,8 @@
 @namespace SRNSMudApp.Components.Item
 @using SRNSMudApp.Models
 
-@if (IsLoading || HasAnyCandidates || _showSettings)
+@if (LinkConversionPanelViewModel.ShouldDisplay(IsLoading, AutoReplaceCandidates.Count, ManualCandidates.Count,
+ShowSettings))
 {
     <MudPaper Class="link-conversion-panel pa-3 my-2" Elevation="0" Outlined="true" data-testid="link-conversion-panel">
         <MudStack Spacing="2">
@@ -18,7 +19,7 @@
                 <div class="d-flex align-center">
                     <MudTooltip Text="自動置換の類似度閾値を調整">
                         <MudIconButton Icon="@Icons.Material.Filled.Tune" Size="Size.Small"
-                                       Color="@(_showSettings ? Color.Primary : Color.Default)" OnClick="ToggleSettings"
+                                       Color="@(ShowSettings ? Color.Primary : Color.Default)" OnClick="ToggleSettings"
                                        data-testid="toggle-link-conversion-settings-button" />
                     </MudTooltip>
                 </div>

@@ -26,6 +26,8 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.AddMemoryCache();
+
         services.AddScoped<ITagCardDataProvider, TagCardDataProvider>();
         services.AddScoped<IItemCardDataProvider, ItemCardDataProvider>();
         services.AddScoped<IItemListDataProvider, ItemListDataProvider>();

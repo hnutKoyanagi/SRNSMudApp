@@ -5,7 +5,8 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 using SRNSMudApp.Components.UI;
 using SRNSMudApp.Data;
@@ -22,16 +23,13 @@ namespace SRNSMudApp.Services;
 ///     重複・オーバーラップする候補は最もスコアの高いものを優先する。
 /// </summary>
 public class InternalLinkConversionService(
-    IDbContextFactory<ApplicationDbContext> dbFactory,
+    ITagSearchQueryService tagSearchQueryService,
     ILogger<InternalLinkConversionService>? logger = null) : IInternalLinkConversionService
 {
-    private readonly IDbContextFactory<ApplicationDbContext> _dbFactory =
-        dbFactory ?? throw new ArgumentNullException(nameof(dbFactory));
+    private readonly ITagSearchQueryService _tagSearchQueryService =
+        tagSearchQueryService ?? throw new ArgumentNullException(nameof(tagSearchQueryService));
     private readonly ILogger<InternalLinkConversionService> _logger =
-        logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<InternalLinkConversionService>.Instance;
-
-    /// <summary>タグ名がこの長さ以下の場合、部分一致検索をスキップ（短すぎる名前は誤検出が多い）</summary>
-    private const int MinTagNameLength = 2;
+        logger ?? NullLogger<InternalLinkConversionService>.Instance;
 
     [SuppressMessage("Design", "CA1031:Do not catch general exception types",
         Justification = "候補検出の失敗はアイテム保存をブロックしないため、空結果でフォールバックする")]
@@ -47,19 +45,10 @@ public class InternalLinkConversionService(
 
         try
         {
-            await using ApplicationDbContext dbContext = await _dbFactory.CreateDbContextAsync(cancellationToken);
-
-            // 投票・リアクション・ルートタグを除外したタグ一覧を取得
-            List<Tag> tags = await dbContext.Tags
-                .AsNoTracking()
-                .Where(t => t.Name != Tag.RootTagName)
-                .ToListAsync(cancellationToken);
-
-            List<Tag> candidateTags = tags
-                .Where(t => !Tag.VoteTagNames.Contains(t.Name)
-                            && !Tag.ReactionTagNames.Contains(t.Name)
-                            && t.Name.Length >= MinTagNameLength)
-                .ToList();
+            // Provider / Query サービスからリンク候補対象タグ一覧を取得（キャッシュ対応）
+            List<Tag> candidateTags = await _tagSearchQueryService
+                .GetCandidateTagsForLinkConversionAsync(cancellationToken)
+                .ConfigureAwait(false);
 
             if (candidateTags.Count == 0)
             {

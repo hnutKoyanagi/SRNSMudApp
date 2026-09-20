@@ -60,6 +60,7 @@ TemporaryDependencyNodeTargetIdentifier=net11.0
 Architecture/
  DbContextInjectionRuleTests.cs
  ServiceCollectionExtensionsTests.cs
+Auth/ExternalLoginCallbackIntegrationTests.cs
 Components/
  Account/ManageProfileTests.cs
  Admin/
@@ -87,6 +88,7 @@ Components/
   TagNodeWidgetTests.cs
  Item/
   AddItemTests.cs
+  AddItemViewModelTests.cs
   ItemCardViewModelTests.cs
   ItemDetailDeepLinkTests.cs
   ItemDetailQueryStateTests.cs
@@ -100,11 +102,14 @@ Components/
   ItemListQueryStateTests.cs
   ItemListTagSearchTests.cs
   LinkConversionPanelTests.cs
+  LinkConversionPanelViewModelTests.cs
   QuotedItemListDialogTests.cs
   TagSearchViewModelTests.cs
   TagSuggestionPanelTests.cs
+  TagSuggestionPanelViewModelTests.cs
  Notifications/NotificationsPageTests.cs
  Pages/
+  AuthCallbackTests.cs
   NotificationsViewModelTests.cs
   PageRenderSmokeTests.cs
  PublicOffer/

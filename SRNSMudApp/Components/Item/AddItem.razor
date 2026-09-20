@@ -226,49 +226,31 @@
             }
         }
 
-        _newItem = new Data.Item
-        {
-            Content = string.Empty,
-            OwnerId = userId,
-            IsPrivate = _isPrivate,
-            TargetUserGroupId = _selectedGroupId
-        };
+        _newItem = AddItemViewModel.CreateInitialItem(userId, _isPrivate, _selectedGroupId);
     }
 
     private async Task HandleValidSubmit()
     {
-        if (string.IsNullOrWhiteSpace(_newItem!.Content))
+        if (!AddItemViewModel.CanSubmit(_newItem?.Content))
         {
             return;
         }
 
         try
         {
-            _newItem.IsPrivate = _isPrivate;
-            _newItem.TargetUserGroupId = _isPrivate ? _selectedGroupId : null;
-            
-            if (_selectedTargetUserIds.Count > 0)
-            {
-                _newItem.NotificationRecipients = _selectedTargetUserIds.Select(id => new Data.ItemReplyNotificationRecipient
-                {
-                    RecipientUserId = id,
-                    CreatedDate = DateTimeOffset.UtcNow
-                }).ToList();
-            }
-
             var initialIds = InitialTags?.Select(t => t.Id) ?? [];
-            var allTagIds = initialIds.Concat(_confirmedSuggestedTagIds).Distinct().ToList();
+            (Data.Item itemToSave, IReadOnlyList<int> allTagIds) = AddItemViewModel.PrepareItemForSave(
+                _newItem!.Content,
+                _newItem.OwnerId,
+                _isPrivate,
+                _selectedGroupId,
+                _selectedTargetUserIds,
+                initialIds,
+                _confirmedSuggestedTagIds);
 
-            await ItemCardData.CreateItemAsync(
-                _newItem, allTagIds);
+            await ItemCardData.CreateItemAsync(itemToSave, allTagIds);
 
-            _newItem = new Data.Item
-            {
-                Content = string.Empty,
-                OwnerId = _newItem.OwnerId,
-                IsPrivate = _isPrivate,
-                TargetUserGroupId = _isPrivate ? _selectedGroupId : null
-            };
+            _newItem = AddItemViewModel.CreateInitialItem(_newItem.OwnerId, _isPrivate, _selectedGroupId);
 
             _suggestedTags = [];
             _confirmedSuggestedTagIds.Clear();
@@ -489,16 +471,7 @@
     private void HandleTargetToggled(string userId, bool isSelected)
     {
         _hasManuallyModifiedTargets = true;
-        if (isSelected)
-        {
-            _selectedTargetUserIds.Add(userId);
-            _unselectedTargetUserIds.Remove(userId);
-        }
-        else
-        {
-            _selectedTargetUserIds.Remove(userId);
-            _unselectedTargetUserIds.Add(userId);
-        }
+        AddItemViewModel.ApplyTargetToggle(userId, isSelected, _selectedTargetUserIds, _unselectedTargetUserIds);
     }
     
     private async Task UpdateTargetCandidatesAsync()
@@ -509,22 +482,10 @@
             _selectedTargetUserIds.Clear();
             return;
         }
-        
-        var urls = ItemCardViewModel.ExtractUrls(_newItem.Content);
-        var userIdsInText = urls
-            .Where(u => u.StartsWith("/User/UserDetail/"))
-            .Select(u => u.Substring("/User/UserDetail/".Length))
-            .Distinct()
-            .ToList();
-            
+
         var authState = await AuthenticationStateTask;
         var currentUserId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        
-        // Remove current user
-        if (!string.IsNullOrEmpty(currentUserId))
-        {
-            userIdsInText.Remove(currentUserId);
-        }
+        var userIdsInText = AddItemViewModel.ExtractMentionedUserIds(_newItem.Content, currentUserId);
         
         if (userIdsInText.Count == 0)
         {
@@ -538,25 +499,11 @@
         _targetCandidates = (users ?? []).Select(u => new ReplyTargetCandidate(u.Id, u.UserName!)).ToList();
         
         // Update selected states
-        foreach (var candidate in _targetCandidates)
-        {
-            if (_hasManuallyModifiedTargets)
-            {
-                if (_unselectedTargetUserIds.Contains(candidate.Id))
-                {
-                    _selectedTargetUserIds.Remove(candidate.Id);
-                }
-                else
-                {
-                    _selectedTargetUserIds.Add(candidate.Id);
-                }
-            }
-            else
-            {
-                // Default: selected
-                _selectedTargetUserIds.Add(candidate.Id);
-            }
-        }
+        AddItemViewModel.SyncSelectedTargets(
+            _targetCandidates.Select(c => c.Id),
+            _hasManuallyModifiedTargets,
+            _selectedTargetUserIds,
+            _unselectedTargetUserIds);
     }
 
     // --- JS Interop Mentions Logic ---
@@ -581,8 +528,6 @@
         }
     }
 
-    public record MentionItem(string name, string replacement);
-
     /// <summary>
     /// Tribute.js から呼び出され、タグの部分一致検索を行う
     /// </summary>
@@ -592,12 +537,7 @@
     public async Task<IEnumerable<MentionItem>> SearchTags(string query)
     {
         var tags = await TagSearchQueryService.SearchTagsWithFallbackAsync(query);
-        return tags.Select(t =>
-        {
-            var ownerName = t.Owner?.UserName
-                ?? (t.IsSystem || t.OwnerId == "system" ? "system" : (!string.IsNullOrEmpty(t.OwnerId) ? t.OwnerId : "unknown"));
-            return new MentionItem($"{t.Name} : {ownerName}", $"/TagDetail/{t.Id}");
-        });
+        return tags.Select(AddItemViewModel.FormatTagMentionItem);
     }
 
     /// <summary>
@@ -609,7 +549,7 @@
     public async Task<IEnumerable<MentionItem>> SearchUsers(string query)
     {
         var users = await UserDataProvider.SearchUsersAsync(query);
-        return users.Select(u => new MentionItem("@" + u.UserName, $"/User/UserDetail/{u.Id}"));
+        return users.Select(AddItemViewModel.FormatUserMentionItem);
     }
 
     /// <summary>

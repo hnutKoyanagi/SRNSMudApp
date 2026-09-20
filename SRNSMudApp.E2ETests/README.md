@@ -31,17 +31,17 @@ Playwright によるE2Eテストプロジェクト。Phase 1〜4 のテスト移
 
 | ファイル | 検証内容 | E2Eとして残す理由 |
 |---|---|---|
-| `PasskeyLoginE2ETests.cs` | WebAuthnによるパスキー登録・ログイン | CDPセッション＋仮想オーセンティケータなど実ブラウザAPI依存 |
-| `PasskeyRenameE2ETests.cs` | パスキーの名称変更 | 同上 |
-| `ExternalLoginButtonsE2ETests.cs` | ログインページの外部認証ボタン描画と `window.customAuth.renderGoogleButton` 等の実JSグローバル関数定義確認 | ビルド後の実JS実行結果を見る以外に検証手段がない。環境変数副作用の注意点はファイル先頭コメント参照 |
-| `GlobalPopoverE2ETests.cs` | 6ルート遷移時にBlazor未処理例外UIが出ないことの横断スモーク | 実SignalR接続・実JSでのポップオーバー描画を含む最終防衛線。個別ページのロジックはコンポーネントテスト側でカバー済み（Phase 4-1） |
-| `ItemListFocusE2ETests.cs` | スクロールで画面中央に来たアイテムが自動フォーカスされURL更新されること（1ケースのみに縮小） | IntersectionObserverは実ブラウザJS APIのためbUnitでは再現不可（Phase 4-4-d）。クリックフォーカス・URL復元・タグフィルタ共存・作者リンクは bUnit 側 `ItemListFocusTests` へ移行済み |
-| `LoginAndPostItemE2ETests.cs` | Google/LINE/GitHub各プロバイダのモックコールバック→ログインCookie発行→認証済み到達（3ケース） | 実ネットワークスタック（ASP.NET Core認証ミドルウェア・Cookie発行）の検証のためE2Eに残す。アイテム投稿部分は `AddItemTests` へ移行済み（Phase 4-6） |
+| `PasskeyLoginE2ETests.cs` | WebAuthnによるパスキー登録・ログイン | CDPセッション＋仮想オーセンティケータなど実ブラウザAPI依存（真のE2E検証） |
 
 ### 移行済み・削除済み（参考）
 
 | 元ファイル | 移行先 |
 |---|---|
+| `PasskeyRenameE2ETests.cs` | `SRNSMudApp.Tests/AccountPagesTests.cs`（RenamePasskey の StaticTextField モデルバインディング属性生成検証）（Phase 8） |
+| `ExternalLoginButtonsE2ETests.cs` | `SRNSMudApp.Tests/AccountPagesTests.cs`（Login コンポーネントの Google/LINE/GitHub ボタン描画および Google ボタン JS 呼び出し検証）（Phase 8） |
+| `GlobalPopoverE2ETests.cs` | `SRNSMudApp.Tests/Components/Pages/PageRenderSmokeTests.cs`（Home, TagSearch, TagList, TagTree, ItemList, UserSearch の bUnit レンダリングスモーク）（Phase 8） |
+| `ItemListFocusE2ETests.cs` | `SRNSMudApp.Tests/Components/Item/ItemListFocusTests.cs`（ItemCard の OnElementFocusedByScroll 呼び出しによる自動フォーカス・URL 更新検証）（Phase 8） |
+| `LoginAndPostItemE2ETests.cs` | `SRNSMudApp.Tests/Auth/ExternalLoginCallbackIntegrationTests.cs`（In-Memory WebApplicationFactory による Google/LINE/GitHub モックコールバック Cookie 発行検証）＋ `Components/Pages/AuthCallbackTests.cs`（Phase 8） |
 | `ItemReactionE2ETests.cs` | `Components/UI/ReactionBarTests.cs`（ボタン・チップ描画・ナビゲーション）＋ `Services/ItemReactionServiceTests.cs`（投票・重み計算）＋ `Services/ItemCardVoteCoordinatorTests.cs`（Phase 7） |
 | `ItemQuoteE2ETests.cs` | `Components/Item/QuotedItemListDialogTests.cs` ＋ `Components/UI/ItemCardQuoteFocusTests.cs` ＋ `ItemQuoteServiceTests.cs`（Phase 7） |
 | `ItemSplitRequestE2ETests.cs` | `Components/UI/ItemCardSplitRequestTests.cs` ＋ `Services/ItemSplitServiceTests.cs`（Phase 7） |

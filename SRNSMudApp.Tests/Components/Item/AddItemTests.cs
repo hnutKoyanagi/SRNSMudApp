@@ -206,12 +206,12 @@ public sealed class AddItemTests : IAsyncLifetime
         var results = (await cut.Instance.SearchTags("test")).ToList();
 
         Assert.Equal(3, results.Count);
-        Assert.Equal("C# : Alice", results[0].name);
-        Assert.Equal("/TagDetail/10", results[0].replacement);
-        Assert.Equal("Blazor : Bob", results[1].name);
-        Assert.Equal("/TagDetail/20", results[1].replacement);
-        Assert.Equal("SystemTag : system", results[2].name);
-        Assert.Equal("/TagDetail/30", results[2].replacement);
+        Assert.Equal("C# : Alice", results[0].Name);
+        Assert.Equal("/TagDetail/10", results[0].Replacement);
+        Assert.Equal("Blazor : Bob", results[1].Name);
+        Assert.Equal("/TagDetail/20", results[1].Replacement);
+        Assert.Equal("SystemTag : system", results[2].Name);
+        Assert.Equal("/TagDetail/30", results[2].Replacement);
     }
 
     [Fact]
@@ -232,10 +232,10 @@ public sealed class AddItemTests : IAsyncLifetime
         var results = (await cut.Instance.SearchUsers("al")).ToList();
 
         Assert.Equal(2, results.Count);
-        Assert.Equal("@Alice", results[0].name);
-        Assert.Equal("/User/UserDetail/user-1", results[0].replacement);
-        Assert.Equal("@Bob", results[1].name);
-        Assert.Equal("/User/UserDetail/user-2", results[1].replacement);
+        Assert.Equal("@Alice", results[0].Name);
+        Assert.Equal("/User/UserDetail/user-1", results[0].Replacement);
+        Assert.Equal("@Bob", results[1].Name);
+        Assert.Equal("/User/UserDetail/user-2", results[1].Replacement);
     }
 
     [Fact]

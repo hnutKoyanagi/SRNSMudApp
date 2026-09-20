@@ -81,6 +81,7 @@ Components/
   TagRelationLink.cs
   TagRelationLinkWidget.cs
  Item/
+  AddItemViewModel.cs
   ItemDetail.razor.cs
   ItemDetailQueryState.cs
   ItemDetailQueryStateFactory.cs
@@ -88,11 +89,13 @@ Components/
   ItemListModels.cs
   ItemListQueryState.cs
   LinkConversionPanel.razor.cs
+  LinkConversionPanelViewModel.cs
   QuotedItemListDialog.razor.cs
   SortEntry.cs
   TagFilterQueryCodec.cs
   TagSearchViewModel.cs
   TagSuggestionPanel.razor.cs
+  TagSuggestionPanelViewModel.cs
  Pages/
   HomeModels.cs
   NotificationsPage.razor.cs
@@ -281,9 +284,12 @@ Models/
   TagSelection.cs
   TimelineTarget.cs
   TimelineTargetConverter.cs
+ AutoReplaceThreshold.cs
  ContractTypes.cs
  ExternalLoginRequest.cs
  InternalLinkConversionResult.cs
+ ItemPostDraft.cs
+ ItemVisibility.cs
  LinkConversionCandidate.cs
  LinkPreviewData.cs
  NotificationDto.cs
@@ -294,12 +300,12 @@ Models/
  ReactionTagNames.cs
  ReplyTargetCandidate.cs
  SuggestedTag.cs
+ SuggestionThresholds.cs
  TaggingImportModels.cs
  TagSearchQuery.cs
  TagSuggestion.cs
 obj/Debug/net11.0/
  .NETCoreApp,Version=v11.0.AssemblyAttributes.cs
- EFCoreSqlServerHierarchyId.cs
  SRNSMudApp.AssemblyInfo.cs
  SRNSMudApp.GlobalUsings.g.cs
 Resources/ErrorMessages.cs

@@ -24,6 +24,8 @@ public sealed class PageRenderSmokeTests : IAsyncLifetime
 
     private readonly BunitContext _ctx = new();
     private readonly Mock<IHomeDataProvider> _homeDataMock = new();
+    private readonly Mock<IItemListDataProvider> _itemListDataMock = new();
+    private readonly Mock<ITagTreeDataProvider> _treeDataMock = new();
 
     public PageRenderSmokeTests()
     {
@@ -31,10 +33,26 @@ public sealed class PageRenderSmokeTests : IAsyncLifetime
         _ = _ctx.Services.AddMudServices().AddMockSrnsServices();
         _ = _ctx.Services.AddScoped(_ => _homeDataMock.Object);
 
-        var authState = CreateAuthState(UserId);
-        Mock<AuthenticationStateProvider> authMock = new();
-        _ = authMock.Setup(p => p.GetAuthenticationStateAsync()).ReturnsAsync(authState);
-        _ctx.Services.AddScoped(_ => authMock.Object);
+        _itemListDataMock
+            .Setup(d => d.LoadItemsAndTagsAsync(It.IsAny<List<ItemListFilter>>(), It.IsAny<List<ItemListSort>>(), It.IsAny<string>()))
+            .ReturnsAsync(new ItemListPageData([], []));
+        _itemListDataMock
+            .Setup(d => d.GetTagsByIdsAsync(It.IsAny<IEnumerable<int>>()))
+            .ReturnsAsync(new Dictionary<int, SRNSMudApp.Data.Tag>());
+        _itemListDataMock
+            .Setup(d => d.GetTagsByNamesAsync(It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync(new Dictionary<string, SRNSMudApp.Data.Tag>());
+        _ = _ctx.Services.AddScoped(_ => _itemListDataMock.Object);
+
+        _treeDataMock
+            .Setup(d => d.LoadTagsAsync())
+            .ReturnsAsync([]);
+        _ = _ctx.Services.AddScoped(_ => _treeDataMock.Object);
+
+        Bunit.TestDoubles.BunitAuthorizationContext authorization = _ctx.AddAuthorization();
+        authorization.SetAuthorized("smoke_user");
+        authorization.SetClaims(new Claim(ClaimTypes.NameIdentifier, UserId), new Claim(ClaimTypes.Name, "smoke_user"));
+
         _ = _ctx.Render<MudPopoverProvider>();
     }
 
@@ -73,6 +91,36 @@ public sealed class PageRenderSmokeTests : IAsyncLifetime
 
         Assert.Contains("タグ検索", cut.Markup);
         Assert.Contains("タグを検索", cut.Markup);
+    }
+
+    [Fact]
+    public void TagList_Renders_WithoutException()
+    {
+        IRenderedComponent<TagList> cut = _ctx.Render<TagList>();
+        Assert.NotNull(cut.Markup);
+    }
+
+    [Fact]
+    public void TagTree_Renders_WithoutException()
+    {
+        IRenderedComponent<TagTree> cut = _ctx.Render<TagTree>();
+        Assert.NotNull(cut.Markup);
+    }
+
+    [Fact]
+    public void ItemList_Renders_WithoutException()
+    {
+        IRenderedComponent<SRNSMudApp.Components.Item.ItemList> cut =
+            _ctx.Render<SRNSMudApp.Components.Item.ItemList>();
+        Assert.NotNull(cut.Markup);
+    }
+
+    [Fact]
+    public void UserSearch_Renders_WithoutException()
+    {
+        IRenderedComponent<SRNSMudApp.Components.User.UserSearch> cut =
+            _ctx.Render<SRNSMudApp.Components.User.UserSearch>();
+        Assert.NotNull(cut.Markup);
     }
 
     private static AuthenticationState CreateAuthState(string userId)
