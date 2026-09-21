@@ -18,7 +18,9 @@
       "type": "shell",
       "command": "lsof -t -i :5000 | xargs kill -9 || true",
       "problemMatcher": [],
-      "dependsOn": ["build"]
+      "dependsOn": [
+        "build"
+      ]
     },
     {
       "label": "Build .NET Metrics",
@@ -31,6 +33,24 @@
         "/consoleloggerparameters:NoSummary"
       ],
       "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "Azure: Deploy Bicep (srns - West US 3)",
+      "type": "shell",
+      "command": "az deployment group create --resource-group srns --template-file ${workspaceFolder}/main.bicep --parameters ${workspaceFolder}/main.bicepparam",
+      "problemMatcher": []
+    },
+    {
+      "label": "Azure: Validate Bicep (srns - West US 3)",
+      "type": "shell",
+      "command": "az deployment group validate --resource-group srns --template-file ${workspaceFolder}/main.bicep --parameters ${workspaceFolder}/main.bicepparam",
+      "problemMatcher": []
+    },
+    {
+      "label": "Azure: What-If Bicep (srns - West US 3)",
+      "type": "shell",
+      "command": "az deployment group what-if --resource-group srns --template-file ${workspaceFolder}/main.bicep --parameters ${workspaceFolder}/main.bicepparam",
+      "problemMatcher": []
     }
   ]
 }

@@ -1,8 +1,8 @@
 using './main.bicep'
 
 param name = 'srns'
-param location = 'West US 3'
-param appServiceSku = 'F1' // クォータ 0 エラーが出る場合は 'B1' に変更
+// param location = 'japaneast' // 未指定の場合はデプロイ先リソースグループのリージョン（resourceGroup().location）に自動追従します
+param appServiceSku = 'B1' // B1: Basic (VNet統合有効)
 param linuxFxVersion = 'DOTNETCORE|11.0'
 
 param serverName = 'srns-server'
@@ -23,3 +23,6 @@ param aspNetCoreEnvironment = 'Production'
 
 // EF Core の migration をローカルから流す場合のみ自分の IP を入れる
 param clientIpAddress = ''
+
+// Google OAuth Client ID
+param googleClientId = '890065771342-2ruam1rjo1ppvjs5fe11n4eh7mp7t9vv.apps.googleusercontent.com'

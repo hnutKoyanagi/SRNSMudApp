@@ -5,11 +5,8 @@
     "name": {
       "value": "srns"
     },
-    "location": {
-      "value": "West US 3"
-    },
     "appServiceSku": {
-      "value": "F1"
+      "value": "B1"
     },
     "linuxFxVersion": {
       "value": "DOTNETCORE|11.0"
@@ -43,6 +40,9 @@
     },
     "clientIpAddress": {
       "value": ""
+    },
+    "googleClientId": {
+      "value": "890065771342-2ruam1rjo1ppvjs5fe11n4eh7mp7t9vv.apps.googleusercontent.com"
     }
   }
 }
