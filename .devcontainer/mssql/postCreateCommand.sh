@@ -34,10 +34,16 @@ if [ "$RETRY_COUNT" -ge "$MAX_RETRIES" ]; then
 else
     echo ">>> SQL Server 接続成功"
 
-    # 5. データベース作成（存在しなければ）
-    echo ">>> データベース 'SRNSMudApp' を作成中..."
-    /opt/mssql-tools18/bin/sqlcmd -S localhost,1433 -U sa -P "$SA_PASSWORD" -C -Q \
-        "IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'SRNSMudApp') CREATE DATABASE SRNSMudApp;"
+    # 5. データベースおよび専用ユーザーの初期化 (init-db.sql)
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    INIT_SQL="$SCRIPT_DIR/init-db.sql"
+    echo ">>> データベース 'SRNSMudApp' およびユーザー 'srns_app' を初期化中..."
+    if [ -f "$INIT_SQL" ]; then
+        /opt/mssql-tools18/bin/sqlcmd -S localhost,1433 -U sa -P "$SA_PASSWORD" -C -i "$INIT_SQL"
+    else
+        /opt/mssql-tools18/bin/sqlcmd -S localhost,1433 -U sa -P "$SA_PASSWORD" -C -Q \
+            "IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'SRNSMudApp') CREATE DATABASE SRNSMudApp;"
+    fi
 fi
 
 # 6. E2Eテスト用 Playwright ブラウザのインストール

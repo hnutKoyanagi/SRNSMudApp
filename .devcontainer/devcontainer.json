@@ -1,59 +1,65 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
 // README at: https://github.com/devcontainers/templates/tree/main/src/dotnet-mssql
 {
-	"name": ".NET (C#), Node.js (TypeScript) & MS SQL",
-	"dockerComposeFile": "docker-compose.yml",
-	"service": "app",
-	"workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
-
-	// Features to add to the dev container. More info: https://containers.dev/features.
-	"features": {
-		"ghcr.io/devcontainers/features/docker-in-docker:2": {
-			"moby": false
-		},
-    "ghcr.io/schlich/devcontainer-features/playwright:0":{
+  "name": ".NET (C#), Node.js (TypeScript) & MS SQL",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  // Features to add to the dev container. More info: https://containers.dev/features.
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "moby": false
+    },
+    "ghcr.io/schlich/devcontainer-features/playwright:0": {
       "install": true
     }
-	},
-
-	// Configure tool-specific properties.
-	"customizations": {
-		// Configure properties specific to VS Code.
-		"vscode": {
-			// Set *default* container specific settings.json values on container create.
-			"settings": {
-				"mssql.connections": [
-					{
-						"server": "localhost,1433",
-						"database": "",
-						"authenticationType": "SqlLogin",
-						"user": "sa",
-						"password": "P@ssw0rd",
-						"emptyPasswordInput": false,
-						"savePassword": false,
-						"profileName": "mssql-container"
-					}
-				]
-			},
-
-			// Add the IDs of extensions you want installed when the container is created.
-			"extensions": [
-				"ms-dotnettools.csharp@prerelease",
-				"ms-mssql.mssql",
-				"ms-dotnettools.csdevkit@prerelease",
-				"ms-dotnettools.vscode-dotnet-runtime@prerelease",
-				"Google.google-antigravity"
-			]
-		}
-	},
-
-	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	"forwardPorts": [5009, 1433],
-
-	// postCreateCommand.sh parameters: $1=SA password, $2=dacpac path, $3=sql script(s) path
-	"postCreateCommand": "bash .devcontainer/mssql/postCreateCommand.sh 'P@ssw0rd' './bin/Debug/' './.devcontainer/mssql/'"
-
-	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
-	// "remoteUser": "root"
-  
+  },
+  // Configure tool-specific properties.
+  "customizations": {
+    // Configure properties specific to VS Code.
+    "vscode": {
+      // Set *default* container specific settings.json values on container create.
+      "settings": {
+        "mssql.connections": [
+          {
+            "server": "localhost,1433",
+            "database": "SRNSMudApp",
+            "authenticationType": "SqlLogin",
+            "user": "srns_app",
+            "password": "LocalAppPassword123!",
+            "emptyPasswordInput": false,
+            "savePassword": false,
+            "profileName": "mssql-srns_app"
+          },
+          {
+            "server": "localhost,1433",
+            "database": "",
+            "authenticationType": "SqlLogin",
+            "user": "sa",
+            "password": "P@ssw0rd",
+            "emptyPasswordInput": false,
+            "savePassword": false,
+            "profileName": "mssql-sa"
+          }
+        ]
+      },
+      // Add the IDs of extensions you want installed when the container is created.
+      "extensions": [
+        "ms-dotnettools.csharp@prerelease",
+        "ms-mssql.mssql",
+        "ms-dotnettools.csdevkit@prerelease",
+        "ms-dotnettools.vscode-dotnet-runtime@prerelease",
+        "Google.google-antigravity"
+      ]
+    }
+  },
+  // Use 'forwardPorts' to make a list of ports inside the container available locally.
+  "forwardPorts": [
+    5009,
+    1433
+  ],
+  // postCreateCommand.sh parameters: $1=SA password, $2=dacpac path, $3=sql script(s) path
+  "postCreateCommand": "bash .devcontainer/mssql/postCreateCommand.sh 'P@ssw0rd' './bin/Debug/' './.devcontainer/mssql/'"
+  // Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
+  // "remoteUser": "root"
 }
