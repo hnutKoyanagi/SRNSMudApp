@@ -1,10 +1,15 @@
-FROM mcr.microsoft.com/devcontainers/dotnet:4-11.0-preview-resolute
+FROM mcr.microsoft.com/devcontainers/dotnet:11.0-preview
 
 # Install SQL Tools: SQLPackage and sqlcmd
 # COPY mssql/installSQLtools.sh installSQLtools.sh
 # RUN bash ./installSQLtools.sh \
 #      && apt-get clean -y && rm -rf /var/lib/apt/lists/* /tmp/library-scripts
 
+ARG DOTNET_SDK_VERSION=11.0.100-rc.1.26425.128
+
+RUN curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh \
+    && bash /tmp/dotnet-install.sh --version "$DOTNET_SDK_VERSION" --install-dir /usr/share/dotnet \
+    && rm /tmp/dotnet-install.sh
 # [Optional] Uncomment this section to install additional OS packages.
 # RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
 #     && apt-get -y install --no-install-recommends <your-package-list-here>
