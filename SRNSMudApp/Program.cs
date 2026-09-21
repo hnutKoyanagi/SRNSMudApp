@@ -141,19 +141,18 @@ using (IServiceScope scope = app.Services.CreateScope())
         await SeedLock.WaitAsync();
         try
         {
-            if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
-                if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing") || string.Equals(Environment.GetEnvironmentVariable("AUTO_MIGRATE"), "true", StringComparison.OrdinalIgnoreCase))
+            if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing") || string.Equals(Environment.GetEnvironmentVariable("AUTO_MIGRATE"), "true", StringComparison.OrdinalIgnoreCase))
+            {
+                try
                 {
-                    try
-                    {
-                        await db.Database.MigrateAsync();
-                    }
-                    catch (Exception ex)
-                    {
-                        // Ignore if already migrated
-                        Console.WriteLine($"[WARNING] db.Database.MigrateAsync failed: {ex.Message}");
-                    }
+                    await db.Database.MigrateAsync();
                 }
+                catch (Exception ex)
+                {
+                    // Ignore if already migrated
+                    Console.WriteLine($"[WARNING] db.Database.MigrateAsync failed: {ex.Message}");
+                }
+            }
 
             if (!await roleManager.RoleExistsAsync("Admin"))
             {
@@ -168,21 +167,28 @@ using (IServiceScope scope = app.Services.CreateScope())
                     Id = "system",
                     UserName = "system",
                     Email = "system@example.com",
-                    EmailConfirmed = true
+                    EmailConfirmed = true,
+                    LockoutEnabled = true,
+                    LockoutEnd = DateTimeOffset.MaxValue
                 };
                 var systemPassword = Environment.GetEnvironmentVariable("SYSTEM_USER_INITIAL_PASSWORD")
                     ?? builder.Configuration["SystemUser:InitialPassword"];
 
                 if (string.IsNullOrWhiteSpace(systemPassword))
                 {
-                    if (app.Environment.IsProduction())
-                    {
-                        throw new InvalidOperationException("本番環境では環境変数 'SYSTEM_USER_INITIAL_PASSWORD' または設定 'SystemUser:InitialPassword' が必須です。");
-                    }
-                    systemPassword = "SystemPassword123!";
+                    // system ユーザーはシステム内部用アカウント（タグ所有等）のため、未指定時は安全なランダムパスワードを自動生成
+                    systemPassword = $"Sys_{Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32))}!aA1";
                 }
 
                 _ = await userManager.CreateAsync(systemUser, systemPassword);
+                _ = await userManager.SetLockoutEnabledAsync(systemUser, true);
+                _ = await userManager.SetLockoutEndDateAsync(systemUser, DateTimeOffset.MaxValue);
+            }
+            else if (!systemUser.LockoutEnabled || systemUser.LockoutEnd != DateTimeOffset.MaxValue)
+            {
+                // 既存の system ユーザーが存在する場合も確実にロックアウトしてログイン不可にする
+                _ = await userManager.SetLockoutEnabledAsync(systemUser, true);
+                _ = await userManager.SetLockoutEndDateAsync(systemUser, DateTimeOffset.MaxValue);
             }
 
             if (!await db.Tags.AnyAsync(t => t.Name == Tag.RootTagName))
@@ -210,9 +216,9 @@ using (IServiceScope scope = app.Services.CreateScope())
             _ = SeedLock.Release();
         }
     }
-    catch (Exception)
+    catch (Exception ex)
     {
-        // Ignore in tests due to WebApplicationFactory running this twice
+        app.Logger.LogWarning(ex, "DBシード処理中にエラーが発生しました。");
     }
 #pragma warning restore CA1031, RCS1075
 }
