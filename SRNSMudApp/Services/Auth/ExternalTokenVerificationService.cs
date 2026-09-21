@@ -38,9 +38,18 @@ public class ExternalTokenVerificationService(HttpClient httpClient, ILogger<Ext
         }
         catch (InvalidJwtException ex)
         {
-            _logger.LogWarning(ex, "Invalid Google ID token");
-            return new Failure("Invalid Google token");
+            return LogAndReturnFailure("Invalid Google token", ex);
         }
+        catch (HttpRequestException ex)
+        {
+            return LogAndReturnFailure("HTTP Error verifying Google token", ex);
+        }
+#pragma warning disable CA1031
+        catch (Exception ex)
+        {
+            return LogAndReturnFailure("Error verifying Google token", ex);
+        }
+#pragma warning restore CA1031
     }
 
     private async Task<Result<ExternalTokenPayload>> VerifyLineTokenAsync(string idToken, CancellationToken cancellationToken)
