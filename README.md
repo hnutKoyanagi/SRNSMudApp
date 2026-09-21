@@ -15,9 +15,16 @@ Blazor Server + MudBlazor 製のタグベースSNSアプリケーション（SRN
 
 ### デプロイ時に入力が必要な項目
 1. **リソース グループ**: 既存または新規作成
-2. **sqlAdministratorLoginPassword**: Azure SQL Server 管理者パスワード（大文字・小文字・数字・記号を含む8文字以上）
-3. **systemUserInitialPassword**: アプリ内 `system` 管理者アカウントの初期パスワード
-4. **googleClientId**（任意）: Google OAuth 2.0 クライアント ID（`xxxxxx.apps.googleusercontent.com`）。未入力でデプロイし、後から設定することも可能です。
+2. **systemUserInitialPassword**: アプリ内 `system` 管理者アカウントの初期パスワード
+3. **googleClientId**（任意）: Google OAuth 2.0 クライアント ID（`xxxxxx.apps.googleusercontent.com`）。未入力でデプロイし、後から設定することも可能です。
+
+### Azure SQL のパスワードレス接続
+
+App Service には system-assigned managed identity を付与し、Azure SQL への接続には Microsoft Entra managed identity 認証を使用します。アプリの接続文字列には SQL 管理者パスワードを保存しません。
+
+`main.bicep` では、App Service の Managed Identity を Azure SQL Server の Microsoft Entra 管理者（`Microsoft.Sql/servers/administrators`）として自動的に登録します。そのため、初回デプロイ後に **Azure Portal の Query editor などで手動でユーザー作成 SQL（`CREATE USER`）を実行する必要はなく、デプロイ完了と同時に自動的に接続可能になります。**
+
+※ Azure SQL サーバーのプロビジョニング仕様上、API 内部で管理者パスワード（`serverPassword`）が要求されますが、`main.bicep` 内で複雑性要件を満たす安全な既定値が自動生成されるため、**デプロイ時（Deployment pane）での手入力は不要です**（明示的に指定したい場合のみパラメータで上書き可能）。アプリ実行時の通信にも使用されません。
 
 ### Google 認証 (Google Auth Platform) の設定手順
 Google ログインを有効化するには、[Google Cloud Console](https://console.cloud.google.com/) で以下の設定を行います。

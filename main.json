@@ -1,0 +1,48 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "name": {
+      "value": "srns"
+    },
+    "location": {
+      "value": "West US 3"
+    },
+    "appServiceSku": {
+      "value": "F1"
+    },
+    "linuxFxVersion": {
+      "value": "DOTNETCORE|11.0"
+    },
+    "serverName": {
+      "value": "srns-server"
+    },
+    "databaseName": {
+      "value": "srns-database"
+    },
+    "serverUsername": {
+      "value": "srns-server-admin"
+    },
+    "sqlDbSkuName": {
+      "value": "GP_S_Gen5_2"
+    },
+    "useFreeLimit": {
+      "value": true
+    },
+    "freeLimitExhaustionBehavior": {
+      "value": "AutoPause"
+    },
+    "autoPauseDelay": {
+      "value": 60
+    },
+    "connectionStringName": {
+      "value": "DefaultConnection"
+    },
+    "aspNetCoreEnvironment": {
+      "value": "Production"
+    },
+    "clientIpAddress": {
+      "value": ""
+    }
+  }
+}
