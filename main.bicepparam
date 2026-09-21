@@ -26,3 +26,7 @@ param clientIpAddress = ''
 
 // Google OAuth Client ID
 param googleClientId = '890065771342-2ruam1rjo1ppvjs5fe11n4eh7mp7t9vv.apps.googleusercontent.com'
+
+// 継続的デプロイ (GitHub Actions)
+param gitHubRepoUrl = 'https://github.com/hnutKoyanagi/SRNSMudApp'
+param gitHubBranch = 'master'
