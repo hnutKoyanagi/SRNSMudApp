@@ -43,6 +43,12 @@
     },
     "googleClientId": {
       "value": "890065771342-2ruam1rjo1ppvjs5fe11n4eh7mp7t9vv.apps.googleusercontent.com"
+    },
+    "gitHubRepoUrl": {
+      "value": "https://github.com/hnutKoyanagi/SRNSMudApp"
+    },
+    "gitHubBranch": {
+      "value": "master"
     }
   }
 }

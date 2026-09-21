@@ -72,6 +72,12 @@ param googleClientId string = ''
 @description('初回起動時の DB 自動マイグレーション（テーブル作成）を有効にするかどうか。')
 param autoMigrate bool = true
 
+@description('GitHub リポジトリ URL（継続的デプロイ用。空の場合は設定しません）。')
+param gitHubRepoUrl string = 'https://github.com/hnutKoyanagi/SRNSMudApp'
+
+@description('デプロイ対象のブランチ名。')
+param gitHubBranch string = 'master'
+
 // VNet用変数 (F1 は VNet 統合非対応のため常に無効化)
 var isVnetEnabled = enableVnet && appServiceSku != 'F1'
 var vnetName = '${name}-vnet'
@@ -206,6 +212,7 @@ resource site 'Microsoft.Web/sites@2024-04-01' = {
       : null
     siteConfig: {
       linuxFxVersion: linuxFxVersion
+      appCommandLine: 'dotnet SRNSMudApp.dll'
       ftpsState: 'FtpsOnly'
       minTlsVersion: '1.2'
       alwaysOn: appServiceSku != 'F1'
@@ -267,6 +274,25 @@ resource sqlEntraAdmin 'Microsoft.Sql/servers/administrators@2023-08-01-preview'
     login: site.name
     sid: site.identity.principalId
     tenantId: subscription().tenantId
+  }
+}
+
+// ------------------------------------------------------------
+//  継続的デプロイ (GitHub Actions)
+// ------------------------------------------------------------
+resource sourceControl 'Microsoft.Web/sites/sourcecontrols@2024-04-01' = if (!empty(gitHubRepoUrl)) {
+  parent: site
+  name: 'web'
+  properties: {
+    repoUrl: gitHubRepoUrl
+    branch: gitHubBranch
+    isManualIntegration: false
+    isGitHubAction: true
+    deploymentRollbackEnabled: false
+    gitHubActionConfiguration: {
+      generateWorkflowFile: false
+      isLinux: true
+    }
   }
 }
 
