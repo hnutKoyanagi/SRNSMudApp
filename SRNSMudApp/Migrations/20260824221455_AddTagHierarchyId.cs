@@ -15,10 +15,7 @@ public partial class _20260824221455_AddTagHierarchyId : Migration
 IF SERVERPROPERTY('EngineEdition') NOT IN (5, 8)
 BEGIN
     BEGIN TRY
-        EXEC sp_configure 'show advanced options', 1;
-        RECONFIGURE WITH OVERRIDE;
-        EXEC sp_configure 'clr enabled', 1;
-        RECONFIGURE WITH OVERRIDE;
+        EXEC sp_executesql N'EXEC sp_configure ''show advanced options'', 1; RECONFIGURE WITH OVERRIDE; EXEC sp_configure ''clr enabled'', 1; RECONFIGURE WITH OVERRIDE;';
     END TRY
     BEGIN CATCH
     END CATCH

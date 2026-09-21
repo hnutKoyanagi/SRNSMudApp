@@ -89,12 +89,26 @@ if (!builder.Environment.IsEnvironment("Testing"))
     }
 
     _ = builder.Services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseSqlServer(connectionString, sqlOptions => sqlOptions.UseHierarchyId()),
+            options.UseSqlServer(connectionString, sqlOptions =>
+            {
+                sqlOptions.UseHierarchyId();
+                sqlOptions.EnableRetryOnFailure(
+                    maxRetryCount: 5,
+                    maxRetryDelay: TimeSpan.FromSeconds(30),
+                    errorNumbersToAdd: null);
+            }),
         ServiceLifetime.Scoped, // DbContext 自体は今まで通り Scoped (Identity用)
         ServiceLifetime.Singleton); // 設定情報(Options)を Singleton に変更 (Factory用)
 
     _ = builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
-        options.UseSqlServer(connectionString, sqlOptions => sqlOptions.UseHierarchyId()));
+        options.UseSqlServer(connectionString, sqlOptions =>
+        {
+            sqlOptions.UseHierarchyId();
+            sqlOptions.EnableRetryOnFailure(
+                maxRetryCount: 5,
+                maxRetryDelay: TimeSpan.FromSeconds(30),
+                errorNumbersToAdd: null);
+        }));
 }
 
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
@@ -143,14 +157,24 @@ using (IServiceScope scope = app.Services.CreateScope())
         {
             if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing") || string.Equals(Environment.GetEnvironmentVariable("AUTO_MIGRATE"), "true", StringComparison.OrdinalIgnoreCase))
             {
-                try
+                const int maxRetries = 3;
+                for (var attempt = 1; attempt <= maxRetries; attempt++)
                 {
-                    await db.Database.MigrateAsync();
-                }
-                catch (Exception ex)
-                {
-                    // Ignore if already migrated
-                    Console.WriteLine($"[WARNING] db.Database.MigrateAsync failed: {ex.Message}");
+                    try
+                    {
+                        await db.Database.MigrateAsync();
+                        break;
+                    }
+                    catch (Exception ex) when (attempt < maxRetries)
+                    {
+                        Console.WriteLine($"[WARNING] db.Database.MigrateAsync attempt {attempt} failed: {ex.Message}. Retrying in 5 seconds...");
+                        await Task.Delay(5000);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[ERROR] db.Database.MigrateAsync failed after {maxRetries} attempts: {ex}");
+                        throw;
+                    }
                 }
             }
 
