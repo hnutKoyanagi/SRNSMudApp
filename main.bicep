@@ -17,6 +17,7 @@ param location string = resourceGroup().location
   'P0v4'
   'P1v4'
   'F1'
+  'S1'
 ])
 param appServiceSku string = 'B1'
 
