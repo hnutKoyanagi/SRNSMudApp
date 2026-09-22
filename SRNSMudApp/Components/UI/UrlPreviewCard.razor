@@ -50,11 +50,14 @@
     case Loaded<LinkPreviewData> loaded when loaded.Data.IsSuccess:
         <MudCard Outlined="true" Class="mt-2 mb-2 rounded-lg preview-card" @onclick="NavigateToUrl">
             <div class="d-flex flex-row">
-                @if (!string.IsNullOrEmpty(loaded.Data.ImageUrl))
+                @if (!string.IsNullOrEmpty(loaded.Data.ImageUrl) && !_imageLoadFailed)
                 {
                     <div class="preview-img-container">
-                        <MudImage Src="@loaded.Data.ImageUrl" Alt="Preview Image" ObjectFit="ObjectFit.Cover" Width="120"
-                                  Height="120" Class="preview-img" />
+                        <img src="@loaded.Data.ImageUrl" 
+                             alt="Preview Image" 
+                             class="preview-img" 
+                             style="width: 120px; height: 120px; object-fit: cover;"
+                             @onerror="HandleImageError" />
                     </div>
                 }
                 <MudCardContent Class="pa-3 d-flex flex-column justify-center preview-content">
@@ -106,6 +109,7 @@
     // 取得状態は bool フラグではなく union で表現する (mainRules: 再代入撲滅 / if文撲滅)
     private AsyncPageState<LinkPreviewData> _state = new Loading();
     private string? _selectedText;
+    private bool _imageLoadFailed;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -128,6 +132,11 @@
         _state = preview is { IsSuccess: true }
             ? new Loaded<LinkPreviewData>(preview)
             : new Empty("プレビューを取得できませんでした");
+    }
+
+    private void HandleImageError()
+    {
+        _imageLoadFailed = true;
     }
 
     private async Task NavigateToUrl()
