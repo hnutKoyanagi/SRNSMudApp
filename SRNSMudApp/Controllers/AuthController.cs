@@ -20,6 +20,7 @@ public partial class AuthController(
     RiskAssessmentService riskService,
     SignInManager<ApplicationUser> signInManager,
     UserManager<ApplicationUser> userManager,
+    IFirstUserAdminService firstUserAdminService,
     ILogger<AuthController> logger) : ControllerBase
 {
     /// <summary>
@@ -98,6 +99,9 @@ public partial class AuthController(
         {
             return HandleCreateUserError(createResult);
         }
+
+        // 初回デプロイ後の最初の一般ユーザーを Admin ロールに自動昇格する
+        await firstUserAdminService.GrantAdminIfFirstUserAsync(newUser.Id, cancellationToken);
 
         return await AddLoginAndSignInAsync(newUser, userLoginInfo, cancellationToken);
     }

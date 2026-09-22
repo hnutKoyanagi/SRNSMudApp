@@ -319,7 +319,9 @@ Resources/ErrorMessages.cs
 Services/
  Auth/
   ExternalTokenVerificationService.cs
+  FirstUserAdminService.cs
   IExternalTokenVerificationService.cs
+  IFirstUserAdminService.cs
   RiskAssessmentService.cs
  Commands/
   CommandHandlerBase.cs

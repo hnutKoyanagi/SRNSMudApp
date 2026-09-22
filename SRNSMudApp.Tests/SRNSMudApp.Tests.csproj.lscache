@@ -60,7 +60,9 @@ TemporaryDependencyNodeTargetIdentifier=net11.0
 Architecture/
  DbContextInjectionRuleTests.cs
  ServiceCollectionExtensionsTests.cs
-Auth/ExternalLoginCallbackIntegrationTests.cs
+Auth/
+ ExternalLoginCallbackIntegrationTests.cs
+ FirstUserAdminServiceTests.cs
 Components/
  Account/ManageProfileTests.cs
  Admin/
