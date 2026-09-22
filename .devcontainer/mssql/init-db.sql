@@ -32,6 +32,11 @@ BEGIN
     PRINT 'Creating login srns_app...';
     CREATE LOGIN [srns_app] WITH PASSWORD = N'LocalAppPassword123!', CHECK_POLICY = OFF;
 END
+ELSE
+BEGIN
+    PRINT 'Synchronizing password for login srns_app...';
+    ALTER LOGIN [srns_app] WITH PASSWORD = N'LocalAppPassword123!';
+END
 GO
 
 -- 4. データベースユーザーの作成と db_owner 権限付与
@@ -43,10 +48,24 @@ BEGIN
     PRINT 'Creating user srns_app in SRNSMudApp...';
     CREATE USER [srns_app] FOR LOGIN [srns_app];
 END
+ELSE
+BEGIN
+    ALTER USER [srns_app] WITH LOGIN = [srns_app];
+END
 GO
 
 PRINT 'Granting db_owner role to srns_app...';
-ALTER ROLE db_owner ADD MEMBER [srns_app];
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.database_role_members drm
+    INNER JOIN sys.database_principals role_principal ON role_principal.principal_id = drm.role_principal_id
+    INNER JOIN sys.database_principals member_principal ON member_principal.principal_id = drm.member_principal_id
+    WHERE role_principal.name = N'db_owner'
+      AND member_principal.name = N'srns_app'
+)
+BEGIN
+    ALTER ROLE db_owner ADD MEMBER [srns_app];
+END
 GO
 
 PRINT 'Database initialization completed successfully.';

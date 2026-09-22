@@ -165,6 +165,7 @@ Data/
 Extensions/
  QueryableExtensions.cs
  ServiceCollectionExtensions.cs
+Middlewares/AntiforgeryCookieCleanupMiddleware.cs
 Migrations/
  20260808124709_InitialCreate.cs
  20260808124709_InitialCreate.Designer.cs
@@ -312,6 +313,7 @@ Models/
  TagSuggestion.cs
 obj/Debug/net11.0/
  .NETCoreApp,Version=v11.0.AssemblyAttributes.cs
+ EFCoreSqlServerHierarchyId.cs
  SRNSMudApp.AssemblyInfo.cs
  SRNSMudApp.GlobalUsings.g.cs
 Resources/ErrorMessages.cs

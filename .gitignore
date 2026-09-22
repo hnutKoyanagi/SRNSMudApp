@@ -506,3 +506,7 @@ Library/
 patch_*.sh
 print_test.cs
 trace*.sh
+
+# ASP.NET Data Protection keys
+.aspnet/
+

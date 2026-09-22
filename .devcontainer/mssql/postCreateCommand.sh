@@ -19,11 +19,34 @@ dotnet tool restore 2>/dev/null || true
 echo ">>> NuGet パッケージを復元中..."
 dotnet restore
 
-# 4. SQL Server の起動を待機
+# 4. SQL Server クライアントツールの確認・準備
+SQLCMD="$(command -v sqlcmd 2>/dev/null || true)"
+if [ -z "$SQLCMD" ] && [ -x "/opt/mssql-tools18/bin/sqlcmd" ]; then
+    SQLCMD="/opt/mssql-tools18/bin/sqlcmd"
+fi
+
+if [ -z "$SQLCMD" ]; then
+    echo ">>> sqlcmd が見つからないためダウンロード・インストール中..."
+    ARCH=$(uname -m)
+    case "$ARCH" in
+        x86_64) SQLCMD_ARCH="amd64" ;;
+        aarch64) SQLCMD_ARCH="arm64" ;;
+        *) SQLCMD_ARCH="amd64" ;;
+    esac
+    curl -fsSL "https://github.com/microsoft/go-sqlcmd/releases/latest/download/sqlcmd-linux-${SQLCMD_ARCH}.tar.bz2" -o /tmp/sqlcmd.tar.bz2 2>/dev/null && \
+    sudo tar -xjf /tmp/sqlcmd.tar.bz2 -C /usr/local/bin sqlcmd 2>/dev/null && \
+    sudo chmod +x /usr/local/bin/sqlcmd && \
+    sudo mkdir -p /opt/mssql-tools18/bin && \
+    sudo ln -sf /usr/local/bin/sqlcmd /opt/mssql-tools18/bin/sqlcmd && \
+    rm -f /tmp/sqlcmd.tar.bz2
+    SQLCMD="/usr/local/bin/sqlcmd"
+fi
+
+# 5. SQL Server の起動を待機
 echo ">>> SQL Server の起動を待機中..."
 MAX_RETRIES=30
 RETRY_COUNT=0
-until /opt/mssql-tools18/bin/sqlcmd -S localhost,1433 -U sa -P "$SA_PASSWORD" -C -Q "SELECT 1" &>/dev/null || [ "$RETRY_COUNT" -ge "$MAX_RETRIES" ]; do
+until "$SQLCMD" -S localhost,1433 -U sa -P "$SA_PASSWORD" -C -Q "SELECT 1" &>/dev/null || [ "$RETRY_COUNT" -ge "$MAX_RETRIES" ]; do
     echo "  SQL Server 未起動... 再試行 ($((RETRY_COUNT + 1))/$MAX_RETRIES)"
     sleep 2
     RETRY_COUNT=$((RETRY_COUNT + 1))
@@ -34,14 +57,14 @@ if [ "$RETRY_COUNT" -ge "$MAX_RETRIES" ]; then
 else
     echo ">>> SQL Server 接続成功"
 
-    # 5. データベースおよび専用ユーザーの初期化 (init-db.sql)
+    # 6. データベースおよび専用ユーザーの初期化 (init-db.sql)
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     INIT_SQL="$SCRIPT_DIR/init-db.sql"
     echo ">>> データベース 'SRNSMudApp' およびユーザー 'srns_app' を初期化中..."
     if [ -f "$INIT_SQL" ]; then
-        /opt/mssql-tools18/bin/sqlcmd -S localhost,1433 -U sa -P "$SA_PASSWORD" -C -i "$INIT_SQL"
+        "$SQLCMD" -S localhost,1433 -U sa -P "$SA_PASSWORD" -C -i "$INIT_SQL"
     else
-        /opt/mssql-tools18/bin/sqlcmd -S localhost,1433 -U sa -P "$SA_PASSWORD" -C -Q \
+        "$SQLCMD" -S localhost,1433 -U sa -P "$SA_PASSWORD" -C -Q \
             "IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'SRNSMudApp') CREATE DATABASE SRNSMudApp;"
     fi
 fi
