@@ -190,6 +190,7 @@ Models/
  TagKindTests.cs
 obj/Debug/net11.0/
  .NETCoreApp,Version=v11.0.AssemblyAttributes.cs
+ EFCoreSqlServerHierarchyId.cs
  SRNSMudApp.Tests.AssemblyInfo.cs
  SRNSMudApp.Tests.GlobalUsings.g.cs
 Services/
