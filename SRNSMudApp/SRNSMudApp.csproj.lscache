@@ -314,7 +314,6 @@ Models/
  TagSuggestion.cs
 obj/Debug/net11.0/
  .NETCoreApp,Version=v11.0.AssemblyAttributes.cs
- EFCoreSqlServerHierarchyId.cs
  SRNSMudApp.AssemblyInfo.cs
  SRNSMudApp.GlobalUsings.g.cs
 Resources/ErrorMessages.cs
