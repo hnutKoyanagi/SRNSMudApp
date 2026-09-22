@@ -1,54 +1,401 @@
 {
-  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.47.16.16243",
+      "templateHash": "14283440468537947693"
+    }
+  },
   "parameters": {
     "name": {
-      "value": "srns"
+      "type": "string",
+      "defaultValue": "srns",
+      "metadata": {
+        "description": "Web アプリ名。<name>.azurewebsites.net になるためグローバル一意が必要。"
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "リソースの作成先リージョン。既定でデプロイ先リソースグループのリージョンに自動追従します。"
+      }
     },
     "appServiceSku": {
-      "value": "B1"
+      "type": "string",
+      "defaultValue": "B1",
+      "allowedValues": [
+        "B1",
+        "P0v4",
+        "P1v4",
+        "F1",
+        "S1"
+      ],
+      "metadata": {
+        "description": "App Service プランの SKU。※VNet統合を行う場合は B1 以上を指定してください。"
+      }
+    },
+    "enableVnet": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "VNet統合を有効にするかどうか。"
+      }
+    },
+    "hostingPlanName": {
+      "type": "string",
+      "defaultValue": "[format('ASP-{0}-{1}', parameters('name'), toLower(parameters('appServiceSku')))]",
+      "metadata": {
+        "description": "App Service プラン名。"
+      }
     },
     "linuxFxVersion": {
-      "value": "DOTNETCORE|11.0"
+      "type": "string",
+      "defaultValue": "DOTNETCORE|11.0",
+      "metadata": {
+        "description": "ランタイム。App Service Linux の linuxFxVersion 形式。"
+      }
     },
     "serverName": {
-      "value": "srns-server"
+      "type": "string",
+      "defaultValue": "[format('{0}-server', parameters('name'))]",
+      "metadata": {
+        "description": "論理 SQL サーバー名（グローバル一意）。"
+      }
     },
     "databaseName": {
-      "value": "srns-database"
+      "type": "string",
+      "defaultValue": "[format('{0}-database', parameters('name'))]",
+      "metadata": {
+        "description": "データベース名。"
+      }
     },
     "serverUsername": {
-      "value": "srns-server-admin"
+      "type": "string",
+      "defaultValue": "[format('{0}-server-admin', parameters('name'))]",
+      "metadata": {
+        "description": "SQL 管理者ログイン名。"
+      }
+    },
+    "collation": {
+      "type": "string",
+      "defaultValue": "Japanese_XJIS_140_CI_AS_UTF8",
+      "metadata": {
+        "description": "照合順序。"
+      }
     },
     "sqlDbSkuName": {
-      "value": "GP_S_Gen5_2"
-    },
-    "useFreeLimit": {
-      "value": true
-    },
-    "freeLimitExhaustionBehavior": {
-      "value": "AutoPause"
+      "type": "string",
+      "defaultValue": "GP_S_Gen5_2",
+      "metadata": {
+        "description": "サーバーレス General Purpose の SKU。"
+      }
     },
     "autoPauseDelay": {
-      "value": 60
+      "type": "int",
+      "defaultValue": 60,
+      "metadata": {
+        "description": "自動一時停止までの分数。-1 で無効。"
+      }
+    },
+    "useFreeLimit": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "無料枠（毎月 10 万 vCore 秒 + 32GB ストレージ）を使うかどうか。"
+      }
+    },
+    "freeLimitExhaustionBehavior": {
+      "type": "string",
+      "defaultValue": "AutoPause",
+      "allowedValues": [
+        "AutoPause",
+        "BillOverUsage"
+      ],
+      "metadata": {
+        "description": "無料枠を使い切った後の挙動。"
+      }
     },
     "connectionStringName": {
-      "value": "DefaultConnection"
+      "type": "string",
+      "defaultValue": "DefaultConnection",
+      "metadata": {
+        "description": "接続文字列に使う名前。"
+      }
     },
     "aspNetCoreEnvironment": {
-      "value": "Production"
+      "type": "string",
+      "defaultValue": "Production",
+      "metadata": {
+        "description": "ASPNETCORE_ENVIRONMENT の値。"
+      }
     },
     "clientIpAddress": {
-      "value": ""
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "開発端末から SQL へ直接つなぐ場合の IP。空なら規則を作らない。"
+      }
     },
     "googleClientId": {
-      "value": "890065771342-2ruam1rjo1ppvjs5fe11n4eh7mp7t9vv.apps.googleusercontent.com"
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Google OAuth Client ID（空の場合は設定しません）。"
+      }
+    },
+    "autoMigrate": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "初回起動時の DB 自動マイグレーション（テーブル作成）を有効にするかどうか。"
+      }
     },
     "gitHubRepoUrl": {
-      "value": "https://github.com/hnutKoyanagi/SRNSMudApp"
+      "type": "string",
+      "defaultValue": "https://github.com/hnutKoyanagi/SRNSMudApp",
+      "metadata": {
+        "description": "GitHub リポジトリ URL（継続的デプロイ用。空の場合は設定しません）。"
+      }
     },
     "gitHubBranch": {
-      "value": "master"
+      "type": "string",
+      "defaultValue": "master",
+      "metadata": {
+        "description": "デプロイ対象のブランチ名。"
+      }
+    }
+  },
+  "variables": {
+    "isVnetEnabled": "[and(parameters('enableVnet'), not(equals(parameters('appServiceSku'), 'F1')))]",
+    "vnetName": "[format('{0}-vnet', parameters('name'))]",
+    "appSubnetName": "AppSubnet",
+    "maxSizeBytes": 34359738368,
+    "serverPassword": "[format('Az!9_{0}_{1}', take(uniqueString(resourceGroup().id, subscription().id), 8), toUpper(take(uniqueString(subscription().id, resourceGroup().name), 6)))]",
+    "systemUserInitialPassword": "[format('Sys!9_{0}_{1}', take(uniqueString(subscription().id, resourceGroup().id), 12), toUpper(take(uniqueString(resourceGroup().name, subscription().id), 8)))]"
+  },
+  "resources": [
+    {
+      "condition": "[variables('isVnetEnabled')]",
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2023-11-01",
+      "name": "[variables('vnetName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "10.0.0.0/16"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[variables('appSubnetName')]",
+            "properties": {
+              "addressPrefix": "10.0.1.0/24",
+              "delegations": [
+                {
+                  "name": "dlg-appServices",
+                  "properties": {
+                    "serviceName": "Microsoft.Web/serverfarms"
+                  }
+                }
+              ],
+              "serviceEndpoints": [
+                {
+                  "service": "Microsoft.Sql"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2024-04-01",
+      "name": "[parameters('hostingPlanName')]",
+      "location": "[parameters('location')]",
+      "kind": "linux",
+      "sku": {
+        "name": "[parameters('appServiceSku')]",
+        "tier": "[if(equals(parameters('appServiceSku'), 'F1'), 'Free', if(startsWith(parameters('appServiceSku'), 'P'), 'PremiumV4', 'Basic'))]",
+        "capacity": 1
+      },
+      "properties": {
+        "reserved": true
+      }
+    },
+    {
+      "type": "Microsoft.Sql/servers",
+      "apiVersion": "2023-08-01-preview",
+      "name": "[parameters('serverName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "administratorLogin": "[parameters('serverUsername')]",
+        "administratorLoginPassword": "[variables('serverPassword')]",
+        "version": "12.0",
+        "minimalTlsVersion": "1.2",
+        "publicNetworkAccess": "Enabled"
+      }
+    },
+    {
+      "type": "Microsoft.Sql/servers/firewallRules",
+      "apiVersion": "2023-08-01-preview",
+      "name": "[format('{0}/{1}', parameters('serverName'), 'AllowAllWindowsAzureIps')]",
+      "properties": {
+        "startIpAddress": "0.0.0.0",
+        "endIpAddress": "0.0.0.0"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Sql/servers', parameters('serverName'))]"
+      ]
+    },
+    {
+      "condition": "[not(empty(parameters('clientIpAddress')))]",
+      "type": "Microsoft.Sql/servers/firewallRules",
+      "apiVersion": "2023-08-01-preview",
+      "name": "[format('{0}/{1}', parameters('serverName'), 'AllowDevClient')]",
+      "properties": {
+        "startIpAddress": "[parameters('clientIpAddress')]",
+        "endIpAddress": "[parameters('clientIpAddress')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Sql/servers', parameters('serverName'))]"
+      ]
+    },
+    {
+      "condition": "[variables('isVnetEnabled')]",
+      "type": "Microsoft.Sql/servers/virtualNetworkRules",
+      "apiVersion": "2023-08-01-preview",
+      "name": "[format('{0}/{1}', parameters('serverName'), 'AllowAppSubnet')]",
+      "properties": {
+        "virtualNetworkSubnetId": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), variables('appSubnetName'))]",
+        "ignoreMissingVnetServiceEndpoint": false
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Sql/servers', parameters('serverName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Sql/servers/databases",
+      "apiVersion": "2023-08-01-preview",
+      "name": "[format('{0}/{1}', parameters('serverName'), parameters('databaseName'))]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "[parameters('sqlDbSkuName')]",
+        "tier": "GeneralPurpose"
+      },
+      "properties": {
+        "collation": "[parameters('collation')]",
+        "maxSizeBytes": "[variables('maxSizeBytes')]",
+        "autoPauseDelay": "[parameters('autoPauseDelay')]",
+        "minCapacity": "[json('0.5')]",
+        "zoneRedundant": false,
+        "requestedBackupStorageRedundancy": "Local",
+        "useFreeLimit": "[parameters('useFreeLimit')]",
+        "freeLimitExhaustionBehavior": "[if(parameters('useFreeLimit'), parameters('freeLimitExhaustionBehavior'), null())]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Sql/servers', parameters('serverName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2024-04-01",
+      "name": "[parameters('name')]",
+      "location": "[parameters('location')]",
+      "kind": "app,linux",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', parameters('hostingPlanName'))]",
+        "httpsOnly": true,
+        "clientAffinityEnabled": true,
+        "virtualNetworkSubnetId": "[if(variables('isVnetEnabled'), resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), variables('appSubnetName')), null())]",
+        "siteConfig": {
+          "linuxFxVersion": "[parameters('linuxFxVersion')]",
+          "appCommandLine": "dotnet /home/site/wwwroot/SRNSMudApp.dll",
+          "ftpsState": "FtpsOnly",
+          "minTlsVersion": "1.2",
+          "alwaysOn": "[not(equals(parameters('appServiceSku'), 'F1'))]",
+          "webSocketsEnabled": true,
+          "healthCheckPath": null,
+          "vnetRouteAllEnabled": "[variables('isVnetEnabled')]",
+          "appSettings": "[concat(createArray(createObject('name', 'ASPNETCORE_ENVIRONMENT', 'value', parameters('aspNetCoreEnvironment')), createObject('name', 'WEBSITES_ENABLE_APP_SERVICE_STORAGE', 'value', 'true'), createObject('name', 'WEBSITES_PORT', 'value', '8080'), createObject('name', 'AUTO_MIGRATE', 'value', if(parameters('autoMigrate'), 'true', 'false')), createObject('name', 'SYSTEM_USER_INITIAL_PASSWORD', 'value', variables('systemUserInitialPassword'))), if(not(empty(parameters('googleClientId'))), createArray(createObject('name', 'Authentication__Google__ClientId', 'value', parameters('googleClientId'))), createArray()))]",
+          "connectionStrings": [
+            {
+              "name": "[parameters('connectionStringName')]",
+              "type": "SQLAzure",
+              "connectionString": "[format('Server=tcp:{0},1433;Initial Catalog={1};Authentication=Active Directory Managed Identity;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=60;', reference(resourceId('Microsoft.Sql/servers', parameters('serverName')), '2023-08-01-preview').fullyQualifiedDomainName, parameters('databaseName'))]"
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Sql/servers/firewallRules', parameters('serverName'), 'AllowAllWindowsAzureIps')]",
+        "[resourceId('Microsoft.Web/serverfarms', parameters('hostingPlanName'))]",
+        "[resourceId('Microsoft.Sql/servers/databases', parameters('serverName'), parameters('databaseName'))]",
+        "[resourceId('Microsoft.Sql/servers', parameters('serverName'))]",
+        "[resourceId('Microsoft.Sql/servers/virtualNetworkRules', parameters('serverName'), 'AllowAppSubnet')]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Sql/servers/administrators",
+      "apiVersion": "2023-08-01-preview",
+      "name": "[format('{0}/{1}', parameters('serverName'), 'ActiveDirectory')]",
+      "properties": {
+        "administratorType": "ActiveDirectory",
+        "login": "[parameters('name')]",
+        "sid": "[reference(resourceId('Microsoft.Web/sites', parameters('name')), '2024-04-01', 'full').identity.principalId]",
+        "tenantId": "[subscription().tenantId]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', parameters('name'))]",
+        "[resourceId('Microsoft.Sql/servers', parameters('serverName'))]"
+      ]
+    },
+    {
+      "condition": "[not(empty(parameters('gitHubRepoUrl')))]",
+      "type": "Microsoft.Web/sites/sourcecontrols",
+      "apiVersion": "2024-04-01",
+      "name": "[format('{0}/{1}', parameters('name'), 'web')]",
+      "properties": {
+        "repoUrl": "[parameters('gitHubRepoUrl')]",
+        "branch": "[parameters('gitHubBranch')]",
+        "isManualIntegration": false,
+        "isGitHubAction": true,
+        "deploymentRollbackEnabled": false,
+        "gitHubActionConfiguration": {
+          "generateWorkflowFile": false,
+          "isLinux": true
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', parameters('name'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "siteUrl": {
+      "type": "string",
+      "value": "[format('https://{0}', reference(resourceId('Microsoft.Web/sites', parameters('name')), '2024-04-01').defaultHostName)]"
+    },
+    "sitePrincipalId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Web/sites', parameters('name')), '2024-04-01', 'full').identity.principalId]"
+    },
+    "sqlServerFqdn": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Sql/servers', parameters('serverName')), '2023-08-01-preview').fullyQualifiedDomainName]"
+    },
+    "connectionStringSettingName": {
+      "type": "string",
+      "value": "[parameters('connectionStringName')]"
     }
   }
 }

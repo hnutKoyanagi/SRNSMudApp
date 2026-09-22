@@ -113,6 +113,11 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = if (isVnetEnabled
               }
             }
           ]
+          serviceEndpoints: [
+            {
+              service: 'Microsoft.Sql'
+            }
+          ]
         }
       }
     ]
@@ -170,6 +175,18 @@ resource allowClientIp 'Microsoft.Sql/servers/firewallRules@2023-08-01-preview' 
   }
 }
 
+resource sqlVnetRule 'Microsoft.Sql/servers/virtualNetworkRules@2023-08-01-preview' = if (isVnetEnabled) {
+  parent: sqlServer
+  name: 'AllowAppSubnet'
+  properties: {
+    virtualNetworkSubnetId: resourceId('Microsoft.Network/virtualNetworks/subnets', vnetName, appSubnetName)
+    ignoreMissingVnetServiceEndpoint: false
+  }
+  dependsOn: [
+    vnet
+  ]
+}
+
 // ------------------------------------------------------------
 //  データベース
 // ------------------------------------------------------------
@@ -213,7 +230,7 @@ resource site 'Microsoft.Web/sites@2024-04-01' = {
       : null
     siteConfig: {
       linuxFxVersion: linuxFxVersion
-      appCommandLine: 'dotnet SRNSMudApp.dll'
+      appCommandLine: 'dotnet /home/site/wwwroot/SRNSMudApp.dll'
       ftpsState: 'FtpsOnly'
       minTlsVersion: '1.2'
       alwaysOn: appServiceSku != 'F1'
@@ -228,7 +245,11 @@ resource site 'Microsoft.Web/sites@2024-04-01' = {
           }
           {
             name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE'
-            value: 'false'
+            value: 'true'
+          }
+          {
+            name: 'WEBSITES_PORT'
+            value: '8080'
           }
           {
             name: 'AUTO_MIGRATE'
@@ -261,6 +282,7 @@ resource site 'Microsoft.Web/sites@2024-04-01' = {
     sqlDb
     allowAzureServices
     vnet
+    sqlVnetRule
   ]
 }
 
