@@ -53,8 +53,6 @@ TemporaryDependencyNodeTargetIdentifier=net11.0
 /utf8output
 /deterministic+
 /langversion:Preview
-/skipanalyzers+
-/features:run-nullable-analysis=never
 /warnaserror+:NU1605,SYSLIB0011
 
 [sourceFiles]

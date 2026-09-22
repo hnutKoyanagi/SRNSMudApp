@@ -20,11 +20,6 @@
                                 HelperText="Please choose your username." Placeholder="Please choose your username." />
         </MudItem>
         <MudItem md="12">
-            <MudStaticTextField For="@(() => Input.PhoneNumber)" @bind-Value="Input.PhoneNumber" Label="Phone Number"
-                                HelperText="Please enter your phone number."
-                                UserAttributes="@(new Dictionary<string, object?> { { "autocomplete", "tel-national" } })" />
-        </MudItem>
-        <MudItem md="12">
             <MudStaticButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
                              FormAction="FormAction.Submit">
                 Save
@@ -36,7 +31,6 @@
 @code {
     private ApplicationUser? user;
     private string? username;
-    private string? phoneNumber;
 
     [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
 
@@ -53,10 +47,8 @@
         }
 
         username = await UserManager.GetUserNameAsync(user);
-        phoneNumber = await UserManager.GetPhoneNumberAsync(user);
 
         Input.Username ??= username;
-        Input.PhoneNumber ??= phoneNumber;
     }
 
     private async Task OnValidSubmitAsync()
@@ -78,16 +70,6 @@
             }
         }
 
-        if (Input.PhoneNumber != phoneNumber)
-        {
-            var setPhoneResult = await UserManager.SetPhoneNumberAsync(user, Input.PhoneNumber);
-            if (!setPhoneResult.Succeeded)
-            {
-                RedirectManager.RedirectToCurrentPageWithStatus("Error: Failed to set phone number.", HttpContext);
-                return;
-            }
-        }
-
         await SignInManager.RefreshSignInAsync(user);
         RedirectManager.RedirectToCurrentPageWithStatus("Your profile has been updated", HttpContext);
     }
@@ -97,10 +79,6 @@
         [Required(ErrorMessage = "ユーザー名を入力してください。")]
         [Display(Name = "Username")]
         public string? Username { get; set; }
-
-        [Phone]
-        [Display(Name = "Phone number")]
-        public string? PhoneNumber { get; set; }
     }
 
 }
