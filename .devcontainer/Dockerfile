@@ -1,9 +1,18 @@
 FROM mcr.microsoft.com/devcontainers/dotnet:11.0-preview
 
-# Install SQL Tools: SQLPackage and sqlcmd
-# COPY mssql/installSQLtools.sh installSQLtools.sh
-# RUN bash ./installSQLtools.sh \
-#      && apt-get clean -y && rm -rf /var/lib/apt/lists/* /tmp/library-scripts
+# Install SQL Tools: cross-platform sqlcmd (arm64 & amd64 support)
+RUN ARCH=$(uname -m) && \
+    case "$ARCH" in \
+    x86_64) SQLCMD_ARCH="amd64" ;; \
+    aarch64) SQLCMD_ARCH="arm64" ;; \
+    *) echo "Unsupported architecture: $ARCH" && exit 1 ;; \
+    esac && \
+    curl -fsSL "https://github.com/microsoft/go-sqlcmd/releases/latest/download/sqlcmd-linux-${SQLCMD_ARCH}.tar.bz2" -o /tmp/sqlcmd.tar.bz2 && \
+    tar -xjf /tmp/sqlcmd.tar.bz2 -C /usr/local/bin sqlcmd && \
+    chmod +x /usr/local/bin/sqlcmd && \
+    mkdir -p /opt/mssql-tools18/bin && \
+    ln -sf /usr/local/bin/sqlcmd /opt/mssql-tools18/bin/sqlcmd && \
+    rm -f /tmp/sqlcmd.tar.bz2
 
 ARG DOTNET_SDK_VERSION=11.0.100-rc.1.26425.128
 

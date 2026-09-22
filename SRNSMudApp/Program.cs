@@ -3,6 +3,7 @@
 using System.Threading.RateLimiting;
 
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -15,6 +16,7 @@ using SRNSMudApp.Components;
 using SRNSMudApp.Components.Account;
 using SRNSMudApp.Data;
 using SRNSMudApp.Extensions;
+using SRNSMudApp.Middlewares;
 using SRNSMudApp.Services;
 using SRNSMudApp.Services.Auth;
 using SRNSMudApp.Services.Providers;
@@ -22,6 +24,29 @@ using SRNSMudApp.Services.Providers;
 #endregion
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+
+// Add Data Protection configuration
+// devcontainer やコンテナ環境でキーが消失して Antiforgery / 認証トークンの復号例外 (CryptographicException) が
+// 発生するのを防ぐため、キーの永続化先ディレクトリを設定する。
+IDataProtectionBuilder dataProtectionBuilder = builder.Services.AddDataProtection()
+    .SetApplicationName("SRNSMudApp");
+
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    string? keysPath = builder.Configuration["DataProtection:KeyPath"];
+    if (string.IsNullOrWhiteSpace(keysPath) && builder.Environment.IsDevelopment())
+    {
+        // 開発環境のデフォルト: ワークスペース内の .aspnet/DataProtection-Keys に永続化
+        // ワークスペースはホストとマウントされているため、devcontainer の再作成でもキーが失われない
+        keysPath = Path.Combine(builder.Environment.ContentRootPath, ".aspnet", "DataProtection-Keys");
+    }
+
+    if (!string.IsNullOrWhiteSpace(keysPath))
+    {
+        _ = Directory.CreateDirectory(keysPath);
+        _ = dataProtectionBuilder.PersistKeysToFileSystem(new DirectoryInfo(keysPath));
+    }
+}
 
 // Add Auth services
 builder.Services.AddScoped<IExternalTokenVerificationService, ExternalTokenVerificationService>();
@@ -259,6 +284,10 @@ else
     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     _ = app.UseHsts();
 }
+
+// 復号不可能な古い Antiforgery Cookie を検知・クリーンアップし、CryptographicException ログエラーを防止
+// 下流のルーティング・ステータスページ・Blazor コンポーネントより前で確実に古い Cookie を除去する
+app.UseAntiforgeryCookieCleanup();
 
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 

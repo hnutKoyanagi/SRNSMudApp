@@ -182,6 +182,7 @@ Data/
  FreeTagRelationScenarioTests.cs
  TagHierarchyConstraintTests.cs
  TagWeightLimitTests.cs
+Middlewares/AntiforgeryCookieCleanupMiddlewareTests.cs
 Models/
  TagAutoApproveCompatibilityTests.cs
  TagKindTests.cs
