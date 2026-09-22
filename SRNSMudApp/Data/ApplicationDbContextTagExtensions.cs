@@ -1,7 +1,6 @@
 using System.Text.Json;
 
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
 
 using SRNSMudApp.Models.Unions;
 
@@ -91,9 +90,7 @@ public static class ApplicationDbContextTagExtensions
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        await using IDbContextTransaction transaction = await context.Database.BeginTransactionAsync();
-
-        try
+        await context.Database.ExecuteWithStrategyAsync(async () =>
         {
             // 1. Tag の権限検証 (SystemClassificationTag は誰でも無償付与可能、UserCustomTag は本人または自動承認有効時)
             Tag tag = await context.Tags.FindAsync(tagId) ?? throw new InvalidOperationException("指定されたタグが見つかりません。");
@@ -165,12 +162,6 @@ public static class ApplicationDbContextTagExtensions
             });
 
             _ = await context.SaveChangesAsync();
-            await transaction.CommitAsync();
-        }
-        catch (Exception)
-        {
-            await transaction.RollbackAsync();
-            throw;
-        }
+        });
     }
 }

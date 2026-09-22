@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
 
 using SRNSMudApp.Data;
 using SRNSMudApp.Models.Unions;
@@ -141,60 +140,55 @@ public class TagEdgeService(
     private static async Task<Result<TagEdgeTagAttachment>> ExecuteAttachAsync(
         ApplicationDbContext context, TagEdge edge, Tag tag, RightAsset rightAsset, string currentUserId, int weight, TimeProvider timeProvider)
     {
-        await using IDbContextTransaction transaction = await context.Database.BeginTransactionAsync();
         try
         {
-            rightAsset.Amount -= 1;
-            if (rightAsset.Amount <= 0)
+            return await context.Database.ExecuteWithStrategyAsync(async () =>
             {
-                rightAsset.IsBurned = true;
-                rightAsset.Status = new Burned(timeProvider.GetUtcNow().UtcDateTime);
-            }
-            _ = context.RightAssets.Update(rightAsset);
+                rightAsset.Amount -= 1;
+                if (rightAsset.Amount <= 0)
+                {
+                    rightAsset.IsBurned = true;
+                    rightAsset.Status = new Burned(timeProvider.GetUtcNow().UtcDateTime);
+                }
+                _ = context.RightAssets.Update(rightAsset);
 
-            var attachment = new TagEdgeTagAttachment
-            {
-                TagEdgeId = edge.Id,
-                TagId = tag.Id,
-                Weight = weight,
-                ConsumedRightAssetId = rightAsset.Id,
-                OwnerId = currentUserId
-            };
-            _ = context.TagEdgeTagAttachments.Add(attachment);
-            _ = await context.SaveChangesAsync();
+                var attachment = new TagEdgeTagAttachment
+                {
+                    TagEdgeId = edge.Id,
+                    TagId = tag.Id,
+                    Weight = weight,
+                    ConsumedRightAssetId = rightAsset.Id,
+                    OwnerId = currentUserId
+                };
+                _ = context.TagEdgeTagAttachments.Add(attachment);
+                _ = await context.SaveChangesAsync();
 
-            var previousWeight = tag.CachedWeight;
-            tag.CachedWeight += weight;
+                var previousWeight = tag.CachedWeight;
+                tag.CachedWeight += weight;
 
-            _ = context.TagWeightLedgers.Add(new TagWeightLedger
-            {
-                TagId = tag.Id,
-                TagNameSnapshot = tag.Name,
-                SourceType = LedgerSourceTypeInsert,
-                SourceId = null,
-                ConsumedRightAssetId = rightAsset.Id,
-                Delta = weight,
-                PreviousWeight = previousWeight,
-                NewWeight = tag.CachedWeight,
-                IsOwnerAction = tag.OwnerId == currentUserId,
-                Reason = "Edgeへのタグ紐付け（RightAsset消費）",
-                OwnerId = currentUserId
+                _ = context.TagWeightLedgers.Add(new TagWeightLedger
+                {
+                    TagId = tag.Id,
+                    TagNameSnapshot = tag.Name,
+                    SourceType = LedgerSourceTypeInsert,
+                    SourceId = null,
+                    ConsumedRightAssetId = rightAsset.Id,
+                    Delta = weight,
+                    PreviousWeight = previousWeight,
+                    NewWeight = tag.CachedWeight,
+                    IsOwnerAction = tag.OwnerId == currentUserId,
+                    Reason = "Edgeへのタグ紐付け（RightAsset消費）",
+                    OwnerId = currentUserId
+                });
+
+                _ = await context.SaveChangesAsync();
+
+                return new Success<TagEdgeTagAttachment>(attachment);
             });
-
-            _ = await context.SaveChangesAsync();
-            await transaction.CommitAsync();
-
-            return new Success<TagEdgeTagAttachment>(attachment);
         }
         catch (DbUpdateConcurrencyException)
         {
-            await transaction.RollbackAsync();
             return new Failure("データの状態が変更されました。ページを再読み込みしてから、もう一度やり直してください。");
-        }
-        catch
-        {
-            await transaction.RollbackAsync();
-            throw;
         }
     }
 

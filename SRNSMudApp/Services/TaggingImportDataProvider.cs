@@ -5,7 +5,6 @@ using System.Numerics.Tensors;
 using System.Text.Json;
 
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -178,16 +177,15 @@ public class TaggingImportDataProvider(
         ArgumentNullException.ThrowIfNull(processedItemContents);
 
         await using ApplicationDbContext db = await _dbFactory.CreateDbContextAsync(cancellationToken);
-        await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
-        var createdItemsCount = 0;
-        var createdRelationsCount = 0;
-        var createdEdgesCount = 0;
-        var createdAttachmentsCount = 0;
-        List<string> messages = [];
-
-        try
+        return await db.Database.ExecuteWithStrategyAsync(async () =>
         {
+            var createdItemsCount = 0;
+            var createdRelationsCount = 0;
+            var createdEdgesCount = 0;
+            var createdAttachmentsCount = 0;
+            List<string> messages = [];
+
             // 1. Items の作成
             var itemMap = new Dictionary<string, Item>();
             for (var i = 0; i < payload.Item.Count; i++)
@@ -370,7 +368,6 @@ public class TaggingImportDataProvider(
             }
 
             _ = await db.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
 
             messages.Add($"Item: {createdItemsCount}件, TagRelation: {createdRelationsCount}件, TagEdge: {createdEdgesCount}件, EdgeTagAttachment: {createdAttachmentsCount}件 を正常にインポートしました。");
 
@@ -381,12 +378,6 @@ public class TaggingImportDataProvider(
                 createdEdgesCount,
                 createdAttachmentsCount,
                 messages);
-        }
-        catch (Exception ex)
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            _logger.LogError(ex, "Import transaction failed: {Message}", ex.Message);
-            throw;
-        }
+        });
     }
 }

@@ -23,4 +23,3 @@ public class SystemTagSeedModel
     /// <summary>タグ付けリクエストの自動承認設定。</summary>
     public bool AutoAcceptIncomingTaggingRequests { get; set; }
 }
-

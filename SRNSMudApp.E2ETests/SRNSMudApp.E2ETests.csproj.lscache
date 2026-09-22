@@ -53,12 +53,15 @@ TemporaryDependencyNodeTargetIdentifier=net11.0
 /utf8output
 /deterministic+
 /langversion:Preview
+/skipanalyzers+
+/features:run-nullable-analysis=never
 /warnaserror+:NU1605,SYSLIB0011
 
 [sourceFiles]
 <NUGET>/microsoft.net.test.sdk/17.14.1/build/net8.0/Microsoft.NET.Test.Sdk.Program.cs
 obj/Debug/net11.0/
  .NETCoreApp,Version=v11.0.AssemblyAttributes.cs
+ EFCoreSqlServerHierarchyId.cs
  SRNSMudApp.E2ETests.AssemblyInfo.cs
  SRNSMudApp.E2ETests.GlobalUsings.g.cs
 CustomWebApplicationFactory.cs

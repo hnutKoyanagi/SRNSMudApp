@@ -59,14 +59,11 @@ public class TagTreeDataProvider(
             .AsNoTracking()
             .ToListAsync();
     }
-
     public async Task<TagTreeDeleteResult> DeleteTagsAsync(string userId, IReadOnlyList<int> selectedIds, bool isAdmin = false)
     {
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
-        await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction =
-            await context.Database.BeginTransactionAsync();
 
-        try
+        return await context.Database.ExecuteWithStrategyAsync(async () =>
         {
             List<Tag> selectedTagsFromDb = await context.Tags.Where(t => selectedIds.Contains(t.Id)).ToListAsync();
 
@@ -137,6 +134,7 @@ public class TagTreeDataProvider(
                     if (orphanedChildren.Count > 0)
                     {
                         Tag? rootTag = await context.Tags.FirstOrDefaultAsync(t => t.Name == Tag.RootTagName);
+
                         HierarchyId? lastChildNode = rootTag != null
                             ? await context.Tags
                                 .Where(t => t.ParentTagId == rootTag.Id)
@@ -171,17 +169,10 @@ public class TagTreeDataProvider(
                     hasDeleted = true;
                     deletedCount = tagsToDelete.Count;
                 }
-
-                await transaction.CommitAsync();
             }
 
             return new TagTreeDeleteResult(hasDeleted, deletedCount, unauthorizedNames, systemNames);
-        }
-        catch (Exception)
-        {
-            await transaction.RollbackAsync();
-            throw;
-        }
+        });
     }
 
     public async Task AddTagAsync(Tag tag)

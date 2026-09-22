@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
 
 using SRNSMudApp.Data;
 using SRNSMudApp.Models.Unions;
@@ -30,59 +29,62 @@ public class TagRelationService(IDbContextFactory<ApplicationDbContext> dbFactor
 
     private static async Task<Result<bool>> ExecuteLinkTagTransactionAsync(ApplicationDbContext context, Item item, Tag tag, string currentUserId, int requiredWeight)
     {
-        await using IDbContextTransaction transaction = await context.Database.BeginTransactionAsync();
-
         try
         {
-            var rightAsset = new RightAsset
+            return await context.Database.ExecuteWithStrategyAsync(async () =>
             {
-                OwnerId = currentUserId,
-                TargetTagId = tag.Id,
-                IsBurned = true,
-                Status = new Burned(DateTime.UtcNow)
-            };
-            _ = context.RightAssets.Add(rightAsset);
-            _ = await context.SaveChangesAsync();
+                var rightAsset = new RightAsset
+                {
+                    OwnerId = currentUserId,
+                    TargetTagId = tag.Id,
+                    IsBurned = true,
+                    Status = new Burned(DateTime.UtcNow)
+                };
+                _ = context.RightAssets.Add(rightAsset);
+                _ = await context.SaveChangesAsync();
 
-            var relation = new TagRelation
-            {
-                ItemId = item.Id,
-                TagId = tag.Id,
-                OwnerId = currentUserId,
-                Weight = requiredWeight
-            };
-            _ = context.TagRelations.Add(relation);
-            _ = await context.SaveChangesAsync();
+                var relation = new TagRelation
+                {
+                    ItemId = item.Id,
+                    TagId = tag.Id,
+                    OwnerId = currentUserId,
+                    Weight = requiredWeight
+                };
+                _ = context.TagRelations.Add(relation);
+                _ = await context.SaveChangesAsync();
 
-            var previousWeight = tag.CachedWeight;
-            tag.CachedWeight += requiredWeight;
-            var newWeight = tag.CachedWeight;
+                var previousWeight = tag.CachedWeight;
+                tag.CachedWeight += requiredWeight;
+                var newWeight = tag.CachedWeight;
 
-            var ledger = new TagWeightLedger
-            {
-                TagId = tag.Id,
-                TagNameSnapshot = tag.Name,
-                ItemId = item.Id,
-                SourceType = "TagRelation",
-                SourceId = relation.Id,
-                ConsumedRightAssetId = rightAsset.Id,
-                Delta = requiredWeight,
-                PreviousWeight = previousWeight,
-                NewWeight = newWeight,
-                IsOwnerAction = tag.OwnerId == currentUserId,
-                Reason = "TagRelationService.LinkTagToItemAsync (Legacy/Direct)",
-                OwnerId = currentUserId
-            };
-            _ = context.TagWeightLedgers.Add(ledger);
+                var ledger = new TagWeightLedger
+                {
+                    TagId = tag.Id,
+                    TagNameSnapshot = tag.Name,
+                    ItemId = item.Id,
+                    SourceType = "TagRelation",
+                    SourceId = relation.Id,
+                    ConsumedRightAssetId = rightAsset.Id,
+                    Delta = requiredWeight,
+                    PreviousWeight = previousWeight,
+                    NewWeight = newWeight,
+                    IsOwnerAction = tag.OwnerId == currentUserId,
+                    Reason = "TagRelationService.LinkTagToItemAsync (Legacy/Direct)",
+                    OwnerId = currentUserId
+                };
+                _ = context.TagWeightLedgers.Add(ledger);
 
-            _ = await context.SaveChangesAsync();
-            await transaction.CommitAsync();
-            return new Success<bool>(true);
+                _ = await context.SaveChangesAsync();
+                return new Success<bool>(true);
+            });
         }
-        catch
+        catch (DbUpdateConcurrencyException)
         {
-            await transaction.RollbackAsync();
-            throw;
+            return new Failure("データの状態が変更されました。ページを再読み込みしてから、もう一度やり直してください。");
+        }
+        catch (Exception ex)
+        {
+            return new Failure($"タグの紐付け中にエラーが発生しました: {ex.Message}");
         }
     }
 
@@ -125,78 +127,75 @@ public class TagRelationService(IDbContextFactory<ApplicationDbContext> dbFactor
             _ => Task.FromResult<Result<bool>>(new Failure("Item or Tag not found"))
         });
     }
-
     private static async Task<Result<bool>> ExecuteAllocationTransactionAsync(ApplicationDbContext context, RightAsset rightAsset, Item item, Tag tag, string currentUserId, int manipulationDelta, int consumeAmount)
     {
-        await using IDbContextTransaction transaction = await context.Database.BeginTransactionAsync();
-
         try
         {
-            rightAsset.Amount -= consumeAmount;
-            rightAsset.IsBurned = rightAsset.Amount switch
+            return await context.Database.ExecuteWithStrategyAsync(async () =>
             {
-                0 => true,
-                _ => rightAsset.IsBurned
-            };
-            rightAsset.Status = rightAsset.Amount switch
-            {
-                0 => new Burned(DateTime.UtcNow),
-                _ => rightAsset.Status
-            };
+                rightAsset.Amount -= consumeAmount;
+                rightAsset.IsBurned = rightAsset.Amount switch
+                {
+                    0 => true,
+                    _ => rightAsset.IsBurned
+                };
 
-            _ = context.RightAssets.Update(rightAsset);
+                rightAsset.Status = rightAsset.Amount switch
+                {
+                    0 => new Burned(DateTime.UtcNow),
+                    _ => rightAsset.Status
+                };
 
-            TagRelation? relation = await context.TagRelations.FirstOrDefaultAsync(r => r.ItemId == item.Id && r.TagId == tag.Id);
-            relation = relation switch
-            {
-                null => new TagRelation { ItemId = item.Id, TagId = tag.Id, OwnerId = currentUserId, Weight = 0 },
-                _ => relation
-            };
+                _ = context.RightAssets.Update(rightAsset);
 
-            _ = relation.Id switch
-            {
-                0 => context.TagRelations.Add(relation),
-                _ => null
-            };
+                TagRelation? relation = await context.TagRelations.FirstOrDefaultAsync(r => r.ItemId == item.Id && r.TagId == tag.Id);
+                relation = relation switch
+                {
+                    null => new TagRelation { ItemId = item.Id, TagId = tag.Id, OwnerId = currentUserId, Weight = 0 },
+                    _ => relation
+                };
 
-            relation.Weight += manipulationDelta;
-            _ = await context.SaveChangesAsync();
+                _ = relation.Id switch
+                {
+                    0 => context.TagRelations.Add(relation),
+                    _ => null
+                };
 
-            var previousWeight = tag.CachedWeight;
-            tag.CachedWeight += manipulationDelta;
-            var newWeight = tag.CachedWeight;
+                relation.Weight += manipulationDelta;
+                _ = await context.SaveChangesAsync();
 
-            var ledger = new TagWeightLedger
-            {
-                TagId = tag.Id,
-                TagNameSnapshot = tag.Name,
-                ItemId = item.Id,
-                SourceType = "TagRelation",
-                SourceId = relation.Id,
-                ConsumedRightAssetId = rightAsset.Id,
-                Delta = manipulationDelta,
-                PreviousWeight = previousWeight,
-                NewWeight = newWeight,
-                IsOwnerAction = tag.OwnerId == currentUserId,
-                Reason = "TagRelationService.AllocateWeightAsync",
-                OwnerId = currentUserId
-            };
-            _ = context.TagWeightLedgers.Add(ledger);
+                var previousWeight = tag.CachedWeight;
+                tag.CachedWeight += manipulationDelta;
+                var newWeight = tag.CachedWeight;
 
-            _ = await context.SaveChangesAsync();
-            await transaction.CommitAsync();
+                var ledger = new TagWeightLedger
+                {
+                    TagId = tag.Id,
+                    TagNameSnapshot = tag.Name,
+                    ItemId = item.Id,
+                    SourceType = "TagRelation",
+                    SourceId = relation.Id,
+                    ConsumedRightAssetId = rightAsset.Id,
+                    Delta = manipulationDelta,
+                    PreviousWeight = previousWeight,
+                    NewWeight = newWeight,
+                    IsOwnerAction = tag.OwnerId == currentUserId,
+                    Reason = "TagRelationService.AllocateWeightAsync",
+                    OwnerId = currentUserId
+                };
+                _ = context.TagWeightLedgers.Add(ledger);
 
-            return new Success<bool>(true);
+                _ = await context.SaveChangesAsync();
+                return new Success<bool>(true);
+            });
         }
         catch (DbUpdateConcurrencyException)
         {
-            await transaction.RollbackAsync();
             return new Failure("データの状態が変更されました。ページを再読み込みしてから、もう一度やり直してください。");
         }
-        catch
+        catch (Exception ex)
         {
-            await transaction.RollbackAsync();
-            throw;
+            return new Failure($"ウェイト割り当て中にエラーが発生しました: {ex.Message}");
         }
     }
 }

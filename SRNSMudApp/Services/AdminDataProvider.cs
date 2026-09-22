@@ -31,9 +31,8 @@ public class AdminDataProvider(IDbContextFactory<ApplicationDbContext> dbFactory
     public async Task<int> ImportItemsWithTagsAsync(string userId, IReadOnlyList<string[]> linesToProcess)
     {
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
-        await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction =
-            await context.Database.BeginTransactionAsync();
-        try
+
+        return await context.Database.ExecuteWithStrategyAsync(async () =>
         {
             var allTagNames = linesToProcess
                 .SelectMany(values => values.Skip(1))
@@ -94,15 +93,9 @@ public class AdminDataProvider(IDbContextFactory<ApplicationDbContext> dbFactory
             }
 
             _ = await context.SaveChangesAsync();
-            await transaction.CommitAsync();
 
             return importedItemCount;
-        }
-        catch (Exception)
-        {
-            await transaction.RollbackAsync();
-            throw;
-        }
+        });
     }
 
     public async Task<List<Invitation>> GetInvitationsAsync()
