@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
 
 using SRNSMudApp.Data;
 using SRNSMudApp.Models;
@@ -277,56 +276,49 @@ public class TaggingContractService(
         string currentUserId,
         int? fulfillerAssetId)
     {
-        await using IDbContextTransaction transaction = await dbContext.Database.BeginTransactionAsync();
-
         try
         {
-            int updatedRows = await dbContext.TaggingRequestEntities
-                .Where(e => e.Id == entity.Id && e.Status == TradeStatus.Proposed)
-                .ExecuteUpdateAsync(s => s.SetProperty(e => e.Status, TradeStatus.Executed));
-
-            if (updatedRows == 0)
+            return await dbContext.Database.ExecuteWithStrategyAsync(async () =>
             {
-                await transaction.RollbackAsync();
-                return new Failure("このリクエストは既に処理されているか、状態が変更されています。");
-            }
+                int updatedRows = await dbContext.TaggingRequestEntities
+                    .Where(e => e.Id == entity.Id && e.Status == TradeStatus.Proposed)
+                    .ExecuteUpdateAsync(s => s.SetProperty(e => e.Status, TradeStatus.Executed));
 
-            entity.Execute();
+                if (updatedRows == 0)
+                {
+                    throw new InvalidOperationException("このリクエストは既に処理されているか、状態が変更されています。");
+                }
 
-            IContractExecutor? executor = _executorFactory.GetExecutor(entity.ContractType);
-            Result<string> executeResult = executor is not null
-                ? await executor.ExecuteAsync(dbContext, entity, currentUserId, fulfillerAssetId)
-                : new Failure(ContractMessages.UnknownContractType);
+                entity.Execute();
 
-            return await (executeResult switch
-            {
-                Failure f => RollbackAndReturnAsync(transaction, f),
-                Success<string> s => CommitAndReturnAsync(dbContext, transaction, entity, s)
+                IContractExecutor? executor = _executorFactory.GetExecutor(entity.ContractType);
+                Result<string> executeResult = executor is not null
+                    ? await executor.ExecuteAsync(dbContext, entity, currentUserId, fulfillerAssetId)
+                    : new Failure(ContractMessages.UnknownContractType);
+
+                if (executeResult is Failure f)
+                {
+                    throw new InvalidOperationException(f.ErrorMessage);
+                }
+
+                // Pattern match to extract Success value from union type
+                var successResult = executeResult switch
+                {
+                    Success<string> s => s,
+                    _ => throw new InvalidOperationException("Unexpected result type")
+                };
+                entity.Execute();
+                return successResult;
             });
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("既に処理されている") || ex.Message.Contains("Unknown contract type"))
+        {
+            return new Failure(ex.Message);
         }
         catch (Exception ex)
         {
-            await transaction.RollbackAsync();
             return new Failure($"契約の承認中に予期せぬエラーが発生しました: {ex.Message}");
         }
-    }
-
-    private static async Task<Result<string>> RollbackAndReturnAsync(IDbContextTransaction transaction, Failure f)
-    {
-        await transaction.RollbackAsync();
-        return f;
-    }
-
-    private static async Task<Result<string>> CommitAndReturnAsync(
-        ApplicationDbContext dbContext,
-        IDbContextTransaction transaction,
-        TaggingRequestEntity entity,
-        Success<string> s)
-    {
-        entity.Execute();
-        await dbContext.SaveChangesAsync();
-        await transaction.CommitAsync();
-        return s;
     }
 
     /// <inheritdoc />

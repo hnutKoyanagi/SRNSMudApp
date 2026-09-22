@@ -133,6 +133,7 @@ Data/
  BaseEntity.cs
  ContentReport.cs
  ConversationOptOut.cs
+ ExecutionStrategyExtensions.cs
  Invitation.cs
  IOwnable.cs
  ITaggable.cs

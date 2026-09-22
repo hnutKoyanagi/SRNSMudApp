@@ -14,4 +14,3 @@ public interface IFirstUserAdminService
     /// <param name="cancellationToken">キャンセルトークン。</param>
     Task GrantAdminIfFirstUserAsync(string userId, CancellationToken cancellationToken = default);
 }
-

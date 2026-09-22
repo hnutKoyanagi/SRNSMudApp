@@ -161,18 +161,15 @@ public partial class ImportTagDataProvider(
         var createdCount = 0;
         var updatedTagIds = new HashSet<int>();
 
-        // Begin transaction for safety
-        await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction =
-            await dbContext.Database.BeginTransactionAsync();
-
-        try
+        // Execute with retry strategy instead of manual transaction
+        return await dbContext.Database.ExecuteWithStrategyAsync(async () =>
         {
             var trimmedParentTagName = selectedParentTagName.Trim();
             Tag? baseParentTag = existingTags.TryGetValue(trimmedParentTagName, out Tag? trackedBaseTag)
                 ? trackedBaseTag
                 : await dbContext.Tags.FirstOrDefaultAsync(t =>
                     (t.OwnerId == userId || t.IsSystem || t.OwnerId == "system") && (t.Name == trimmedParentTagName || t.Name == selectedParentTagName))
-                    ?? await dbContext.Tags.FirstOrDefaultAsync(t => t.Name == Tag.RootTagName);
+                ?? await dbContext.Tags.FirstOrDefaultAsync(t => t.Name == Tag.RootTagName);
 
             foreach (var fields in records)
             {
@@ -358,15 +355,9 @@ public partial class ImportTagDataProvider(
             }
 
             _ = await dbContext.SaveChangesAsync();
-            await transaction.CommitAsync();
 
             return new TagImportResult(createdCount, updatedTagIds.Count);
-        }
-        catch (Exception)
-        {
-            await transaction.RollbackAsync();
-            throw;
-        }
+        });
     }
 
     private static bool IsDescendantOrSelf(Tag parent, Tag target)

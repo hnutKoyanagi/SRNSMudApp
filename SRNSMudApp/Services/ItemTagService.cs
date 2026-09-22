@@ -93,8 +93,7 @@ public class ItemTagService(
 
     private async Task<string?> ExecuteAddTagRelationAsync(ApplicationDbContext context, int itemId, int tagId, string currentUserId, Tag tagFromDb)
     {
-        await using var transaction = await context.Database.BeginTransactionAsync();
-        try
+        await context.Database.ExecuteWithStrategyAsync(async () =>
         {
             var newRelation = new TagRelation { ItemId = itemId, TagId = tagId, Weight = 1, OwnerId = currentUserId };
             _ = context.TagRelations.Add(newRelation);
@@ -106,14 +105,9 @@ public class ItemTagService(
             _tagWeightLedgerService.RecordItemTagWeightChange(context, tagFromDb, itemId, "TagRelationInsert", newRelation.Id, 1, "タグの新規追加", currentUserId);
 
             _ = await context.SaveChangesAsync();
-            await transaction.CommitAsync();
-            return null;
-        }
-        catch
-        {
-            await transaction.RollbackAsync();
-            throw;
-        }
+        });
+
+        return null;
     }
 
     public async Task<string?> RemoveTagRelationAsync(int relationId, string currentUserId)
@@ -139,8 +133,7 @@ public class ItemTagService(
 
     private async Task<string?> ExecuteRemoveTagRelationAsync(ApplicationDbContext context, TagRelation relation, string currentUserId)
     {
-        await using var transaction = await context.Database.BeginTransactionAsync();
-        try
+        await context.Database.ExecuteWithStrategyAsync(async () =>
         {
             _timelineRecorder.RecordTagRelationDeleted(context, currentUserId, relation.ItemId, relation.TagId, relation.Weight);
 
@@ -154,14 +147,9 @@ public class ItemTagService(
 
             _ = context.Remove(relation);
             _ = await context.SaveChangesAsync();
-            await transaction.CommitAsync();
-            return null;
-        }
-        catch
-        {
-            await transaction.RollbackAsync();
-            throw;
-        }
+        });
+
+        return null;
     }
 
     public async Task<UpdateWeightResult> UpdateTagWeightAsync(int relationId, int delta, string currentUserId)
