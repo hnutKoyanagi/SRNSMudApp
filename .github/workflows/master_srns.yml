@@ -27,7 +27,7 @@ jobs:
         run: dotnet build SRNSMudApp/SRNSMudApp.csproj --configuration Release
 
       - name: dotnet publish
-        run: dotnet publish SRNSMudApp/SRNSMudApp.csproj -c Release -r linux-x64 --self-contained true -o ${{env.DOTNET_ROOT}}/myapp
+        run: dotnet publish SRNSMudApp/SRNSMudApp.csproj -c Release -o ${{env.DOTNET_ROOT}}/myapp
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
@@ -46,6 +46,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: .net-app
+          path: ./deploy-package
 
       - name: Deploy to Azure Web App
         id: deploy-to-webapp
@@ -54,5 +55,5 @@ jobs:
           app-name: 'srns'
           slot-name: 'Production'
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}
-          package: .
+          package: ./deploy-package
 
