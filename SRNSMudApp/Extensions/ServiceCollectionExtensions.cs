@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 using SRNSMudApp.Models.Unions;
 using SRNSMudApp.Services;
+using SRNSMudApp.Services.Auth;
 using SRNSMudApp.Services.Commands;
 using SRNSMudApp.Services.Contracts;
 using SRNSMudApp.Services.Dialogs;
@@ -141,6 +142,9 @@ public static class ServiceCollectionExtensions
 
         // EF Core SaveChangesInterceptor
         services.AddSingleton<Data.Interceptors.ApplicationDbSaveChangesInterceptor>();
+
+        // 初回デプロイ後の最初の登録ユーザーを Admin に自動昇格するサービス
+        services.AddScoped<IFirstUserAdminService, FirstUserAdminService>();
 
         return services;
     }

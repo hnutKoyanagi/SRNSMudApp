@@ -12,6 +12,7 @@
 @inject NavigationManager NavigationManager
 @inject IdentityRedirectManager RedirectManager
 @inject ILogger<ExternalLogin> Logger
+@inject SRNSMudApp.Services.Auth.IFirstUserAdminService FirstUserAdminService
 
 <PageTitle>Register</PageTitle>
 
@@ -166,7 +167,11 @@ HttpContext);
             {
                 Logger.LogInformation("User created an account using {Name} provider.", externalLoginInfo.LoginProvider);
 
-                var userId = await UserManager.GetUserIdAsync(user);
+                // 初回デプロイ後の最初の一般ユーザーを Admin ロールに自動昇格する
+                var newUserId = await UserManager.GetUserIdAsync(user);
+                await FirstUserAdminService.GrantAdminIfFirstUserAsync(newUserId);
+
+                var userId = newUserId;
                 var code = await UserManager.GenerateEmailConfirmationTokenAsync(user);
                 code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
 

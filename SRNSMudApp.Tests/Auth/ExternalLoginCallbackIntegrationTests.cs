@@ -134,4 +134,73 @@ public class ExternalLoginCallbackIntegrationTests(WebApplicationFactory<Program
         Assert.Equal(HttpStatusCode.Forbidden, bannedResponse.StatusCode);
         Assert.False(bannedResponse.Headers.Contains("Set-Cookie"));
     }
+
+    [Fact]
+    public async Task ExternalLogin_FirstRegisteredUser_IsGrantedAdminRole()
+    {
+        // Arrange: 初回デプロイを模した状態（system 以外のユーザーがいない状態）で登録する
+        using HttpClient client = CreateCustomClient();
+
+        var uniqueKey = Guid.NewGuid().ToString("N")[..8];
+        var token = $"mock-firstadmin-{uniqueKey}";
+        var expectedEmail = $"firstadmin-{uniqueKey}@example.com";
+        var requestPayload = new { Provider = "Google", Token = token };
+
+        // 事前に同じメールアドレスのユーザーが存在しないことを確認
+        using (var scope = factory.Services.CreateScope())
+        {
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var preExisting = await userManager.FindByEmailAsync(expectedEmail);
+            Assert.Null(preExisting);
+        }
+
+        // Act: 登録
+        HttpResponseMessage response = await client.PostAsJsonAsync("/api/auth/external-login", requestPayload);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // Assert: 登録後に Admin ロールが付与されていること
+        using (var scope = factory.Services.CreateScope())
+        {
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var user = await userManager.FindByEmailAsync(expectedEmail);
+            Assert.NotNull(user);
+            var isAdmin = await userManager.IsInRoleAsync(user, "Admin");
+            Assert.True(isAdmin, $"最初に登録された一般ユーザー ({expectedEmail}) は Admin ロールを持つべきです。");
+        }
+    }
+
+    [Fact]
+    public async Task ExternalLogin_SecondRegisteredUser_IsNotGrantedAdminRole()
+    {
+        // Arrange: 1人目を登録して Admin にした後、2人目は Admin にならないことを確認
+        using HttpClient client = CreateCustomClient();
+
+        var uniqueKey = Guid.NewGuid().ToString("N")[..8];
+
+        // 1人目
+        var firstToken = $"mock-first-{uniqueKey}";
+        var firstEmail = $"first-{uniqueKey}@example.com";
+        HttpResponseMessage firstResponse = await client.PostAsJsonAsync(
+            "/api/auth/external-login",
+            new { Provider = "Google", Token = firstToken });
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+
+        // 2人目
+        var secondToken = $"mock-second-{uniqueKey}";
+        var secondEmail = $"second-{uniqueKey}@example.com";
+        HttpResponseMessage secondResponse = await client.PostAsJsonAsync(
+            "/api/auth/external-login",
+            new { Provider = "Google", Token = secondToken });
+        Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
+
+        // Assert: 2人目は Admin ロールを持たないこと
+        using (var scope = factory.Services.CreateScope())
+        {
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var secondUser = await userManager.FindByEmailAsync(secondEmail);
+            Assert.NotNull(secondUser);
+            var isAdmin = await userManager.IsInRoleAsync(secondUser, "Admin");
+            Assert.False(isAdmin, $"2番目に登録されたユーザー ({secondEmail}) は Admin ロールを持つべきではありません。");
+        }
+    }
 }
