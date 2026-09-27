@@ -13,6 +13,7 @@
 <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-4">
     @if (_isLoggedIn)
     {
+        <PushNotificationPrompt ShowWhenSubscribed="false" />
         <MudText Typo="Typo.h5" GutterBottom="true" Class="mb-4">タイムライン</MudText>
 
         @if (_followedTagIds is { Count: 0 })
