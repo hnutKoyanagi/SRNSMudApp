@@ -16,6 +16,17 @@ public class PushNotificationIntegrationTests(WebApplicationFactory<Program> fac
     private readonly HttpClient _client = factory.CreateClient();
 
     [Fact]
+    public async Task GetRoot_ReturnsSuccess()
+    {
+        // Act
+        var response = await _client.GetAsync("/");
+        var content = await response.Content.ReadAsStringAsync();
+
+        // Assert
+        Assert.True(response.IsSuccessStatusCode, $"Status: {response.StatusCode}, Content: {content}");
+    }
+
+    [Fact]
     public async Task GetManifestJson_ReturnsSuccessAndValidContent()
     {
         // Act

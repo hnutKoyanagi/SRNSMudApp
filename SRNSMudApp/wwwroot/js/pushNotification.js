@@ -56,6 +56,27 @@ window.PushNotificationInterop = {
     },
 
     /**
+     * サーバーからVAPID公開鍵を自動取得してプッシュ通知の許可と購読を実行する
+     * @param {string} [userId] - ログインユーザーのID
+     */
+    async enablePushNotifications(userId) {
+        try {
+            const keyRes = await fetch('/api/pushnotification/vapid-public-key');
+            if (!keyRes.ok) {
+                return { success: false, error: 'VAPIDキーの取得に失敗しました。' };
+            }
+            const data = await keyRes.json();
+            if (!data || !data.publicKey) {
+                return { success: false, error: 'VAPID公開鍵が設定されていません。' };
+            }
+            return await this.requestAndSubscribe(data.publicKey, userId);
+        } catch (e) {
+            console.error('enablePushNotifications failed:', e);
+            return { success: false, error: e.message || 'プッシュ通知の有効化に失敗しました。' };
+        }
+    },
+
+    /**
      * プッシュ通知のパーミッション要求および購読処理を行い、バックエンドへ送信する
      * @param {string} vapidPublicKey - サーバーから提供されるVAPID公開鍵
      * @param {string} [userId] - ログインユーザーのID
