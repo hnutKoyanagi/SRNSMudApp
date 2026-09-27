@@ -27,12 +27,14 @@ namespace SRNSMudApp.Services;
 /// </summary>
 public class TaggingContractService(
     IDbContextFactory<ApplicationDbContext> dbFactory,
-    IContractExecutorFactory executorFactory) : ITaggingContractService
+    IContractExecutorFactory executorFactory,
+    INotificationService? notificationService = null) : ITaggingContractService
 {
     private readonly IDbContextFactory<ApplicationDbContext> _dbFactory =
         dbFactory ?? throw new ArgumentNullException(nameof(dbFactory));
     private readonly IContractExecutorFactory _executorFactory =
         executorFactory ?? throw new ArgumentNullException(nameof(executorFactory));
+    private readonly INotificationService? _notificationService = notificationService;
 
     /// <inheritdoc />
     public async Task<Result<TaggingRequestEntity>> ProposeGratisContractAsync(

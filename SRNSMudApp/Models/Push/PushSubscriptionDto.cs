@@ -8,7 +8,8 @@ using System.Text.Json.Serialization;
 /// </summary>
 public sealed record PushSubscriptionDto(
     [property: JsonPropertyName("endpoint")] string Endpoint,
-    [property: JsonPropertyName("keys")] PushSubscriptionKeysDto Keys
+    [property: JsonPropertyName("keys")] PushSubscriptionKeysDto Keys,
+    [property: JsonPropertyName("userId")] string? UserId = null
 );
 
 /// <summary>

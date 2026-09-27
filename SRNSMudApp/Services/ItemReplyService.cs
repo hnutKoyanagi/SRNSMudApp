@@ -7,10 +7,13 @@ namespace SRNSMudApp.Services;
 /// <summary>
 ///     アイテムへのリプライやメッセージング関連の操作を担当するドメインサービス。
 /// </summary>
-public class ItemReplyService(IDbContextFactory<ApplicationDbContext> dbFactory) : IItemReplyService
+public class ItemReplyService(
+    IDbContextFactory<ApplicationDbContext> dbFactory,
+    INotificationService? notificationService = null) : IItemReplyService
 {
     private readonly IDbContextFactory<ApplicationDbContext> _dbFactory =
         dbFactory ?? throw new ArgumentNullException(nameof(dbFactory));
+    private readonly INotificationService? _notificationService = notificationService;
 
     public async Task<Item?> AddReplyToRequestAsync(int requestId, string userId, string message)
     {
@@ -117,6 +120,18 @@ public class ItemReplyService(IDbContextFactory<ApplicationDbContext> dbFactory)
             });
             context.ItemReplyNotificationRecipients.AddRange(recipients);
             _ = await context.SaveChangesAsync();
+
+            if (_notificationService != null)
+            {
+                foreach (string rid in recipientIds)
+                {
+                    _ = _notificationService.NotifyUserAsync(
+                        rid,
+                        "新しい返信",
+                        replyItem.Content,
+                        $"/items/{parentItemId}");
+                }
+            }
         }
 
         if (inheritedRelations.Count > 0)

@@ -14,6 +14,11 @@ public interface IWebPushNotificationService
     Task<PushSendResult> SendNotificationToAllAsync(PushNotificationPayload payload, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// 特定のユーザーに紐づくすべての端末に対してプッシュ通知を配信します。
+    /// </summary>
+    Task<PushSendResult> SendNotificationToUserAsync(string userId, PushNotificationPayload payload, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// 単一のサブスクリプション宛てにプッシュ通知を配信します。
     /// </summary>
     Task<bool> SendNotificationAsync(PushSubscriptionDto subscription, PushNotificationPayload payload, CancellationToken cancellationToken = default);

@@ -26,7 +26,6 @@ public sealed class WebPushNotificationService(
     private readonly ILogger<WebPushNotificationService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     /// <inheritdoc />
-    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "Individual client push failure should not abort remaining notifications")]
     public async Task<PushSendResult> SendNotificationToAllAsync(PushNotificationPayload payload, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(payload);
@@ -38,6 +37,34 @@ public sealed class WebPushNotificationService(
             return new PushSendResult(0, 0, 0);
         }
 
+        return await SendToSubscriptionsAsync(subscriptions, payload, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<PushSendResult> SendNotificationToUserAsync(string userId, PushNotificationPayload payload, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return new PushSendResult(0, 0, 0);
+        }
+
+        var subscriptions = await _subscriptionStore.GetByUserIdAsync(userId, cancellationToken);
+        if (subscriptions.Count == 0)
+        {
+            _logger.LogInformation("ユーザー {UserId} 宛てのプッシュ通知サブスクリプションが存在しません。", userId);
+            return new PushSendResult(0, 0, 0);
+        }
+
+        return await SendToSubscriptionsAsync(subscriptions, payload, cancellationToken);
+    }
+
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "Individual client push failure should not abort remaining notifications")]
+    private async Task<PushSendResult> SendToSubscriptionsAsync(
+        IReadOnlyCollection<PushSubscriptionDto> subscriptions,
+        PushNotificationPayload payload,
+        CancellationToken cancellationToken)
+    {
         int succeeded = 0;
         int failed = 0;
         int expired = 0;

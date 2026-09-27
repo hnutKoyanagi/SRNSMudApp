@@ -10,7 +10,7 @@ public interface IPushSubscriptionStore
     /// <summary>
     /// サブスクリプション情報を登録または更新します。
     /// </summary>
-    Task AddOrUpdateAsync(PushSubscriptionDto subscription, CancellationToken cancellationToken = default);
+    Task AddOrUpdateAsync(PushSubscriptionDto subscription, string? userId = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// 指定されたエンドポイントのサブスクリプションを削除します。
@@ -21,4 +21,9 @@ public interface IPushSubscriptionStore
     /// 登録済みの全サブスクリプション情報を取得します。
     /// </summary>
     Task<IReadOnlyCollection<PushSubscriptionDto>> GetAllAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 指定されたユーザーIDに紐づくサブスクリプション情報一覧を取得します。
+    /// </summary>
+    Task<IReadOnlyCollection<PushSubscriptionDto>> GetByUserIdAsync(string userId, CancellationToken cancellationToken = default);
 }

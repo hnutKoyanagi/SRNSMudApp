@@ -46,9 +46,8 @@ public class PushNotificationIntegrationTests(WebApplicationFactory<Program> fac
         // Act
         var response = await _client.GetAsync("/api/pushnotification/vapid-public-key");
 
-        // Assert
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var content = await response.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("publicKey", content);
     }
 

@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 using SRNSMudApp.Models;
 
 namespace SRNSMudApp.Services;
@@ -16,4 +18,10 @@ public interface INotificationService
 
     /// <summary>通知の変更（新規通知発生やステータス変化）を通知リスナーへブロードキャストする。</summary>
     void NotifyNotificationsChanged();
+
+    /// <summary>
+    /// 対象ユーザーへ Web Push 通知を配信し、UI 通知イベントを発火します。
+    /// </summary>
+    [SuppressMessage("Design", "CA1054:URI parameters should not be strings", Justification = "URL is serialized to JSON for Web Push payload")]
+    Task NotifyUserAsync(string userId, string title, string message, string? url = "/notifications", CancellationToken cancellationToken = default);
 }

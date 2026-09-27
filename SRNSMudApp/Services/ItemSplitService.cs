@@ -84,7 +84,19 @@ public class ItemSplitService(
         _ = context.ItemSplitRequests.Add(request);
         _ = await context.SaveChangesAsync(cancellationToken);
 
-        _notificationService.NotifyNotificationsChanged();
+        // アイテムオーナーに分割リクエストを通知
+        if (originalItem.OwnerId != requesterUserId)
+        {
+            await _notificationService.NotifyUserAsync(
+                originalItem.OwnerId,
+                "分割リクエスト",
+                "あなたのアイテムに対する分割リクエストが届きました。",
+                "/notifications", cancellationToken);
+        }
+        else
+        {
+            _notificationService.NotifyNotificationsChanged();
+        }
 
         return Result.Ok(request);
     }
@@ -192,7 +204,12 @@ public class ItemSplitService(
 
         _ = await context.SaveChangesAsync(cancellationToken);
 
-        _notificationService.NotifyNotificationsChanged();
+        // 分割リクエストの申請者に承認を通知
+        await _notificationService.NotifyUserAsync(
+            request.RequesterUserId,
+            "分割リクエストが承認されました",
+            "あなたの分割リクエストが承認され、新しいアイテムが作成されました。",
+            "/notifications", cancellationToken);
 
         return Result.Ok(newItem);
     }
@@ -259,7 +276,12 @@ public class ItemSplitService(
 
         _ = await context.SaveChangesAsync(cancellationToken);
 
-        _notificationService.NotifyNotificationsChanged();
+        // 分割リクエストの申請者に却下を通知
+        await _notificationService.NotifyUserAsync(
+            request.RequesterUserId,
+            "分割リクエストが却下されました",
+            "あなたの分割リクエストが却下されました。",
+            "/notifications", cancellationToken);
 
         return Result.Ok();
     }
@@ -295,7 +317,12 @@ public class ItemSplitService(
 
         _ = await context.SaveChangesAsync(cancellationToken);
 
-        _notificationService.NotifyNotificationsChanged();
+        // アイテムオーナーに取り下げを通知
+        await _notificationService.NotifyUserAsync(
+            request.OwnerUserId,
+            "分割リクエストが取り下げられました",
+            "分割リクエストが申請者によって取り下げられました。",
+            "/notifications", cancellationToken);
 
         return Result.Ok();
     }
