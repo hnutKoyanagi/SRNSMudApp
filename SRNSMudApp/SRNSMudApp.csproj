@@ -39,6 +39,7 @@
     <PackageReference Include="Extensions.MudBlazor.StaticInput" Version="4.1.0" />
     <PackageReference Include="MudBlazor" Version="9.1.0" />
     <PackageReference Include="WebPush" Version="1.0.12" />
+    <PackageReference Include="Microsoft.Azure.NotificationHubs" Version="4.2.0" />
   </ItemGroup>
 
   <ItemGroup>

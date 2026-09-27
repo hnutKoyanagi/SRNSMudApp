@@ -70,6 +70,23 @@ param clientIpAddress string = ''
 @description('Google OAuth Client ID（空の場合は設定しません）。')
 param googleClientId string = ''
 
+@description('Azure Notification Hub の接続文字列（空の場合は直接 WebPush モードで動作します）。')
+@secure()
+param notificationHubConnectionString string = ''
+
+@description('Azure Notification Hub 名。')
+param notificationHubName string = ''
+
+@description('Web Push (VAPID) の連絡先 Subject (例: mailto:admin@example.com)。')
+param vapidSubject string = ''
+
+@description('Web Push (VAPID) の公開鍵。')
+param vapidPublicKey string = ''
+
+@description('Web Push (VAPID) の秘密鍵。')
+@secure()
+param vapidPrivateKey string = ''
+
 @description('初回起動時の DB 自動マイグレーション（テーブル作成）を有効にするかどうか。')
 param autoMigrate bool = true
 
@@ -265,6 +282,46 @@ resource site 'Microsoft.Web/sites@2024-04-01' = {
               {
                 name: 'Authentication__Google__ClientId'
                 value: googleClientId
+              }
+            ]
+          : [],
+        !empty(notificationHubConnectionString)
+          ? [
+              {
+                name: 'AzureNotificationHub__ConnectionString'
+                value: notificationHubConnectionString
+              }
+            ]
+          : [],
+        !empty(notificationHubName)
+          ? [
+              {
+                name: 'AzureNotificationHub__HubName'
+                value: notificationHubName
+              }
+            ]
+          : [],
+        !empty(vapidSubject)
+          ? [
+              {
+                name: 'Vapid__Subject'
+                value: vapidSubject
+              }
+            ]
+          : [],
+        !empty(vapidPublicKey)
+          ? [
+              {
+                name: 'Vapid__PublicKey'
+                value: vapidPublicKey
+              }
+            ]
+          : [],
+        !empty(vapidPrivateKey)
+          ? [
+              {
+                name: 'Vapid__PrivateKey'
+                value: vapidPrivateKey
               }
             ]
           : []

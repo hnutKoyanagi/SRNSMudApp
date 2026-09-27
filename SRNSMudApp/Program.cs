@@ -17,9 +17,11 @@ using SRNSMudApp.Components.Account;
 using SRNSMudApp.Data;
 using SRNSMudApp.Extensions;
 using SRNSMudApp.Middlewares;
+using SRNSMudApp.Models.Push;
 using SRNSMudApp.Services;
 using SRNSMudApp.Services.Auth;
 using SRNSMudApp.Services.Providers;
+using SRNSMudApp.Services.Push;
 
 #endregion
 
@@ -78,6 +80,12 @@ builder.Services.AddContractAndCommandServices();
 
 // ドメインサービス・ダイアログ抽象化の登録
 builder.Services.AddTaggingAndDomainServices();
+
+// Push Notification 関連サービスの登録 (Azure Notification Hubs & WebPush)
+builder.Services.Configure<VapidOptions>(builder.Configuration.GetSection(VapidOptions.SectionName));
+builder.Services.Configure<AzureNotificationHubOptions>(builder.Configuration.GetSection(AzureNotificationHubOptions.SectionName));
+builder.Services.AddSingleton<IPushSubscriptionStore, InMemoryPushSubscriptionStore>();
+builder.Services.AddScoped<IWebPushNotificationService, AzureNotificationHubPushService>();
 
 // Add services to the container.
 builder.Services.AddRazorComponents()

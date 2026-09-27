@@ -85,6 +85,15 @@ public class TaggingContractService(
         dbContext.TaggingRequestEntities.Add(contract);
         await dbContext.SaveChangesAsync();
 
+        if (_notificationService != null && tagOwnerUserId != requesterUserId)
+        {
+            await _notificationService.NotifyUserAsync(
+                tagOwnerUserId,
+                "タグ付けリクエスト",
+                "新しいタグ付けリクエストが届きました。",
+                "/notifications");
+        }
+
         return await TryAutoAcceptAsync(contract, requestedTagId, tagOwnerUserId);
     }
 
@@ -135,6 +144,15 @@ public class TaggingContractService(
 
         dbContext.TaggingRequestEntities.Add(contract);
         await dbContext.SaveChangesAsync();
+
+        if (_notificationService != null && tagOwnerUserId != requesterUserId)
+        {
+            await _notificationService.NotifyUserAsync(
+                tagOwnerUserId,
+                "タグ付けリクエスト",
+                "新しいタグ付けリクエストが届きました。",
+                "/notifications");
+        }
 
         return await TryAutoAcceptAsync(contract, requestedTagId, tagOwnerUserId);
     }
@@ -189,6 +207,15 @@ public class TaggingContractService(
         };
         dbContext.TaggingRequestEntities.Add(contract);
         await dbContext.SaveChangesAsync();
+
+        if (_notificationService != null && tagOwnerUserId != requesterUserId)
+        {
+            await _notificationService.NotifyUserAsync(
+                tagOwnerUserId,
+                "タグ付けリクエスト",
+                "新しいタグ付けリクエストが届きました。",
+                "/notifications");
+        }
 
         return await TryAutoAcceptAsync(contract, requestedTagId, tagOwnerUserId);
     }
