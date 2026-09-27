@@ -18,7 +18,7 @@ partial class ApplicationDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20260920111336_AddAdminItemModeration";
+    public override string LastMigrationId => "20260924031249_AddUserDepositWalletsAndJpycTransactions";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -632,6 +632,66 @@ partial class ApplicationDbContextModelSnapshot : ModelSnapshot
                 b.HasIndex("Status");
 
                 b.ToTable("ItemSplitRequests");
+            });
+
+        modelBuilder.Entity("SRNSMudApp.Data.JpycDepositTransaction", b =>
+            {
+                var id = b.Property<int>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("int");
+
+                SqlServerPropertyBuilderExtensions.UseIdentityColumn(id);
+
+                b.Property<int>("AmountJpyc")
+                    .HasColumnType("int");
+
+                b.Property<DateTime>("CreatedDate")
+                    .HasColumnType("datetime2");
+
+                b.Property<string>("DepositAddress")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(450)");
+
+                b.Property<string>("NetworkName")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(max)");
+
+                b.Property<string>("OwnerId")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(450)");
+
+                b.Property<int>("RightAssetAmount")
+                    .HasColumnType("int");
+
+                b.Property<int?>("RightAssetId")
+                    .HasColumnType("int");
+
+                b.Property<int>("Status")
+                    .HasColumnType("int");
+
+                b.Property<int>("TargetTagId")
+                    .HasColumnType("int");
+
+                b.Property<string>("TransactionHash")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(450)");
+
+                b.Property<DateTime>("UpdatedDate")
+                    .HasColumnType("datetime2");
+
+                b.Property<DateTime?>("VerifiedAt")
+                    .HasColumnType("datetime2");
+
+                b.HasKey("Id");
+
+                b.HasIndex("DepositAddress");
+
+                b.HasIndex("OwnerId");
+
+                b.HasIndex("TransactionHash")
+                    .IsUnique();
+
+                b.ToTable("JpycDepositTransactions");
             });
 
         modelBuilder.Entity("SRNSMudApp.Data.NotificationReadState", b =>
@@ -1379,6 +1439,42 @@ partial class ApplicationDbContextModelSnapshot : ModelSnapshot
                 b.ToTable("TimelineEvents");
             });
 
+        modelBuilder.Entity("SRNSMudApp.Data.UserDepositWallet", b =>
+            {
+                var id = b.Property<int>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("int");
+
+                SqlServerPropertyBuilderExtensions.UseIdentityColumn(id);
+
+                b.Property<DateTime>("CreatedDate")
+                    .HasColumnType("datetime2");
+
+                b.Property<string>("DepositAddress")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(450)");
+
+                b.Property<string>("NetworkName")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(450)");
+
+                b.Property<string>("OwnerId")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(450)");
+
+                b.Property<DateTime>("UpdatedDate")
+                    .HasColumnType("datetime2");
+
+                b.HasKey("Id");
+
+                b.HasIndex("DepositAddress");
+
+                b.HasIndex("OwnerId", "NetworkName")
+                    .IsUnique();
+
+                b.ToTable("UserDepositWallets");
+            });
+
         modelBuilder.Entity("SRNSMudApp.Data.UserFollow", b =>
             {
                 var id = b.Property<int>("Id")
@@ -1782,6 +1878,17 @@ partial class ApplicationDbContextModelSnapshot : ModelSnapshot
                 b.Navigation("RequesterUser");
             });
 
+        modelBuilder.Entity("SRNSMudApp.Data.JpycDepositTransaction", b =>
+            {
+                b.HasOne("SRNSMudApp.Data.ApplicationUser", "Owner")
+                    .WithMany()
+                    .HasForeignKey("OwnerId")
+                    .OnDelete(DeleteBehavior.Restrict)
+                    .IsRequired();
+
+                b.Navigation("Owner");
+            });
+
         modelBuilder.Entity("SRNSMudApp.Data.PublicTradeOffer", b =>
             {
                 b.HasOne("SRNSMudApp.Data.Tag", "OfferedTag")
@@ -2159,6 +2266,17 @@ partial class ApplicationDbContextModelSnapshot : ModelSnapshot
                     .IsRequired();
 
                 b.Navigation("FollowedTag");
+
+                b.Navigation("Owner");
+            });
+
+        modelBuilder.Entity("SRNSMudApp.Data.UserDepositWallet", b =>
+            {
+                b.HasOne("SRNSMudApp.Data.ApplicationUser", "Owner")
+                    .WithMany()
+                    .HasForeignKey("OwnerId")
+                    .OnDelete(DeleteBehavior.Restrict)
+                    .IsRequired();
 
                 b.Navigation("Owner");
             });

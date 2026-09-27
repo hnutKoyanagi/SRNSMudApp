@@ -27,12 +27,14 @@ namespace SRNSMudApp.Services;
 /// </summary>
 public class TaggingContractService(
     IDbContextFactory<ApplicationDbContext> dbFactory,
-    IContractExecutorFactory executorFactory) : ITaggingContractService
+    IContractExecutorFactory executorFactory,
+    INotificationService? notificationService = null) : ITaggingContractService
 {
     private readonly IDbContextFactory<ApplicationDbContext> _dbFactory =
         dbFactory ?? throw new ArgumentNullException(nameof(dbFactory));
     private readonly IContractExecutorFactory _executorFactory =
         executorFactory ?? throw new ArgumentNullException(nameof(executorFactory));
+    private readonly INotificationService? _notificationService = notificationService;
 
     /// <inheritdoc />
     public async Task<Result<TaggingRequestEntity>> ProposeGratisContractAsync(
@@ -82,6 +84,15 @@ public class TaggingContractService(
 
         dbContext.TaggingRequestEntities.Add(contract);
         await dbContext.SaveChangesAsync();
+
+        if (_notificationService != null && tagOwnerUserId != requesterUserId)
+        {
+            await _notificationService.NotifyUserAsync(
+                tagOwnerUserId,
+                "タグ付けリクエスト",
+                "新しいタグ付けリクエストが届きました。",
+                "/notifications");
+        }
 
         return await TryAutoAcceptAsync(contract, requestedTagId, tagOwnerUserId);
     }
@@ -133,6 +144,15 @@ public class TaggingContractService(
 
         dbContext.TaggingRequestEntities.Add(contract);
         await dbContext.SaveChangesAsync();
+
+        if (_notificationService != null && tagOwnerUserId != requesterUserId)
+        {
+            await _notificationService.NotifyUserAsync(
+                tagOwnerUserId,
+                "タグ付けリクエスト",
+                "新しいタグ付けリクエストが届きました。",
+                "/notifications");
+        }
 
         return await TryAutoAcceptAsync(contract, requestedTagId, tagOwnerUserId);
     }
@@ -187,6 +207,15 @@ public class TaggingContractService(
         };
         dbContext.TaggingRequestEntities.Add(contract);
         await dbContext.SaveChangesAsync();
+
+        if (_notificationService != null && tagOwnerUserId != requesterUserId)
+        {
+            await _notificationService.NotifyUserAsync(
+                tagOwnerUserId,
+                "タグ付けリクエスト",
+                "新しいタグ付けリクエストが届きました。",
+                "/notifications");
+        }
 
         return await TryAutoAcceptAsync(contract, requestedTagId, tagOwnerUserId);
     }
@@ -311,7 +340,7 @@ public class TaggingContractService(
                 return successResult;
             });
         }
-        catch (InvalidOperationException ex) when (ex.Message.Contains("既に処理されている") || ex.Message.Contains("Unknown contract type"))
+        catch (InvalidOperationException ex) when (ex.Message.Contains("既に処理されている", StringComparison.Ordinal) || ex.Message.Contains("Unknown contract type", StringComparison.Ordinal))
         {
             return new Failure(ex.Message);
         }

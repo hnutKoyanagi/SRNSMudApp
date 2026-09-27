@@ -27,6 +27,15 @@ param clientIpAddress = ''
 // Google OAuth Client ID
 param googleClientId = '890065771342-2ruam1rjo1ppvjs5fe11n4eh7mp7t9vv.apps.googleusercontent.com'
 
+// Azure Notification Hub 設定（Web Push 連携用。未指定時は直接 WebPush モードで動作します）
+// param notificationHubConnectionString = readEnvironmentVariable('NOTIFICATION_HUB_CONNECTION_STRING', '')
+// param notificationHubName = 'srns-hub'
+
+// Web Push (VAPID) 設定（未指定時は appsettings.json の設定が利用されます）
+// param vapidSubject = 'mailto:admin@example.com'
+// param vapidPublicKey = readEnvironmentVariable('VAPID_PUBLIC_KEY', '')
+// param vapidPrivateKey = readEnvironmentVariable('VAPID_PRIVATE_KEY', '')
+
 // 継続的デプロイ (GitHub Actions)
 param gitHubRepoUrl = 'https://github.com/hnutKoyanagi/SRNSMudApp'
 param gitHubBranch = 'master'

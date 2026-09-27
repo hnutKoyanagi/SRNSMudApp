@@ -1,0 +1,30 @@
+{
+  "short_name": "SRNS",
+  "name": "SRNS Application",
+  "icons": [
+    {
+      "src": "/images/icons/icon-192x192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "/images/icons/icon-512x512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any"
+    },
+    {
+      "src": "/images/icons/icon-maskable-512x512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
+    }
+  ],
+  "start_url": "/",
+  "id": "/",
+  "background_color": "#ffffff",
+  "theme_color": "#1976d2",
+  "display": "standalone",
+  "orientation": "portrait-primary"
+}

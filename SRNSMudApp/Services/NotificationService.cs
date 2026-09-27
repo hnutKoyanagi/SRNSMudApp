@@ -1,6 +1,8 @@
 using SRNSMudApp.Data;
 using SRNSMudApp.Models;
+using SRNSMudApp.Models.Push;
 using SRNSMudApp.Models.Unions;
+using SRNSMudApp.Services.Push;
 
 // IDE0010 / IDE0072: union 型・enum の網羅的 switch に対する「Populate switch」は、
 // 全ケース列挙済み・default 併記済みでも解消されない解析器の誤検知のため抑制する。
@@ -12,10 +14,13 @@ namespace SRNSMudApp.Services;
 ///     通知の DTO 構築および集約ロジックを担当するドメインサービス。
 ///     データアクセスは INotificationsDataProvider に委譲し、本クラスは純粋なビジネス/変換ロジックに集中する。
 /// </summary>
-public class NotificationService(INotificationsDataProvider dataProvider) : INotificationService
+public class NotificationService(
+    INotificationsDataProvider dataProvider,
+    IWebPushNotificationService? webPushService = null) : INotificationService
 {
     private readonly INotificationsDataProvider _dataProvider =
         dataProvider ?? throw new ArgumentNullException(nameof(dataProvider));
+    private readonly IWebPushNotificationService? _webPushService = webPushService;
 
     public async Task<IReadOnlyList<NotificationDto>> GetUserNotificationsAsync(string userId)
     {
@@ -48,6 +53,23 @@ public class NotificationService(INotificationsDataProvider dataProvider) : INot
     public event EventHandler? NotificationsChanged;
 
     public void NotifyNotificationsChanged() => NotificationsChanged?.Invoke(this, EventArgs.Empty);
+
+    /// <inheritdoc />
+    public async Task NotifyUserAsync(string userId, string title, string message, string? url = "/notifications", CancellationToken cancellationToken = default)
+    {
+        NotifyNotificationsChanged();
+
+        if (_webPushService != null && !string.IsNullOrWhiteSpace(userId))
+        {
+            var payload = new PushNotificationPayload(
+                Title: title,
+                Body: message,
+                Icon: "/images/icons/icon-192x192.png",
+                Url: url ?? "/notifications");
+
+            _ = await _webPushService.SendNotificationToUserAsync(userId, payload, cancellationToken);
+        }
+    }
 
     public async Task MarkAsReadAsync(string userId, int sourceId, string sourceType)
     {
