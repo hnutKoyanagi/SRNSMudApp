@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 using SRNSMudApp.Data;
 using SRNSMudApp.Models;
@@ -307,15 +308,18 @@ public class TaggingContractService(
     {
         try
         {
-            return await dbContext.Database.ExecuteWithStrategyAsync(async () =>
+            return await dbContext.Database.ExecuteWithStrategyAsync<Result<string>>(async () =>
             {
+                await using IDbContextTransaction transaction = await dbContext.Database.BeginTransactionAsync();
+
                 int updatedRows = await dbContext.TaggingRequestEntities
                     .Where(e => e.Id == entity.Id && e.Status == TradeStatus.Proposed)
                     .ExecuteUpdateAsync(s => s.SetProperty(e => e.Status, TradeStatus.Executed));
 
                 if (updatedRows == 0)
                 {
-                    throw new InvalidOperationException("このリクエストは既に処理されているか、状態が変更されています。");
+                    await transaction.RollbackAsync();
+                    return new Failure("このリクエストは既に処理されているか、状態が変更されています。");
                 }
 
                 entity.Execute();
@@ -327,7 +331,8 @@ public class TaggingContractService(
 
                 if (executeResult is Failure f)
                 {
-                    throw new InvalidOperationException(f.ErrorMessage);
+                    await transaction.RollbackAsync();
+                    return f;
                 }
 
                 // Pattern match to extract Success value from union type
@@ -336,13 +341,11 @@ public class TaggingContractService(
                     Success<string> s => s,
                     _ => throw new InvalidOperationException("Unexpected result type")
                 };
-                entity.Execute();
+
+                await dbContext.SaveChangesAsync();
+                await transaction.CommitAsync();
                 return successResult;
             });
-        }
-        catch (InvalidOperationException ex) when (ex.Message.Contains("既に処理されている", StringComparison.Ordinal) || ex.Message.Contains("Unknown contract type", StringComparison.Ordinal))
-        {
-            return new Failure(ex.Message);
         }
         catch (Exception ex)
         {
