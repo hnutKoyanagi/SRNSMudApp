@@ -5,6 +5,7 @@ using Bunit;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 
 using Moq;
@@ -146,5 +147,165 @@ public class AccountPagesTests : BunitContext
         AngleSharp.Dom.IElement inputElement = cut.Find("input[name='Input.Name']");
         Assert.NotNull(inputElement);
         Assert.Equal("My Passkey", inputElement.GetAttribute("value"));
+    }
+
+    [Fact]
+    public void Passkeys_RendersEmptyMessage_WhenNoPasskeysExist()
+    {
+        // Arrange
+        var testContext = new BunitContext();
+        testContext.JSInterop.Mode = JSRuntimeMode.Loose;
+        _ = testContext.Services.AddMudServices();
+
+        var storeMock = new Mock<IUserStore<ApplicationUser>>();
+        var userManagerMock = new Mock<UserManager<ApplicationUser>>(
+            storeMock.Object, null!, null!, null!, null!, null!, null!, null!, null!);
+        var contextAccessorMock = new Mock<IHttpContextAccessor>();
+        var claimsFactoryMock = new Mock<IUserClaimsPrincipalFactory<ApplicationUser>>();
+        var signInManagerMock = new Mock<SignInManager<ApplicationUser>>(
+            userManagerMock.Object, contextAccessorMock.Object, claimsFactoryMock.Object, null!, null!, null!, null!);
+
+        _ = testContext.Services.AddScoped(_ => userManagerMock.Object);
+        _ = testContext.Services.AddScoped(_ => signInManagerMock.Object);
+        _ = testContext.Services.AddScoped<IdentityRedirectManager>();
+
+        var antiforgeryMock = new Mock<IAntiforgery>();
+        _ = antiforgeryMock.Setup(a => a.GetTokens(It.IsAny<HttpContext>()))
+            .Returns(new AntiforgeryTokenSet("dummy", "dummy", "form", "header"));
+        _ = testContext.Services.AddSingleton(antiforgeryMock.Object);
+
+        var antiforgeryStateProviderMock = new Mock<AntiforgeryStateProvider>();
+        _ = antiforgeryStateProviderMock.Setup(p => p.GetAntiforgeryToken())
+            .Returns(new AntiforgeryRequestToken("RequestVerificationToken", "dummy-token"));
+        _ = testContext.Services.AddSingleton(antiforgeryStateProviderMock.Object);
+
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Method = "GET";
+
+        testContext.Renderer.SetRendererInfo(new Microsoft.AspNetCore.Components.RendererInfo("Static", false));
+
+        var dummyUser = new ApplicationUser { Id = "test-user-id", UserName = "testuser" };
+        _ = userManagerMock.Setup(m => m.GetUserAsync(It.IsAny<System.Security.Claims.ClaimsPrincipal>())).ReturnsAsync(dummyUser);
+        _ = userManagerMock.Setup(m => m.GetPasskeysAsync(dummyUser)).ReturnsAsync([]);
+
+        // Act
+        IRenderedComponent<SRNSMudApp.Components.Account.Pages.Manage.Passkeys> cut =
+            testContext.Render<SRNSMudApp.Components.Account.Pages.Manage.Passkeys>(parameters => parameters
+                .AddCascadingValue(httpContext));
+
+        // Assert
+        Assert.NotNull(cut.Find("[data-testid='no-passkeys-message']"));
+        Assert.Empty(cut.FindAll("[data-testid='passkeys-table']"));
+        Assert.NotNull(cut.Find("[data-testid='add-passkey-button']"));
+    }
+
+    [Fact]
+    public void Passkeys_RendersPasskeyTableAndActionButtons_WhenPasskeysExist()
+    {
+        // Arrange
+        var testContext = new BunitContext();
+        testContext.JSInterop.Mode = JSRuntimeMode.Loose;
+        _ = testContext.Services.AddMudServices();
+
+        var storeMock = new Mock<IUserStore<ApplicationUser>>();
+        var userManagerMock = new Mock<UserManager<ApplicationUser>>(
+            storeMock.Object, null!, null!, null!, null!, null!, null!, null!, null!);
+        var contextAccessorMock = new Mock<IHttpContextAccessor>();
+        var claimsFactoryMock = new Mock<IUserClaimsPrincipalFactory<ApplicationUser>>();
+        var signInManagerMock = new Mock<SignInManager<ApplicationUser>>(
+            userManagerMock.Object, contextAccessorMock.Object, claimsFactoryMock.Object, null!, null!, null!, null!);
+
+        _ = testContext.Services.AddScoped(_ => userManagerMock.Object);
+        _ = testContext.Services.AddScoped(_ => signInManagerMock.Object);
+        _ = testContext.Services.AddScoped<IdentityRedirectManager>();
+
+        var antiforgeryMock = new Mock<IAntiforgery>();
+        _ = antiforgeryMock.Setup(a => a.GetTokens(It.IsAny<HttpContext>()))
+            .Returns(new AntiforgeryTokenSet("dummy", "dummy", "form", "header"));
+        _ = testContext.Services.AddSingleton(antiforgeryMock.Object);
+
+        var antiforgeryStateProviderMock = new Mock<AntiforgeryStateProvider>();
+        _ = antiforgeryStateProviderMock.Setup(p => p.GetAntiforgeryToken())
+            .Returns(new AntiforgeryRequestToken("RequestVerificationToken", "dummy-token"));
+        _ = testContext.Services.AddSingleton(antiforgeryStateProviderMock.Object);
+
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Method = "GET";
+
+        testContext.Renderer.SetRendererInfo(new Microsoft.AspNetCore.Components.RendererInfo("Static", false));
+
+        var dummyUser = new ApplicationUser { Id = "test-user-id", UserName = "testuser" };
+        _ = userManagerMock.Setup(m => m.GetUserAsync(It.IsAny<System.Security.Claims.ClaimsPrincipal>())).ReturnsAsync(dummyUser);
+        var passkeyInfo = new UserPasskeyInfo([1, 2, 3], [], DateTimeOffset.UtcNow, 0, null, false, false, false, [], [])
+        {
+            Name = "Work Security Key"
+        };
+        _ = userManagerMock.Setup(m => m.GetPasskeysAsync(dummyUser)).ReturnsAsync([passkeyInfo]);
+
+        // Act
+        IRenderedComponent<SRNSMudApp.Components.Account.Pages.Manage.Passkeys> cut =
+            testContext.Render<SRNSMudApp.Components.Account.Pages.Manage.Passkeys>(parameters => parameters
+                .AddCascadingValue(httpContext));
+
+        // Assert
+        Assert.NotNull(cut.Find("[data-testid='passkeys-table']"));
+        Assert.Empty(cut.FindAll("[data-testid='no-passkeys-message']"));
+        Assert.Equal("Work Security Key", cut.Find("[data-testid='passkey-name-AQID']").TextContent);
+        Assert.NotNull(cut.Find("[data-testid='rename-passkey-AQID']"));
+        Assert.NotNull(cut.Find("[data-testid='delete-passkey-AQID']"));
+    }
+
+    [Fact]
+    public void Passkeys_RendersMaxPasskeyWarning_WhenPasskeyLimitReached()
+    {
+        // Arrange
+        var testContext = new BunitContext();
+        testContext.JSInterop.Mode = JSRuntimeMode.Loose;
+        _ = testContext.Services.AddMudServices();
+
+        var storeMock = new Mock<IUserStore<ApplicationUser>>();
+        var userManagerMock = new Mock<UserManager<ApplicationUser>>(
+            storeMock.Object, null!, null!, null!, null!, null!, null!, null!, null!);
+        var contextAccessorMock = new Mock<IHttpContextAccessor>();
+        var claimsFactoryMock = new Mock<IUserClaimsPrincipalFactory<ApplicationUser>>();
+        var signInManagerMock = new Mock<SignInManager<ApplicationUser>>(
+            userManagerMock.Object, contextAccessorMock.Object, claimsFactoryMock.Object, null!, null!, null!, null!);
+
+        _ = testContext.Services.AddScoped(_ => userManagerMock.Object);
+        _ = testContext.Services.AddScoped(_ => signInManagerMock.Object);
+        _ = testContext.Services.AddScoped<IdentityRedirectManager>();
+
+        var antiforgeryMock = new Mock<IAntiforgery>();
+        _ = antiforgeryMock.Setup(a => a.GetTokens(It.IsAny<HttpContext>()))
+            .Returns(new AntiforgeryTokenSet("dummy", "dummy", "form", "header"));
+        _ = testContext.Services.AddSingleton(antiforgeryMock.Object);
+
+        var antiforgeryStateProviderMock = new Mock<AntiforgeryStateProvider>();
+        _ = antiforgeryStateProviderMock.Setup(p => p.GetAntiforgeryToken())
+            .Returns(new AntiforgeryRequestToken("RequestVerificationToken", "dummy-token"));
+        _ = testContext.Services.AddSingleton(antiforgeryStateProviderMock.Object);
+
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Method = "GET";
+
+        testContext.Renderer.SetRendererInfo(new Microsoft.AspNetCore.Components.RendererInfo("Static", false));
+
+        var dummyUser = new ApplicationUser { Id = "test-user-id", UserName = "testuser" };
+        _ = userManagerMock.Setup(m => m.GetUserAsync(It.IsAny<System.Security.Claims.ClaimsPrincipal>())).ReturnsAsync(dummyUser);
+        var passkeys = Enumerable.Range(1, 100).Select(i =>
+            new UserPasskeyInfo([(byte)i], [], DateTimeOffset.UtcNow, 0, null, false, false, false, [], [])
+            {
+                Name = $"Key {i}"
+            }).ToList();
+        _ = userManagerMock.Setup(m => m.GetPasskeysAsync(dummyUser)).ReturnsAsync(passkeys);
+
+        // Act
+        IRenderedComponent<SRNSMudApp.Components.Account.Pages.Manage.Passkeys> cut =
+            testContext.Render<SRNSMudApp.Components.Account.Pages.Manage.Passkeys>(parameters => parameters
+                .AddCascadingValue(httpContext));
+
+        // Assert
+        Assert.NotNull(cut.Find("[data-testid='max-passkeys-warning']"));
+        Assert.Empty(cut.FindAll("[data-testid='add-passkey-button']"));
     }
 }

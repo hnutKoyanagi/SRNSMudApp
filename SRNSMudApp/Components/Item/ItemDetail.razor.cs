@@ -61,16 +61,9 @@ public partial class ItemDetail
     [Inject] private IDialogLauncher DialogLauncher { get; set; } = null!;
     [Inject] private IJSRuntime JS { get; set; } = null!;
 
-    private const int AncestorsThreshold = 4;
-    private const int EarlierSiblingsThreshold = 4;
-    private const int LaterSiblingsThreshold = 2;
-    private const int RepliesThreshold = 3;
+    private readonly ItemDetailThreadViewModel _threadViewModel = new();
 
     private bool _hasScrolledToFocus;
-    private bool _isAncestorsExpanded;
-    private bool _isEarlierSiblingsExpanded;
-    private bool _isLaterSiblingsExpanded;
-    private bool _isRepliesExpanded;
 
     private AsyncPageState<ItemDetailData> _pageState = new Loading();
 
@@ -161,10 +154,7 @@ public partial class ItemDetail
         try
         {
             _hasScrolledToFocus = false;
-            _isAncestorsExpanded = false;
-            _isEarlierSiblingsExpanded = false;
-            _isLaterSiblingsExpanded = false;
-            _isRepliesExpanded = false;
+            _threadViewModel.ResetExpansion();
 
             _pageState = new Loading();
 #pragma warning disable BL0012
@@ -265,12 +255,12 @@ public partial class ItemDetail
         try
         {
             var currentItem = _pageState is Loaded<ItemDetailData> loaded ? loaded.Data.Item : null;
-            int? targetGroupId = _isReplyPrivate ? currentItem?.TargetUserGroupId : null;
+            (bool isPrivate, int? targetGroupId) = ItemDetailThreadViewModel.ResolveReplyPrivacy(_isReplyPrivate, currentItem);
             Data.Item? addedReply = await ItemReplyService.AddItemReplyAsync(
                 ItemId,
                 _newReplyText,
                 _currentUserId,
-                isPrivate: _isReplyPrivate,
+                isPrivate: isPrivate,
                 targetUserGroupId: targetGroupId);
             if (addedReply is not null)
             {

@@ -32,7 +32,7 @@
                                              Class="mb-1 d-block font-weight-bold">
                                         スレッドの親アイテム
                                     </MudText>
-                                    @if (data.Ancestors.Count > AncestorsThreshold && !_isAncestorsExpanded)
+                                    @if (_threadViewModel.ShouldCollapseAncestors(data.Ancestors.Count))
                                     {
                                         @* 先頭（最古）アイテム *@
                                         <div class="ancestor-card-container position-relative">
@@ -53,9 +53,9 @@
                                         <div class="d-flex align-center my-2 pl-3">
                                             <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small"
                                                        StartIcon="@Icons.Material.Filled.UnfoldMore"
-                                                       OnClick="@(() => _isAncestorsExpanded = true)"
+                                                       OnClick="@(() => _threadViewModel.ExpandAncestors())"
                                                        data-testid="expand-ancestors-btn">
-                                                前の返信をもっと見る (@(data.Ancestors.Count - 2) 件)
+                                                前の返信をもっと見る (@(ItemDetailThreadViewModel.GetHiddenAncestorsCount(data.Ancestors.Count)) 件)
                                             </MudButton>
                                         </div>
                                         @* 直前親アイテム *@
@@ -99,36 +99,21 @@
 
                             @* ===== 2. 兄弟方向および選択中アイテム (Siblings & Focused Item in Chronological Order) ===== *@
                             @{
-                                var siblingReplies = data.Siblings.Concat([data.Item]).OrderBy(i => i.CreatedDate).ToList();
-                                var itemIndex = siblingReplies.FindIndex(i => i.Id == data.Item.Id);
-                                var earlierSiblings = itemIndex > 0 ? siblingReplies.Take(itemIndex).ToList() : [];
-                                var laterSiblings = itemIndex >= 0 && itemIndex < siblingReplies.Count - 1 ?
-                            siblingReplies.Skip(itemIndex + 1).ToList() : [];
-
-                                var visibleEarlierSiblings = (earlierSiblings.Count > EarlierSiblingsThreshold &&
-                            !_isEarlierSiblingsExpanded)
-                                    ? earlierSiblings.TakeLast(EarlierSiblingsThreshold).ToList()
-                                    : earlierSiblings;
-
-                                var visibleLaterSiblings = (laterSiblings.Count > LaterSiblingsThreshold &&
-                            !_isLaterSiblingsExpanded)
-                                    ? laterSiblings.Take(LaterSiblingsThreshold).ToList()
-                                    : laterSiblings;
-
-                                var visibleReplies = (data.Replies.Count > RepliesThreshold && !_isRepliesExpanded)
-                                    ? data.Replies.Take(RepliesThreshold).ToList()
-                                    : data.Replies;
+                                (var earlierSiblings, var laterSiblings) = ItemDetailThreadViewModel.SplitSiblings(data.Item, data.Siblings);
+                                var visibleEarlierSiblings = _threadViewModel.GetVisibleEarlierSiblings(earlierSiblings);
+                                var visibleLaterSiblings = _threadViewModel.GetVisibleLaterSiblings(laterSiblings);
+                                var visibleReplies = _threadViewModel.GetVisibleReplies(data.Replies);
                             }
                             <div class="thread-replies-timeline d-flex flex-column gap-3">
                                 @* 過去兄弟の折りたたみ展開ボタン *@
-                                @if (earlierSiblings.Count > EarlierSiblingsThreshold && !_isEarlierSiblingsExpanded)
+                                @if (_threadViewModel.ShouldCollapseEarlierSiblings(earlierSiblings.Count))
                                 {
                                     <div class="d-flex justify-center my-1">
                                         <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small"
                                                    StartIcon="@Icons.Material.Filled.KeyboardDoubleArrowUp"
-                                                   OnClick="@(() => _isEarlierSiblingsExpanded = true)"
+                                                   OnClick="@(() => _threadViewModel.ExpandEarlierSiblings())"
                                                    data-testid="expand-earlier-siblings-btn">
-                                            過去の兄弟リプライをもっと見る (@(earlierSiblings.Count - EarlierSiblingsThreshold) 件)
+                                            過去の兄弟リプライをもっと見る (@(ItemDetailThreadViewModel.GetHiddenEarlierSiblingsCount(earlierSiblings.Count)) 件)
                                         </MudButton>
                                     </div>
                                 }
@@ -233,14 +218,14 @@
                                                                                        OnEnsureSystemTags="EnsureSystemTagsExistAsync"
                                                                                        OnDataChanged="LoadDataAsync" EnableNavigation="true" />
                                                 }
-                                                @if (data.Replies.Count > RepliesThreshold && !_isRepliesExpanded)
+                                                @if (_threadViewModel.ShouldCollapseReplies(data.Replies.Count))
                                                 {
                                                     <div class="d-flex justify-center mt-2">
                                                         <MudButton Variant="Variant.Text" Color="Color.Primary"
                                                                    Size="Size.Small" StartIcon="@Icons.Material.Filled.ExpandMore"
-                                                                   OnClick="@(() => _isRepliesExpanded = true)"
+                                                                   OnClick="@(() => _threadViewModel.ExpandReplies())"
                                                                    data-testid="expand-replies-btn">
-                                                            返信をもっと見る (他 @(data.Replies.Count - RepliesThreshold) 件)
+                                                            返信をもっと見る (他 @(ItemDetailThreadViewModel.GetHiddenRepliesCount(data.Replies.Count)) 件)
                                                         </MudButton>
                                                     </div>
                                                 }
@@ -266,14 +251,14 @@
                                 }
 
                                 @* 未来兄弟の折りたたみ展開ボタン *@
-                                @if (laterSiblings.Count > LaterSiblingsThreshold && !_isLaterSiblingsExpanded)
+                                @if (_threadViewModel.ShouldCollapseLaterSiblings(laterSiblings.Count))
                                 {
                                     <div class="d-flex justify-center my-1">
                                         <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small"
                                                    StartIcon="@Icons.Material.Filled.KeyboardDoubleArrowDown"
-                                                   OnClick="@(() => _isLaterSiblingsExpanded = true)"
+                                                   OnClick="@(() => _threadViewModel.ExpandLaterSiblings())"
                                                    data-testid="expand-later-siblings-btn">
-                                            新しい兄弟リプライをもっと見る (@(laterSiblings.Count - LaterSiblingsThreshold) 件)
+                                            新しい兄弟リプライをもっと見る (@(ItemDetailThreadViewModel.GetHiddenLaterSiblingsCount(laterSiblings.Count)) 件)
                                         </MudButton>
                                     </div>
                                 }

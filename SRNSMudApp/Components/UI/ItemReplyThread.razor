@@ -31,14 +31,7 @@
         <MudButton StartIcon="@Icons.Material.Filled.ChatBubbleOutline" Size="Size.Small" Color="Color.Default"
                    Variant="Variant.Text" OnClick="@(async () => await OnToggleReplies.InvokeAsync())"
                    data-testid="@($"reply-toggle-button-{ItemId}")">
-            @if (replyCount > 0)
-            {
-                <span>リプライ (@replyCount)</span>
-            }
-            else
-            {
-                <span>リプライ</span>
-            }
+            <span>@ItemCardViewModel.FormatReplyButtonText(replyCount)</span>
         </MudButton>
     </div>
 

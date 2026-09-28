@@ -364,13 +364,13 @@ public partial class ItemCard : IAsyncDisposable
         _isSubmittingReply = true;
         try
         {
-            int? targetGroupId = _isReplyPrivate ? Item.TargetUserGroupId : null;
+            (bool isPrivate, int? targetGroupId) = ItemCardViewModel.ResolveReplyPrivacy(_isReplyPrivate, Item);
             Data.Item? addedReply = await ItemReplyService.AddItemReplyAsync(
                 Item.Id,
                 _newReplyContent,
                 CurrentUserId,
                 _selectedTargetUserIds,
-                isPrivate: _isReplyPrivate,
+                isPrivate: isPrivate,
                 targetUserGroupId: targetGroupId);
             if (addedReply is not null)
             {
