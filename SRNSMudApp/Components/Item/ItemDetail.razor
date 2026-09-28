@@ -165,6 +165,23 @@
                                     <div class="reply-input-section my-3 pa-3 rounded-lg"
                                          style="background-color: var(--mud-palette-background-grey);">
                                         <MudText Typo="Typo.subtitle2" Class="mb-1">このアイテムにリプライ</MudText>
+                                        @if (data.Item.IsPrivate)
+                                        {
+                                            <div class="d-flex align-center mb-2" data-testid="item-detail-reply-private-toggle">
+                                                <MudSwitch T="bool" Value="@_isReplyPrivate"
+                                                           ValueChanged="@((bool val) => _isReplyPrivate = val)"
+                                                           Color="Color.Primary" Size="Size.Small"
+                                                           data-testid="item-detail-reply-private-switch">
+                                                    <MudText Typo="Typo.caption">
+                                                        @(_isReplyPrivate
+                                                            ? (!string.IsNullOrWhiteSpace(data.Item.TargetUserGroup?.Name)
+                                                                ? $"プライベートモード ({data.Item.TargetUserGroup.Name} のみ)"
+                                                                : (data.Item.TargetUserGroupId.HasValue ? "プライベートモード (グループ限定)" : "プライベートモード (フォロワー限定)"))
+                                                            : "公開で投稿")
+                                                    </MudText>
+                                                </MudSwitch>
+                                            </div>
+                                        }
                                         <div class="d-flex align-end gap-2">
                                             <MudTextField @bind-Value="_newReplyText" Label="リプライを入力..."
                                                           Variant="Variant.Outlined" Margin="Margin.Dense" Lines="2"

@@ -55,6 +55,7 @@ public class ItemCardDataProvider(IDbContextFactory<ApplicationDbContext> dbFact
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
         return await context.Items
             .Include(i => i.Owner)
+            .Include(i => i.TargetUserGroup)
             .Include(i => i.TagRelations)
                 .ThenInclude(tr => tr.Tag)
             .FirstOrDefaultAsync(i => i.Id == itemId);

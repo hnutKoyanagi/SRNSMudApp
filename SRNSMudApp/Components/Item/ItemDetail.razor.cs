@@ -86,6 +86,8 @@ public partial class ItemDetail
 
     private string _newReplyText = "";
     private bool _isSubmittingReply;
+    private bool _isReplyPrivate;
+    private int _lastReplyItemId;
 
     [SupplyParameterFromQuery(Name = "tab")]
     public string? ActiveTabQuery { get; set; }
@@ -210,6 +212,12 @@ public partial class ItemDetail
             var state = ItemDetailQueryStateFactory.ParseFromUri(new Uri(NavigationManager.Uri));
             _searchQuery = ItemDetailQueryStateFactory.ToSearchQuery(state, _allTags);
 
+            if (_lastReplyItemId != data.Item.Id)
+            {
+                _lastReplyItemId = data.Item.Id;
+                _isReplyPrivate = data.Item.IsPrivate;
+            }
+
             _pageState = new Loaded<ItemDetailData>(new ItemDetailData(
                 data.Item,
                 requests ?? [],
@@ -256,10 +264,18 @@ public partial class ItemDetail
         _isSubmittingReply = true;
         try
         {
-            Data.Item? addedReply = await ItemReplyService.AddItemReplyAsync(ItemId, _newReplyText, _currentUserId);
+            var currentItem = _pageState is Loaded<ItemDetailData> loaded ? loaded.Data.Item : null;
+            int? targetGroupId = _isReplyPrivate ? currentItem?.TargetUserGroupId : null;
+            Data.Item? addedReply = await ItemReplyService.AddItemReplyAsync(
+                ItemId,
+                _newReplyText,
+                _currentUserId,
+                isPrivate: _isReplyPrivate,
+                targetUserGroupId: targetGroupId);
             if (addedReply is not null)
             {
                 _newReplyText = "";
+                _isReplyPrivate = currentItem?.IsPrivate ?? false;
                 _ = Snackbar.Add("リプライを送信しました。", Severity.Success);
                 await LoadDataAsync();
             }

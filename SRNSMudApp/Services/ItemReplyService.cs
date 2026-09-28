@@ -44,6 +44,7 @@ public class ItemReplyService(
             .Include(i => i.TagRelations)
             .ThenInclude(tr => tr.Tag)
             .Include(i => i.NotificationRecipients)
+            .Include(i => i.TargetUserGroup)
             .Where(i => i.ParentItemId == parentItemId)
             .OrderBy(i => i.CreatedDate)
             .ToListAsync();
@@ -60,7 +61,13 @@ public class ItemReplyService(
         return await context.Items!.CountAsync(i => i.ParentItemId == parentItemId);
     }
 
-    public async Task<Item?> AddItemReplyAsync(int parentItemId, string content, string userId, IEnumerable<string>? targetUserIds = null)
+    public async Task<Item?> AddItemReplyAsync(
+        int parentItemId,
+        string content,
+        string userId,
+        IEnumerable<string>? targetUserIds = null,
+        bool isPrivate = false,
+        int? targetUserGroupId = null)
     {
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
 
@@ -79,6 +86,8 @@ public class ItemReplyService(
             OwnerId = userId,
             ParentItemId = parentItemId,
             RootItemId = parentRootId ?? parentItemId,
+            IsPrivate = isPrivate,
+            TargetUserGroupId = isPrivate ? targetUserGroupId : null,
             CreatedDate = DateTime.UtcNow,
             UpdatedDate = DateTime.UtcNow
         };

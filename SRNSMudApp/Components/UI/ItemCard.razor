@@ -159,7 +159,10 @@
                                          TargetCandidates="@GetReplyTargetCandidates()" SelectedTargetUserIds="_selectedTargetUserIds"
                                          OnTargetToggled="HandleTargetUserToggled" QuoteCount="_quoteCount"
                                          OnOpenQuoteDialog="OpenQuoteDialogAsync" OnShowQuotes="OpenShowQuotesDialogAsync"
-                                         OnToggleReplies="ToggleRepliesAsync" OnSubmitReply="SubmitReplyAsync" />
+                                         OnToggleReplies="ToggleRepliesAsync" OnSubmitReply="SubmitReplyAsync"
+                                         ParentIsPrivate="@Item.IsPrivate" ParentUserGroupId="@Item.TargetUserGroupId"
+                                         ParentUserGroupName="@Item.TargetUserGroup?.Name"
+                                         IsPrivateReply="@_isReplyPrivate" OnPrivateReplyChanged="HandlePrivateReplyChanged" />
                     </div>
                 </div>
             </div>
