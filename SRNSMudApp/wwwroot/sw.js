@@ -1,9 +1,8 @@
 // Service Worker for SRNS PWA & Web Push
-const CACHE_NAME = 'srns-pwa-cache-v1';
+const CACHE_NAME = 'srns-pwa-cache-v2';
 
 // オフライン時に利用可能とする基本静的アセット
 const PRECACHE_ASSETS = [
-    '/',
     '/manifest.json',
     '/favicon.ico',
     '/images/icons/icon-192x192.png',
@@ -47,18 +46,21 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
+    // ナビゲーション（HTMLページ遷移）は常にネットワーク優先 (Network-First)
+    // Blazor Serverの動的SSRや認証状態、サーキット初期化トークンを最新の状態で取得するため
+    if (event.request.mode === 'navigate') {
+        event.respondWith(
+            fetch(event.request).catch(() => caches.match(event.request))
+        );
+        return;
+    }
+
     event.respondWith(
         caches.match(event.request).then((cachedResponse) => {
             if (cachedResponse) {
                 return cachedResponse;
             }
-            return fetch(event.request).catch(() => {
-                // オフライン時のナビゲーションはルートページへフォールバック
-                if (event.request.mode === 'navigate') {
-                    return caches.match('/');
-                }
-                return null;
-            });
+            return fetch(event.request);
         })
     );
 });

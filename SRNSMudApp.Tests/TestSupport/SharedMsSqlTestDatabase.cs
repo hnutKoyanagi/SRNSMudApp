@@ -47,4 +47,10 @@ public static class SharedMsSqlTestDatabase
         var db = await GetInstanceAsync();
         return new ApplicationDbContext(db.Options);
     }
+
+    public static async Task<MsSqlTestDatabase> CreateIsolatedDatabaseAsync(string prefix = "isolated")
+    {
+        _ = await GetInstanceAsync();
+        return await MsSqlTestDatabase.CreateAsync(s_container!.GetConnectionString(), prefix);
+    }
 }

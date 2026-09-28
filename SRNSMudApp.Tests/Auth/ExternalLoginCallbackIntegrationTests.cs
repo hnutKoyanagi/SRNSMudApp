@@ -1,20 +1,60 @@
 using System.Net;
 using System.Net.Http.Json;
 
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 using SRNSMudApp.Data;
 using SRNSMudApp.Models.Unions;
 using SRNSMudApp.Services.Auth;
+using SRNSMudApp.Tests.TestSupport;
 
 namespace SRNSMudApp.Tests.Auth;
 
-public class ExternalLoginCallbackIntegrationTests(WebApplicationFactory<Program> factory)
-    : IClassFixture<WebApplicationFactory<Program>>
+public class ExternalLoginCallbackIntegrationTests : IAsyncLifetime
 {
+    private MsSqlTestDatabase _sharedDb = null!;
+    private WebApplicationFactory<Program> _factory = null!;
+
+    public async Task InitializeAsync()
+    {
+        _sharedDb = await SharedMsSqlTestDatabase.CreateIsolatedDatabaseAsync("extlogin");
+        _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            _ = builder.UseEnvironment("Testing");
+            _ = builder.ConfigureServices(services =>
+            {
+                _ = services.RemoveAll<DbContextOptions<ApplicationDbContext>>();
+                _ = services.RemoveAll<DbContextOptions>();
+                _ = services.RemoveAll<IDbContextFactory<ApplicationDbContext>>();
+                _ = services.RemoveAll<ApplicationDbContext>();
+
+                _ = services.AddDbContext<ApplicationDbContext>(options =>
+                    options.UseSqlServer(_sharedDb.ConnectionString, sqlOptions => sqlOptions.UseHierarchyId()),
+                    ServiceLifetime.Scoped, ServiceLifetime.Singleton);
+
+                _ = services.AddDbContextFactory<ApplicationDbContext>(options =>
+                    options.UseSqlServer(_sharedDb.ConnectionString, sqlOptions => sqlOptions.UseHierarchyId()));
+
+                _ = services.RemoveAll<IExternalTokenVerificationService>();
+                _ = services.AddScoped<IExternalTokenVerificationService, TestExternalTokenVerificationService>();
+            });
+        });
+    }
+
+    public async Task DisposeAsync()
+    {
+        _factory?.Dispose();
+        if (_sharedDb != null)
+        {
+            await _sharedDb.DisposeAsync();
+        }
+    }
+
     private sealed class TestExternalTokenVerificationService : IExternalTokenVerificationService
     {
         public Task<Result<ExternalTokenPayload>> VerifyTokenAsync(
@@ -36,16 +76,7 @@ public class ExternalLoginCallbackIntegrationTests(WebApplicationFactory<Program
 
     private HttpClient CreateCustomClient()
     {
-        WebApplicationFactory<Program> customFactory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<IExternalTokenVerificationService>();
-                services.AddScoped<IExternalTokenVerificationService, TestExternalTokenVerificationService>();
-            });
-        });
-
-        return customFactory.CreateClient(new WebApplicationFactoryClientOptions
+        return _factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false
         });
@@ -115,7 +146,7 @@ public class ExternalLoginCallbackIntegrationTests(WebApplicationFactory<Program
         Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
 
         // データベースから対象ユーザーを取得し、BAN状態にする
-        using (var scope = factory.Services.CreateScope())
+        using (var scope = _factory.Services.CreateScope())
         {
             var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             var user = await userManager.FindByEmailAsync(expectedEmail);
@@ -147,7 +178,7 @@ public class ExternalLoginCallbackIntegrationTests(WebApplicationFactory<Program
         var requestPayload = new { Provider = "Google", Token = token };
 
         // 事前に同じメールアドレスのユーザーが存在しないことを確認
-        using (var scope = factory.Services.CreateScope())
+        using (var scope = _factory.Services.CreateScope())
         {
             var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             var preExisting = await userManager.FindByEmailAsync(expectedEmail);
@@ -159,7 +190,7 @@ public class ExternalLoginCallbackIntegrationTests(WebApplicationFactory<Program
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         // Assert: 登録後に Admin ロールが付与されていること
-        using (var scope = factory.Services.CreateScope())
+        using (var scope = _factory.Services.CreateScope())
         {
             var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             var user = await userManager.FindByEmailAsync(expectedEmail);
@@ -194,7 +225,7 @@ public class ExternalLoginCallbackIntegrationTests(WebApplicationFactory<Program
         Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
 
         // Assert: 2人目は Admin ロールを持たないこと
-        using (var scope = factory.Services.CreateScope())
+        using (var scope = _factory.Services.CreateScope())
         {
             var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             var secondUser = await userManager.FindByEmailAsync(secondEmail);

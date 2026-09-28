@@ -103,6 +103,7 @@ public class ItemListDataProvider(
             ? []
             : await context.Items
                 .AsNoTracking()
+                .AsSplitQuery()
                 .Include(i => i.Owner)
                 .Include(i => i.TargetUserGroup)
                 .Include(i => i.TagRelations)
@@ -283,6 +284,7 @@ public class ItemListDataProvider(
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
         IQueryable<Item> query = context.Items
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(i => i.Owner)
             .Include(i => i.TargetUserGroup)
             .Include(i => i.QuotedItem)
@@ -300,6 +302,7 @@ public class ItemListDataProvider(
 
         IQueryable<Tag> tagQuery = context.Tags
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(t => t.Owner)
             .Include(t => t.TargetTagRelations)
             .ThenInclude(tr => tr.Tag)
