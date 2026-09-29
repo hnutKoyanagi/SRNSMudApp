@@ -33,6 +33,7 @@ public interface IItemCardVoteCoordinator
     /// <param name="reactionTagId">既に解決済みのリアクションタグ ID（未指定の場合は null）。</param>
     /// <param name="allTags">キャッシュまたは取得済みのタグ一覧。</param>
     /// <param name="ensureSystemTagsAsync">システムタグの初期化が必要な場合のコールバック（省略可能）。</param>
+    /// <param name="comment">タグ関連付けに付与するコメント（省略可能）。</param>
     /// <returns>リアクション操作が正常に完了した場合は true、未ログイン等により中止された場合は false。</returns>
     Task<bool> ToggleReactionAsync(
         int itemId,
@@ -41,5 +42,6 @@ public interface IItemCardVoteCoordinator
         int targetWeight,
         int? reactionTagId,
         IReadOnlyList<Tag> allTags,
-        Func<Task>? ensureSystemTagsAsync = null);
+        Func<Task>? ensureSystemTagsAsync = null,
+        string? comment = null);
 }

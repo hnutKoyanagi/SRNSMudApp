@@ -169,6 +169,25 @@
                                                 </div>
                                             }
 
+                                            @if (notification.Kind is TagRelationCommentNotification commentNote)
+                                            {
+                                                <div class="pl-11 mt-1">
+                                                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true"
+                                                              Class="mb-3 py-2 px-3" NoIcon="true">
+                                                        <div class="d-flex align-center">
+                                                            <MudIcon Icon="@Icons.Material.Filled.Comment" Size="Size.Small"
+                                                                     Color="Color.Primary" Class="mr-2" />
+                                                            <MudText Typo="Typo.body2">
+                                                                タグ: <strong>@commentNote.TagName</strong>
+                                                            </MudText>
+                                                        </div>
+                                                        <MudText Typo="Typo.body2" Class="mt-1">
+                                                            コメント: <span class="font-italic ml-1">「@commentNote.Comment」</span>
+                                                        </MudText>
+                                                    </MudAlert>
+                                                </div>
+                                            }
+
                                             @if (notification.AssociatedItem != null)
                                             {
                                                 <div class="pl-11 mt-1">

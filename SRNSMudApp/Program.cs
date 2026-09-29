@@ -125,6 +125,8 @@ if (!builder.Environment.IsEnvironment("Testing"))
             options.UseSqlServer(connectionString, sqlOptions =>
             {
                 sqlOptions.UseHierarchyId();
+                sqlOptions.CommandTimeout(60);
+                sqlOptions.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
                 sqlOptions.EnableRetryOnFailure(
                     maxRetryCount: 5,
                     maxRetryDelay: TimeSpan.FromSeconds(30),
@@ -137,6 +139,8 @@ if (!builder.Environment.IsEnvironment("Testing"))
         options.UseSqlServer(connectionString, sqlOptions =>
         {
             sqlOptions.UseHierarchyId();
+            sqlOptions.CommandTimeout(60);
+            sqlOptions.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
             sqlOptions.EnableRetryOnFailure(
                 maxRetryCount: 5,
                 maxRetryDelay: TimeSpan.FromSeconds(30),

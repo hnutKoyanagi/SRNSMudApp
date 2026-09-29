@@ -776,4 +776,43 @@ public class NotificationServiceTests
         Assert.Contains("現在の名前が適切です", rejectedDto.Message);
         Assert.True(rejectedDto.Kind is TagNameProposalRejectedNotification);
     }
+
+    [Fact]
+    public void BuildTagRelationCommentNotifications_MapsPropertiesCorrectly()
+    {
+        // Arrange
+        var relation = new TagRelation
+        {
+            Id = 55,
+            ItemId = 123,
+            TagId = 456,
+            OwnerId = "commenter",
+            Comment = "これは素晴らしい洞察です！",
+            CreatedDate = new DateTime(2026, 6, 1, 10, 0, 0, DateTimeKind.Utc),
+            Owner = new ApplicationUser { UserName = "Alice" },
+            Tag = new Tag { Id = 456, Name = "真実", OwnerId = "owner" }
+        };
+
+        List<NotificationReadState> readStates = [];
+
+        // Act
+        List<NotificationDto> dtos = [.. NotificationService.BuildTagRelationCommentNotifications([relation], readStates)];
+
+        // Assert
+        Assert.Single(dtos);
+        NotificationDto dto = dtos[0];
+        Assert.Equal(55, dto.SourceId);
+        Assert.Equal("/ItemDetail/123", dto.TargetUrl.ToHref());
+        Assert.Equal("Alice", dto.ActorName);
+        Assert.Equal(123, dto.AssociatedItemId);
+        Assert.True(dto.Kind is TagRelationCommentNotification);
+        if (dto.Kind is TagRelationCommentNotification commentKind)
+        {
+            Assert.Equal(55, commentKind.TagRelationId);
+            Assert.Equal(123, commentKind.TargetItemId);
+            Assert.Equal("真実", commentKind.TagName);
+            Assert.Equal("これは素晴らしい洞察です！", commentKind.Comment);
+            Assert.Equal("Alice", commentKind.ActorName);
+        }
+    }
 }

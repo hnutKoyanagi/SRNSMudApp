@@ -439,9 +439,50 @@ public partial class ItemCard : IAsyncDisposable
             _ => null
         };
 
+        if (string.IsNullOrEmpty(CurrentUserId))
+        {
+            _ = Snackbar.Add(ErrorMessages.LoginRequired, Severity.Warning);
+            return;
+        }
+
+        bool isCurrentlyUpvoted = IsItemReactionUpvoted(reactionTagName);
+        bool isCurrentlyDownvoted = IsItemReactionDownvoted(reactionTagName);
+        bool isNewAddition = !isCurrentlyUpvoted && !isCurrentlyDownvoted;
+
+        string? comment = null;
+        if (isNewAddition)
+        {
+            var parameters = new DialogParameters
+            {
+                [nameof(ReactionCommentDialog.ReactionTagName)] = reactionTagName
+            };
+            var options = new DialogOptions
+            {
+                CloseOnEscapeKey = true,
+                MaxWidth = MaxWidth.Small,
+                FullWidth = true
+            };
+            IDialogReference dialog = await DialogLauncher.ShowAsync<ReactionCommentDialog>("リアクションを追加", parameters, options);
+            DialogResult? result = await dialog.Result;
+            if (result is null || result.Canceled)
+            {
+                return;
+            }
+
+            if (result.Data is ReactionCommentDialogResult dialogResult)
+            {
+                if (!dialogResult.Saved)
+                {
+                    return;
+                }
+
+                comment = dialogResult.Comment;
+            }
+        }
+
         Func<Task>? ensureAsync = OnEnsureSystemTags.HasDelegate ? OnEnsureSystemTags.InvokeAsync : null;
         var success = await VoteCoordinator.ToggleReactionAsync(
-            Item.Id, CurrentUserId, reactionTagName, targetWeight, reactionTagId, AllTags, ensureAsync);
+            Item.Id, CurrentUserId, reactionTagName, targetWeight, reactionTagId, AllTags, ensureAsync, comment);
 
         if (success)
         {

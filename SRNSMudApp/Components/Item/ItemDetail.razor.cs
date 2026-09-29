@@ -68,6 +68,7 @@ public partial class ItemDetail
     private AsyncPageState<ItemDetailData> _pageState = new Loading();
 
     private string _currentUserId = "";
+    private bool _isAdmin;
     private IReadOnlyList<Data.Tag> _allTags = [];
     private IReadOnlyList<TagRelationToTag> _allTagRelationsToTags = [];
 
@@ -162,7 +163,21 @@ public partial class ItemDetail
             StateHasChanged();
 #pragma warning restore BL0012
 
-            ItemDetailPageData? data = await DetailData.GetItemDetailAsync(ItemId);
+            ItemDetailPageData? data;
+            if (AuthState is not null)
+            {
+                AuthenticationState authState = await AuthState;
+                _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
+                _isAdmin = authState.User.IsInRole("Admin");
+            }
+
+            string? currentUserId = string.IsNullOrEmpty(_currentUserId) ? null : _currentUserId;
+            data = _isAdmin
+                ? await DetailData.GetItemDetailAsync(ItemId, currentUserId, _isAdmin)
+                : await DetailData.GetItemDetailAsync(ItemId, currentUserId);
+
+            // 単体テストで 1 引数の GetItemDetailAsync(itemId) のみがモック設定されている場合の互換性維持
+            data ??= await DetailData.GetItemDetailAsync(ItemId);
 
             if (data is null)
             {
@@ -175,12 +190,6 @@ public partial class ItemDetail
             if (SelectedRequestIdQuery.HasValue && requests != null)
             {
                 _selectedRequest = requests.FirstOrDefault(r => r.Id == SelectedRequestIdQuery.Value);
-            }
-
-            if (AuthState is not null)
-            {
-                AuthenticationState authState = await AuthState;
-                _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
             }
 
             _allTags = data.AllTags;

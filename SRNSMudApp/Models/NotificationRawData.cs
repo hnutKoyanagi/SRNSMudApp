@@ -20,4 +20,5 @@ public record NotificationRawData(
     IReadOnlyList<TagContentProposal>? TagContentProposals = null,
     IReadOnlyList<TagContentProposal>? ResolvedTagContentProposals = null,
     IReadOnlyList<TagNameProposal>? TagNameProposals = null,
-    IReadOnlyList<TagNameProposal>? ResolvedTagNameProposals = null);
+    IReadOnlyList<TagNameProposal>? ResolvedTagNameProposals = null,
+    IReadOnlyList<TagRelation>? TagRelationComments = null);

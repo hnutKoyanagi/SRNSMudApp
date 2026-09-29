@@ -25,10 +25,13 @@ public sealed record ItemVoteResult(ItemVoteAction Action, int RelationId, int W
 public interface IItemReactionService
 {
     /// <summary>good タグへの投票を追加 / 変更 / 取り消しする。</summary>
-    Task<ItemVoteResult> ToggleItemVoteAsync(int itemId, string userId, int goodTagId, int targetWeight);
+    Task<ItemVoteResult> ToggleItemVoteAsync(int itemId, string userId, int goodTagId, int targetWeight, string? comment = null);
 
     /// <summary>リアクションタグ（真実・善・美）への投票（Upvote=+1 / Downvote=-1）を追加 / 変更 / 取り消しする。</summary>
-    Task<ItemVoteResult> ToggleItemReactionAsync(int itemId, string userId, int reactionTagId, int targetWeight);
+    Task<ItemVoteResult> ToggleItemReactionAsync(int itemId, string userId, int reactionTagId, int targetWeight, string? comment = null);
+
+    /// <summary>既存の TagRelation のコメントを更新する。</summary>
+    Task<bool> UpdateTagRelationCommentAsync(int relationId, string userId, string? comment);
 
     /// <summary>指定した名前のシステムリアクションタグを確実に取得または作成する。</summary>
     Task<Tag> EnsureReactionTagAsync(string userId, string reactionTagName);

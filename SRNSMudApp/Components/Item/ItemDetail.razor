@@ -336,6 +336,14 @@
                                                 @ledger.CreatedDate.ToLocalTime().ToString("g")
                                             </MudText>
                                         </div>
+                                        @if (!string.IsNullOrWhiteSpace(ledger.TagRelation?.Comment))
+                                        {
+                                            <div class="pl-4 mt-1">
+                                                <MudText Typo="Typo.body2" Color="Color.Secondary" Style="font-style: italic;">
+                                                    コメント: @ledger.TagRelation.Comment
+                                                </MudText>
+                                            </div>
+                                        }
                                     </MudListItem>
                                 }
                             </MudList>

@@ -179,6 +179,15 @@ public class NotificationsDataProvider(IDbContextFactory<ApplicationDbContext> d
                         (p.Status == TradeStatus.Executed || p.Status == TradeStatus.Rejected))
             .ToListAsync(cancellationToken);
 
+        // 13. TagRelation comments targeting the user (as item owner)
+        List<TagRelation> tagRelationComments = await context.TagRelations!
+            .AsNoTracking()
+            .Include(tr => tr.Item)
+            .Include(tr => tr.Tag)
+            .Include(tr => tr.Owner)
+            .Where(tr => tr.Item.OwnerId == userId && tr.OwnerId != userId && !string.IsNullOrEmpty(tr.Comment))
+            .ToListAsync(cancellationToken);
+
         return new NotificationRawData(
             tagRequests,
             itemReplies,
@@ -192,7 +201,8 @@ public class NotificationsDataProvider(IDbContextFactory<ApplicationDbContext> d
             tagContentProposals,
             resolvedTagContentProposals,
             tagNameProposals,
-            resolvedTagNameProposals);
+            resolvedTagNameProposals,
+            tagRelationComments);
     }
 
     /// <inheritdoc />

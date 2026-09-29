@@ -3,6 +3,7 @@
 using Microsoft.EntityFrameworkCore;
 
 using SRNSMudApp.Data;
+using SRNSMudApp.Models.Unions;
 using SRNSMudApp.Services;
 
 #endregion
@@ -189,6 +190,55 @@ public class ItemReactionServiceTests : IAsyncLifetime
             Assert.Equal(ItemVoteAction.Removed, reverseStep2.Action);
             Assert.Equal(0, reverseStep2.Weight);
             Assert.False(await db.TagRelations.AnyAsync(tr => tr.ItemId == itemId && tr.OwnerId == userId && tr.TagId == tagId));
+        }
+    }
+
+    [Fact]
+    public async Task ToggleItemReaction_WithComment_SavesCommentToTagRelation()
+    {
+        var (db, sut, userId, tagId, itemId, _) = await CreateScopeAsync();
+        await using (db)
+        {
+            var comment = "素晴らしい洞察です。真実を感じます。";
+            ItemVoteResult result = await sut.ToggleItemReactionAsync(itemId, userId, tagId, 1, comment);
+
+            Assert.Equal(ItemVoteAction.Added, result.Action);
+            TagRelation relation = await db.TagRelations
+                .Include(tr => tr.CommentItem)
+                .SingleAsync(tr => tr.Id == result.RelationId);
+            Assert.Equal(comment, relation.Comment);
+            Assert.NotNull(relation.CommentItemId);
+            Assert.NotNull(relation.CommentItem);
+            Assert.Equal(comment, relation.CommentItem.Content);
+            Assert.Equal(userId, relation.CommentItem.OwnerId);
+            var tagComment = System.Text.Json.JsonSerializer.Deserialize<TagCommentItem>(relation.CommentItem.ItemKindJson);
+            Assert.NotNull(tagComment);
+            Assert.Equal(itemId, tagComment.TargetItemId);
+            Assert.Equal(tagId, tagComment.TagId);
+        }
+    }
+
+    [Fact]
+    public async Task UpdateTagRelationComment_UpdatesExistingComment()
+    {
+        var (db, sut, userId, tagId, itemId, _) = await CreateScopeAsync();
+        await using (db)
+        {
+            ItemVoteResult result = await sut.ToggleItemReactionAsync(itemId, userId, tagId, 1);
+            Assert.Equal(ItemVoteAction.Added, result.Action);
+
+            var updatedComment = "更新後のコメント";
+            var success = await sut.UpdateTagRelationCommentAsync(result.RelationId, userId, updatedComment);
+
+            Assert.True(success);
+            TagRelation relation = await db.TagRelations
+                .Include(tr => tr.CommentItem)
+                .SingleAsync(tr => tr.Id == result.RelationId);
+            Assert.Equal(updatedComment, relation.Comment);
+            Assert.NotNull(relation.CommentItemId);
+            Assert.NotNull(relation.CommentItem);
+            Assert.Equal(updatedComment, relation.CommentItem.Content);
+            Assert.Equal(userId, relation.CommentItem.OwnerId);
         }
     }
 

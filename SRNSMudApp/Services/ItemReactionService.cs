@@ -19,15 +19,32 @@ public class ItemReactionService(
         int itemId,
         string userId,
         int goodTagId,
-        int targetWeight)
-        => await ApplyReactionChangeAsync(itemId, userId, goodTagId, targetWeight, false, "Vote");
+        int targetWeight,
+        string? comment = null)
+        => await ApplyReactionChangeAsync(itemId, userId, goodTagId, targetWeight, false, "Vote", comment);
 
     public async Task<ItemVoteResult> ToggleItemReactionAsync(
         int itemId,
         string userId,
         int reactionTagId,
-        int targetWeight)
-        => await ApplyReactionChangeAsync(itemId, userId, reactionTagId, targetWeight, true, "Reaction");
+        int targetWeight,
+        string? comment = null)
+        => await ApplyReactionChangeAsync(itemId, userId, reactionTagId, targetWeight, true, "Reaction", comment);
+
+    public async Task<bool> UpdateTagRelationCommentAsync(int relationId, string userId, string? comment)
+    {
+        await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
+        TagRelation? relation = await context.TagRelations.FirstOrDefaultAsync(tr => tr.Id == relationId && tr.OwnerId == userId);
+        if (relation is null)
+        {
+            return false;
+        }
+
+        relation.Comment = comment;
+        relation.UpdatedDate = _timeProvider.GetUtcNow().UtcDateTime;
+        _ = await context.SaveChangesAsync();
+        return true;
+    }
 
     private async Task<ItemVoteResult> ApplyReactionChangeAsync(
         int itemId,
@@ -35,7 +52,8 @@ public class ItemReactionService(
         int tagId,
         int targetWeight,
         bool accumulate,
-        string reasonPrefix)
+        string reasonPrefix,
+        string? comment = null)
     {
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
         DateTime now = _timeProvider.GetUtcNow().UtcDateTime;
@@ -51,6 +69,7 @@ public class ItemReactionService(
                 TagId = tagId,
                 OwnerId = userId,
                 Weight = targetWeight,
+                Comment = comment,
                 CreatedDate = now,
                 UpdatedDate = now
             };
@@ -60,6 +79,11 @@ public class ItemReactionService(
 
             _ = await context.SaveChangesAsync();
             return new ItemVoteResult(ItemVoteAction.Added, newRelation.Id, targetWeight);
+        }
+
+        if (comment is not null)
+        {
+            existingRelation.Comment = comment;
         }
 
         int previousWeight = existingRelation.Weight;
