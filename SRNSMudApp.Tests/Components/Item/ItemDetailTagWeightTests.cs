@@ -96,6 +96,63 @@ public sealed class ItemDetailTagWeightTests : IAsyncLifetime
         _itemTagServiceMock.Verify(s => s.UpdateTagWeightAsync(relation.Id, -1, UserId), Times.Once);
     }
 
+    [Fact]
+    public void TagHistoryTab_RendersTagRelationComment()
+    {
+        const int itemId = 1;
+        const string tagName = "HistoryTag";
+        const string comment = "タグ履歴に表示されるコメントです";
+
+        var tag = new SRNSMudApp.Data.Tag { Id = 10, Name = tagName, OwnerId = UserId };
+        var relation = new TagRelation
+        {
+            Id = 50,
+            ItemId = itemId,
+            TagId = tag.Id,
+            Tag = tag,
+            OwnerId = UserId,
+            Weight = 1,
+            Comment = comment
+        };
+        var item = new SRNSMudApp.Data.Item
+        {
+            Id = itemId,
+            Content = "Item with history",
+            OwnerId = UserId,
+            Owner = new ApplicationUser { Id = UserId, UserName = UserName },
+            TagRelations = [relation]
+        };
+
+        var ledger = new TagWeightLedger
+        {
+            Id = 1,
+            TagId = tag.Id,
+            Tag = tag,
+            ItemId = itemId,
+            SourceType = "TagRelationInsert",
+            SourceId = relation.Id,
+            TagRelation = relation,
+            Delta = 1,
+            OwnerId = UserId,
+            Owner = new ApplicationUser { Id = UserId, UserName = UserName },
+            CreatedDate = DateTime.UtcNow
+        };
+
+        _ = _itemDetailDataMock.Setup(d => d.GetItemDetailAsync(itemId))
+            .ReturnsAsync(new ItemDetailPageData(item, [tag], [], [ledger]));
+
+        NavigationManager navigationManager = _ctx.Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo($"http://localhost/ItemDetail/{itemId}");
+
+        IRenderedComponent<ItemDetail> cut =
+            _ctx.Render<ItemDetail>(parameters => parameters.Add(p => p.ItemId, itemId));
+
+        cut.WaitForState(() => !cut.Markup.Contains("mud-progress-circular"));
+
+        // Assert
+        Assert.Contains(comment, cut.Markup);
+    }
+
     public async Task DisposeAsync()
     {
         await _ctx.DisposeAsync();

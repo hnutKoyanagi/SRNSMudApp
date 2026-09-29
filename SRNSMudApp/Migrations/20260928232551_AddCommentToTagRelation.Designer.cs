@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Microsoft.SqlServer.Types;
 using SRNSMudApp.Data;
@@ -13,14 +14,11 @@ using SRNSMudApp.Data;
 namespace SRNSMudApp.Migrations;
 
 [DbContext(typeof(ApplicationDbContext))]
-partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+[Migration("20260928232551_AddCommentToTagRelation")]
+partial class _20260928232551_AddCommentToTagRelation
 {
-    // If you encounter a merge conflict in the line below, it means you need to
-    // discard one of the migration branches and recreate its migrations on top of
-    // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20260929084726_AddCommentItemToTagRelation";
-
-    protected override void BuildModel(ModelBuilder modelBuilder)
+    /// <inheritdoc />
+    protected override void BuildTargetModel(ModelBuilder modelBuilder)
     {
 #pragma warning disable 612, 618
         modelBuilder
@@ -1145,8 +1143,9 @@ partial class ApplicationDbContextModelSnapshot : ModelSnapshot
 
                 SqlServerPropertyBuilderExtensions.UseIdentityColumn(id);
 
-                b.Property<int?>("CommentItemId")
-                    .HasColumnType("int");
+                b.Property<string>("Comment")
+                    .HasMaxLength(500)
+                    .HasColumnType("nvarchar(500)");
 
                 b.Property<DateTime>("CreatedDate")
                     .HasColumnType("datetime2");
@@ -1168,8 +1167,6 @@ partial class ApplicationDbContextModelSnapshot : ModelSnapshot
                     .HasColumnType("int");
 
                 b.HasKey("Id");
-
-                b.HasIndex("CommentItemId");
 
                 b.HasIndex("ItemId");
 
@@ -2119,11 +2116,6 @@ partial class ApplicationDbContextModelSnapshot : ModelSnapshot
 
         modelBuilder.Entity("SRNSMudApp.Data.TagRelation", b =>
             {
-                b.HasOne("SRNSMudApp.Data.Item", "CommentItem")
-                    .WithMany()
-                    .HasForeignKey("CommentItemId")
-                    .OnDelete(DeleteBehavior.Restrict);
-
                 b.HasOne("SRNSMudApp.Data.Item", "Item")
                     .WithMany("TagRelations")
                     .HasForeignKey("ItemId")
@@ -2141,8 +2133,6 @@ partial class ApplicationDbContextModelSnapshot : ModelSnapshot
                     .HasForeignKey("TagId")
                     .OnDelete(DeleteBehavior.Cascade)
                     .IsRequired();
-
-                b.Navigation("CommentItem");
 
                 b.Navigation("Item");
 

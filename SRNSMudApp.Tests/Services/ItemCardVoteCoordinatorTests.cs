@@ -110,7 +110,27 @@ public class ItemCardVoteCoordinatorTests
 
         Assert.True(result);
         _itemReactionServiceMock.Verify(s => s.EnsureReactionTagAsync(UserId, ReactionTagNames.Shinji), Times.Once);
-        _itemReactionServiceMock.Verify(s => s.ToggleItemReactionAsync(2, UserId, 20, 1), Times.Once);
+        _itemReactionServiceMock.Verify(s => s.ToggleItemReactionAsync(2, UserId, 20, 1, null), Times.Once);
+    }
+
+    [Fact]
+    public async Task ToggleReactionAsync_WithComment_PassesCommentToReactionService()
+    {
+        var reactionTag = new Tag { Id = 20, Name = ReactionTagNames.Shinji, IsSystem = true, OwnerId = UserId };
+
+        _ = _itemReactionServiceMock
+            .Setup(s => s.EnsureReactionTagAsync(UserId, ReactionTagNames.Shinji))
+            .ReturnsAsync(reactionTag);
+
+        _ = _itemReactionServiceMock
+            .Setup(s => s.ToggleItemReactionAsync(2, UserId, 20, 1, "リアクションへの熱いコメント"))
+            .ReturnsAsync(new ItemVoteResult(ItemVoteAction.Added, 101, 1));
+
+        var result = await _coordinator.ToggleReactionAsync(
+            2, UserId, ReactionTagNames.Shinji, targetWeight: 1, reactionTagId: null, allTags: [], comment: "リアクションへの熱いコメント");
+
+        Assert.True(result);
+        _itemReactionServiceMock.Verify(s => s.ToggleItemReactionAsync(2, UserId, 20, 1, "リアクションへの熱いコメント"), Times.Once);
     }
 
     [Fact]
@@ -129,14 +149,14 @@ public class ItemCardVoteCoordinatorTests
         var existingTag = new Tag { Id = 35, Name = ReactionTagNames.Zen, IsSystem = true, OwnerId = UserId };
 
         _ = _itemReactionServiceMock
-            .Setup(s => s.ToggleItemReactionAsync(3, UserId, 35, 1))
+            .Setup(s => s.ToggleItemReactionAsync(3, UserId, 35, 1, null))
             .ReturnsAsync(new ItemVoteResult(ItemVoteAction.Added, 102, 1));
 
         var result = await _coordinator.ToggleReactionAsync(
             3, UserId, ReactionTagNames.Zen, targetWeight: 1, reactionTagId: 35, allTags: [existingTag]);
 
         Assert.True(result);
-        _itemReactionServiceMock.Verify(s => s.ToggleItemReactionAsync(3, UserId, 35, 1), Times.Once);
+        _itemReactionServiceMock.Verify(s => s.ToggleItemReactionAsync(3, UserId, 35, 1, null), Times.Once);
         _itemReactionServiceMock.Verify(s => s.EnsureReactionTagAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
     }
 

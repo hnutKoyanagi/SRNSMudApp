@@ -1,5 +1,4 @@
 @page "/Account/Manage/Passkeys"
-@using System.Buffers.Text
 
 @inject UserManager<ApplicationUser> UserManager
 @inject SignInManager<ApplicationUser> SignInManager
@@ -9,65 +8,63 @@
 
 <MudText Typo="Typo.h6" GutterBottom="true">Manage your passkeys</MudText>
 
-<StatusMessage/>
+<StatusMessage />
 
 @if (currentPasskeys is { Count: > 0 })
 {
-    <table class="table">
+    <table class="table" data-testid="passkeys-table">
         <tbody>
-        @foreach (var passkey in currentPasskeys)
-        {
-            <tr>
-                <td>@(passkey.Name ?? "Unnamed passkey")</td>
-                <td>
-                    @{
-                        var credentialId = Base64Url.EncodeToString(passkey.CredentialId);
-                    }
-                    <form @formname="@($"update-passkey-{credentialId}")" @onsubmit="UpdatePasskey" method="post">
-                        <AntiforgeryToken/>
-                        <div>
-                            <input type="hidden" name="CredentialId" value="@credentialId"/>
-                            <button type="submit" name="Action" value="rename" class="btn btn-primary"
-                                    title="Rename this passkey">
-                                Rename
-                            </button>
-                            <button type="submit" name="Action" value="delete" class="btn btn-danger"
-                                    title="Remove this passkey from your account">
-                                Delete
-                            </button>
-                        </div>
-                    </form>
-                </td>
-            </tr>
-        }
+            @foreach (var passkey in currentPasskeys)
+            {
+                var credentialId = PasskeysViewModel.EncodeCredentialId(passkey.CredentialId);
+                <tr data-testid="@($"passkey-row-{credentialId}")">
+                    <td data-testid="@($"passkey-name-{credentialId}")">@PasskeysViewModel.FormatPasskeyName(passkey.Name)</td>
+                    <td>
+                        <form @formname="@($"update-passkey-{credentialId}")" @onsubmit="UpdatePasskey" method="post">
+                            <AntiforgeryToken />
+                            <div>
+                                <input type="hidden" name="CredentialId" value="@credentialId" />
+                                <button type="submit" name="Action" value="rename" class="btn btn-primary"
+                                        title="Rename this passkey" data-testid="@($"rename-passkey-{credentialId}")">
+                                    Rename
+                                </button>
+                                <button type="submit" name="Action" value="delete" class="btn btn-danger"
+                                        title="Remove this passkey from your account"
+                                        data-testid="@($"delete-passkey-{credentialId}")">
+                                    Delete
+                                </button>
+                            </div>
+                        </form>
+                    </td>
+                </tr>
+            }
         </tbody>
     </table>
 }
 else
 {
-    <MudText Typo="Typo.body1">No passkeys are registered.</MudText>
+    <MudText Typo="Typo.body1" data-testid="no-passkeys-message">@PasskeysViewModel.NoPasskeysMessage</MudText>
 }
 
 <form @formname="add-passkey" @onsubmit="AddPasskey" method="post">
-    <AntiforgeryToken/>
-    @if (currentPasskeys is { Count: >= MaxPasskeyCount })
+    <AntiforgeryToken />
+    @if (!PasskeysViewModel.CanAddPasskey(currentPasskeys?.Count ?? 0))
     {
-        <MudText Typo="Typo.body2" Color="Color.Error">
+        <MudText Typo="Typo.body2" Color="Color.Error" data-testid="max-passkeys-warning">
             You have reached the maximum number of allowed passkeys. Please
             delete one before adding a new one.
         </MudText>
     }
     else
     {
-        <PasskeySubmit Operation="PasskeyOperation.Create" Name="Input" class="btn btn-primary">
+        <PasskeySubmit Operation="PasskeyOperation.Create" Name="Input" class="btn btn-primary"
+                       data-testid="add-passkey-button">
             Add a new passkey
         </PasskeySubmit>
     }
 </form>
 
 @code {
-    private const int MaxPasskeyCount = 100;
-
     private ApplicationUser? user;
     private IList<UserPasskeyInfo>? currentPasskeys;
 
@@ -110,31 +107,32 @@ else
 
         if (string.IsNullOrEmpty(Input.CredentialJson))
         {
-            RedirectManager.RedirectToCurrentPageWithStatus("Error: The browser did not provide a passkey.", HttpContext);
+            RedirectManager.RedirectToCurrentPageWithStatus(PasskeysViewModel.MissingBrowserPasskeyMessage, HttpContext);
             return;
         }
 
-        if (currentPasskeys!.Count >= MaxPasskeyCount)
+        if (!PasskeysViewModel.CanAddPasskey(currentPasskeys?.Count ?? 0))
         {
-            RedirectManager.RedirectToCurrentPageWithStatus("Error: You have reached the maximum number of allowed passkeys.", HttpContext);
+            RedirectManager.RedirectToCurrentPageWithStatus(PasskeysViewModel.MaxPasskeyCountMessage, HttpContext);
             return;
         }
 
         var attestationResult = await SignInManager.PerformPasskeyAttestationAsync(Input.CredentialJson);
         if (!attestationResult.Succeeded)
         {
-            RedirectManager.RedirectToCurrentPageWithStatus($"Error: Could not add the passkey: {attestationResult.Failure.Message}", HttpContext);
+            RedirectManager.RedirectToCurrentPageWithStatus(PasskeysViewModel.FormatAttestationError(attestationResult.Failure.Message),
+HttpContext);
             return;
         }
 
         var addPasskeyResult = await UserManager.AddOrUpdatePasskeyAsync(user, attestationResult.Passkey);
         if (!addPasskeyResult.Succeeded)
         {
-            RedirectManager.RedirectToCurrentPageWithStatus("Error: The passkey could not be added to your account.", HttpContext);
+            RedirectManager.RedirectToCurrentPageWithStatus(PasskeysViewModel.PasskeyAddFailedMessage, HttpContext);
             return;
         }
 
-        var credentialIdBase64Url = Base64Url.EncodeToString(attestationResult.Passkey.CredentialId);
+        var credentialIdBase64Url = PasskeysViewModel.EncodeCredentialId(attestationResult.Passkey.CredentialId);
         RedirectManager.RedirectTo($"Account/Manage/RenamePasskey/{credentialIdBase64Url}");
     }
 
@@ -149,7 +147,7 @@ else
                 await DeletePasskey();
                 break;
             default:
-                RedirectManager.RedirectToCurrentPageWithStatus($"Error: Unknown action '{Action}'.", HttpContext);
+                RedirectManager.RedirectToCurrentPageWithStatus(PasskeysViewModel.FormatUnknownActionError(Action), HttpContext);
                 break;
         }
     }
@@ -162,25 +160,19 @@ else
             return;
         }
 
-        byte[] credentialId;
-        try
+        if (!PasskeysViewModel.TryDecodeCredentialId(CredentialId, out byte[] credentialId))
         {
-            credentialId = Base64Url.DecodeFromChars(CredentialId);
-        }
-        catch (FormatException)
-        {
-            RedirectManager.RedirectToCurrentPageWithStatus("Error: The specified passkey ID had an invalid format.", HttpContext);
+            RedirectManager.RedirectToCurrentPageWithStatus(PasskeysViewModel.InvalidCredentialIdFormatMessage, HttpContext);
             return;
         }
 
         var result = await UserManager.RemovePasskeyAsync(user, credentialId);
         if (!result.Succeeded)
         {
-            RedirectManager.RedirectToCurrentPageWithStatus("Error: The passkey could not be deleted.", HttpContext);
+            RedirectManager.RedirectToCurrentPageWithStatus(PasskeysViewModel.PasskeyDeleteFailedMessage, HttpContext);
             return;
         }
 
-        RedirectManager.RedirectToCurrentPageWithStatus("Passkey deleted successfully.", HttpContext);
+        RedirectManager.RedirectToCurrentPageWithStatus(PasskeysViewModel.PasskeyDeleteSuccessMessage, HttpContext);
     }
-
 }

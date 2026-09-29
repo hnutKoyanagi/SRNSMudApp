@@ -37,6 +37,8 @@ public sealed class ItemCardReplyCountTests : IAsyncLifetime
         Mock<AuthenticationStateProvider> authMock = new();
         _ = authMock.Setup(p => p.GetAuthenticationStateAsync()).ReturnsAsync(authState);
         _ctx.Services.AddScoped(_ => authMock.Object);
+        _itemReplyServiceMock.Setup(s => s.GetItemRepliesAsync(It.IsAny<int>())).ReturnsAsync([]);
+        _itemReplyServiceMock.Setup(s => s.GetOptedOutUsersAsync(It.IsAny<int>())).ReturnsAsync([]);
         _ctx.Services.AddScoped(_ => _itemReplyServiceMock.Object);
         _ctx.Services.AddScoped(_ => _itemTagServiceMock.Object);
     }
@@ -116,6 +118,118 @@ public sealed class ItemCardReplyCountTests : IAsyncLifetime
         // 初期化時の1回のみ呼ばれ、フォーカス変更による再問い合わせが発生しないことを検証
         _itemReplyServiceMock.Verify(s => s.GetItemReplyCountAsync(item.Id), Times.Once);
         _itemTagServiceMock.Verify(s => s.GetTaggingRequestsForItemAsync(item.Id), Times.Once);
+    }
+
+    [Fact]
+    public void WhenParentItemIsPrivate_ItemCard_SubmitsReplyWithSameUserGroupByDefault()
+    {
+        var item = new SRNSMudApp.Data.Item
+        {
+            Id = 50,
+            Content = "Private parent item",
+            OwnerId = UserId,
+            IsPrivate = true,
+            TargetUserGroupId = 99,
+            TargetUserGroup = new UserGroup { Id = 99, Name = "Alpha", OwnerId = UserId }
+        };
+
+        var replyItem = new SRNSMudApp.Data.Item
+        {
+            Id = 51,
+            ParentItemId = 50,
+            Content = "Reply to private item",
+            OwnerId = UserId,
+            IsPrivate = true,
+            TargetUserGroupId = 99
+        };
+
+        _ = _itemReplyServiceMock
+            .Setup(s => s.GetItemReplyCountAsync(item.Id))
+            .ReturnsAsync(0);
+
+        _ = _itemReplyServiceMock
+            .Setup(s => s.AddItemReplyAsync(item.Id, "Reply to private item", UserId, It.IsAny<IEnumerable<string>>(), true, 99))
+            .ReturnsAsync(replyItem);
+
+        IRenderedComponent<ItemCard> cut = _ctx.Render<ItemCard>(parameters => parameters
+            .Add(p => p.Item, item)
+            .Add(p => p.CurrentUserId, UserId));
+
+        cut.WaitForState(() => cut.Markup.Contains("リプライ"));
+
+        // リプライ展開ボタンをクリック
+        var replyToggleBtn = cut.Find($"[data-testid='reply-toggle-button-{item.Id}']");
+        replyToggleBtn.Click();
+
+        // プライベートトグルが表示され、デフォルトでグループ名が含まれていること
+        Assert.NotEmpty(cut.FindAll($"[data-testid='reply-private-toggle-{item.Id}']"));
+        Assert.Contains("Alpha", cut.Markup);
+
+        // リプライを入力して送信
+        var replyInput = cut.Find($"[data-testid='reply-input-form-{item.Id}'] textarea");
+        replyInput.Input("Reply to private item");
+
+        var submitBtn = cut.Find($"[data-testid='reply-submit-button-{item.Id}']");
+        submitBtn.Click();
+
+        // 同一グループ限定プライベートで送信されたこと
+        _itemReplyServiceMock.Verify(s => s.AddItemReplyAsync(item.Id, "Reply to private item", UserId, It.IsAny<IEnumerable<string>>(), true, 99), Times.Once);
+    }
+
+    [Fact]
+    public void WhenParentItemIsPrivate_ItemCard_CanToggleOffPrivate_AndSubmitPublicReply()
+    {
+        var item = new SRNSMudApp.Data.Item
+        {
+            Id = 60,
+            Content = "Private parent item",
+            OwnerId = UserId,
+            IsPrivate = true,
+            TargetUserGroupId = 99,
+            TargetUserGroup = new UserGroup { Id = 99, Name = "Alpha", OwnerId = UserId }
+        };
+
+        var publicReplyItem = new SRNSMudApp.Data.Item
+        {
+            Id = 61,
+            ParentItemId = 60,
+            Content = "Public reply to private item",
+            OwnerId = UserId,
+            IsPrivate = false,
+            TargetUserGroupId = null
+        };
+
+        _ = _itemReplyServiceMock
+            .Setup(s => s.GetItemReplyCountAsync(item.Id))
+            .ReturnsAsync(0);
+
+        _ = _itemReplyServiceMock
+            .Setup(s => s.AddItemReplyAsync(item.Id, "Public reply to private item", UserId, It.IsAny<IEnumerable<string>>(), false, null))
+            .ReturnsAsync(publicReplyItem);
+
+        IRenderedComponent<ItemCard> cut = _ctx.Render<ItemCard>(parameters => parameters
+            .Add(p => p.Item, item)
+            .Add(p => p.CurrentUserId, UserId));
+
+        cut.WaitForState(() => cut.Markup.Contains("リプライ"));
+
+        // リプライ展開
+        var replyToggleBtn = cut.Find($"[data-testid='reply-toggle-button-{item.Id}']");
+        replyToggleBtn.Click();
+
+        // スイッチをOFFに切り替え
+        var switchInput = cut.Find($"[data-testid='reply-private-toggle-{item.Id}'] input[type='checkbox']");
+        switchInput.Change(false);
+
+        // リプライを入力して送信
+        var replyInput = cut.Find($"[data-testid='reply-input-form-{item.Id}'] textarea");
+        replyInput.Input("Public reply to private item");
+
+        var submitBtn = cut.Find($"[data-testid='reply-submit-button-{item.Id}']");
+        submitBtn.Click();
+
+        // 公開で送信されたこと
+        _itemReplyServiceMock.Verify(s => s.AddItemReplyAsync(item.Id, "Public reply to private item", UserId, It.IsAny<IEnumerable<string>>(), false, null), Times.Once);
     }
 
     public async Task DisposeAsync()

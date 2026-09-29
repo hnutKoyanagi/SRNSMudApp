@@ -61,7 +61,8 @@ public class ItemCardVoteCoordinator(
         int targetWeight,
         int? reactionTagId,
         IReadOnlyList<Tag> allTags,
-        Func<Task>? ensureSystemTagsAsync = null)
+        Func<Task>? ensureSystemTagsAsync = null,
+        string? comment = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reactionTagName);
         ArgumentNullException.ThrowIfNull(allTags);
@@ -90,7 +91,7 @@ public class ItemCardVoteCoordinator(
         }
 
         return await ToggleTagVoteAsync(
-            () => _itemReactionService.ToggleItemReactionAsync(itemId, currentUserId, tagId, targetWeight));
+            () => _itemReactionService.ToggleItemReactionAsync(itemId, currentUserId, tagId, targetWeight, comment));
     }
 
     private static async Task<bool> ToggleTagVoteAsync(

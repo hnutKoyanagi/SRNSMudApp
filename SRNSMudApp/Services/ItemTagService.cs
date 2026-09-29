@@ -57,7 +57,7 @@ public class ItemTagService(
             false => new OperationUnauthorized(unauthMessage)
         };
 
-    public async Task<string?> AddTagToItemAsync(int itemId, int tagId, string currentUserId)
+    public async Task<string?> AddTagToItemAsync(int itemId, int tagId, string currentUserId, string? comment = null)
     {
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
 
@@ -77,10 +77,10 @@ public class ItemTagService(
             return unauthorized.Reason;
         }
 
-        return await ProcessAddTagRelation(context, itemId, tagId, currentUserId, someTag.Value);
+        return await ProcessAddTagRelation(context, itemId, tagId, currentUserId, someTag.Value, comment);
     }
 
-    private async Task<string?> ProcessAddTagRelation(ApplicationDbContext context, int itemId, int tagId, string currentUserId, Tag tagFromDb)
+    private async Task<string?> ProcessAddTagRelation(ApplicationDbContext context, int itemId, int tagId, string currentUserId, Tag tagFromDb, string? comment = null)
     {
         var alreadyExists = await context.TagRelations.AnyAsync(tr => tr.ItemId == itemId && tr.TagId == tagId);
         if (alreadyExists)
@@ -88,14 +88,14 @@ public class ItemTagService(
             return "このタグは既に追加されています。";
         }
 
-        return await ExecuteAddTagRelationAsync(context, itemId, tagId, currentUserId, tagFromDb);
+        return await ExecuteAddTagRelationAsync(context, itemId, tagId, currentUserId, tagFromDb, comment);
     }
 
-    private async Task<string?> ExecuteAddTagRelationAsync(ApplicationDbContext context, int itemId, int tagId, string currentUserId, Tag tagFromDb)
+    private async Task<string?> ExecuteAddTagRelationAsync(ApplicationDbContext context, int itemId, int tagId, string currentUserId, Tag tagFromDb, string? comment = null)
     {
         await context.Database.ExecuteWithStrategyAsync(async () =>
         {
-            var newRelation = new TagRelation { ItemId = itemId, TagId = tagId, Weight = 1, OwnerId = currentUserId };
+            var newRelation = new TagRelation { ItemId = itemId, TagId = tagId, Weight = 1, OwnerId = currentUserId, Comment = comment };
             _ = context.TagRelations.Add(newRelation);
 
             _timelineRecorder.RecordTagRelationAdded(context, currentUserId, itemId, tagId, 1);
@@ -432,6 +432,8 @@ public class ItemTagService(
     {
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
         return await context.TaggingRequestEntities!
+            .AsNoTracking()
+            .AsSplitQuery()
             .Include(tr => tr.Target)
             .ThenInclude(t => t.Item)
             .Include(tr => tr.RequestedTag)
@@ -446,7 +448,7 @@ public class ItemTagService(
             .Include(tr => tr.Replies)
             .ThenInclude(r => r.TagRelations) // ItemCard向け
             .ThenInclude(tr => tr.Tag)
-            .Where(tr => tr.Target.Item.Id == itemId)
+            .Where(tr => tr.Target.Item.Id == itemId && tr.Status == TradeStatus.Proposed)
             .OrderByDescending(tr => tr.CreatedDate)
             .ToListAsync();
     }

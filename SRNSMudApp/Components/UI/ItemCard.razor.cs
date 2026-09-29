@@ -102,6 +102,7 @@ public partial class ItemCard : IAsyncDisposable
     private IReadOnlyList<Data.Item> _replies = [];
     private string _newReplyContent = "";
     private bool _isSubmittingReply;
+    private bool _isReplyPrivate;
     private HashSet<string> _selectedTargetUserIds = [];
     private readonly HashSet<string> _unselectedTargetUserIds = [];
     private bool _hasManuallyModifiedTargets;
@@ -124,6 +125,7 @@ public partial class ItemCard : IAsyncDisposable
         }
 
         _loadedItemId = Item.Id;
+        _isReplyPrivate = Item.IsPrivate;
         _taggingRequests = await ItemTagService.GetTaggingRequestsForItemAsync(Item.Id) ?? [];
         _pendingSplitRequests = await ItemSplitService.GetPendingSplitRequestsForOriginalItemAsync(Item.Id) ?? [];
         _quoteCount = await ItemQuoteService.GetQuoteCountAsync(Item.Id);
@@ -255,10 +257,10 @@ public partial class ItemCard : IAsyncDisposable
 
     private async Task LoadRepliesAsync()
     {
-        _replies = await ItemReplyService.GetItemRepliesAsync(Item.Id);
+        _replies = await ItemReplyService.GetItemRepliesAsync(Item.Id) ?? [];
         _replyCount = _replies.Count;
         var rootId = Item.RootItemId ?? Item.Id;
-        _optedOutUserIds = await ItemReplyService.GetOptedOutUsersAsync(rootId);
+        _optedOutUserIds = await ItemReplyService.GetOptedOutUsersAsync(rootId) ?? [];
         SyncSelectedTargets(GetReplyTargetCandidates());
     }
 
@@ -346,6 +348,12 @@ public partial class ItemCard : IAsyncDisposable
         await Task.CompletedTask;
     }
 
+    private Task HandlePrivateReplyChanged(bool isPrivate)
+    {
+        _isReplyPrivate = isPrivate;
+        return Task.CompletedTask;
+    }
+
     private async Task SubmitReplyAsync()
     {
         if (string.IsNullOrWhiteSpace(_newReplyContent) || string.IsNullOrEmpty(CurrentUserId))
@@ -356,12 +364,20 @@ public partial class ItemCard : IAsyncDisposable
         _isSubmittingReply = true;
         try
         {
-            Data.Item? addedReply = await ItemReplyService.AddItemReplyAsync(Item.Id, _newReplyContent, CurrentUserId, _selectedTargetUserIds);
+            (bool isPrivate, int? targetGroupId) = ItemCardViewModel.ResolveReplyPrivacy(_isReplyPrivate, Item);
+            Data.Item? addedReply = await ItemReplyService.AddItemReplyAsync(
+                Item.Id,
+                _newReplyContent,
+                CurrentUserId,
+                _selectedTargetUserIds,
+                isPrivate: isPrivate,
+                targetUserGroupId: targetGroupId);
             if (addedReply is not null)
             {
                 _newReplyContent = "";
                 _hasManuallyModifiedTargets = false;
                 _unselectedTargetUserIds.Clear();
+                _isReplyPrivate = Item.IsPrivate;
                 _isRepliesExpanded = true;
                 await LoadRepliesAsync();
             }
@@ -423,9 +439,50 @@ public partial class ItemCard : IAsyncDisposable
             _ => null
         };
 
+        if (string.IsNullOrEmpty(CurrentUserId))
+        {
+            _ = Snackbar.Add(ErrorMessages.LoginRequired, Severity.Warning);
+            return;
+        }
+
+        bool isCurrentlyUpvoted = IsItemReactionUpvoted(reactionTagName);
+        bool isCurrentlyDownvoted = IsItemReactionDownvoted(reactionTagName);
+        bool isNewAddition = !isCurrentlyUpvoted && !isCurrentlyDownvoted;
+
+        string? comment = null;
+        if (isNewAddition)
+        {
+            var parameters = new DialogParameters
+            {
+                [nameof(ReactionCommentDialog.ReactionTagName)] = reactionTagName
+            };
+            var options = new DialogOptions
+            {
+                CloseOnEscapeKey = true,
+                MaxWidth = MaxWidth.Small,
+                FullWidth = true
+            };
+            IDialogReference dialog = await DialogLauncher.ShowAsync<ReactionCommentDialog>("リアクションを追加", parameters, options);
+            DialogResult? result = await dialog.Result;
+            if (result is null || result.Canceled)
+            {
+                return;
+            }
+
+            if (result.Data is ReactionCommentDialogResult dialogResult)
+            {
+                if (!dialogResult.Saved)
+                {
+                    return;
+                }
+
+                comment = dialogResult.Comment;
+            }
+        }
+
         Func<Task>? ensureAsync = OnEnsureSystemTags.HasDelegate ? OnEnsureSystemTags.InvokeAsync : null;
         var success = await VoteCoordinator.ToggleReactionAsync(
-            Item.Id, CurrentUserId, reactionTagName, targetWeight, reactionTagId, AllTags, ensureAsync);
+            Item.Id, CurrentUserId, reactionTagName, targetWeight, reactionTagId, AllTags, ensureAsync, comment);
 
         if (success)
         {

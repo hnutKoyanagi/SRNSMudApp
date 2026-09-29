@@ -61,20 +61,14 @@ public partial class ItemDetail
     [Inject] private IDialogLauncher DialogLauncher { get; set; } = null!;
     [Inject] private IJSRuntime JS { get; set; } = null!;
 
-    private const int AncestorsThreshold = 4;
-    private const int EarlierSiblingsThreshold = 4;
-    private const int LaterSiblingsThreshold = 2;
-    private const int RepliesThreshold = 3;
+    private readonly ItemDetailThreadViewModel _threadViewModel = new();
 
     private bool _hasScrolledToFocus;
-    private bool _isAncestorsExpanded;
-    private bool _isEarlierSiblingsExpanded;
-    private bool _isLaterSiblingsExpanded;
-    private bool _isRepliesExpanded;
 
     private AsyncPageState<ItemDetailData> _pageState = new Loading();
 
     private string _currentUserId = "";
+    private bool _isAdmin;
     private IReadOnlyList<Data.Tag> _allTags = [];
     private IReadOnlyList<TagRelationToTag> _allTagRelationsToTags = [];
 
@@ -86,6 +80,8 @@ public partial class ItemDetail
 
     private string _newReplyText = "";
     private bool _isSubmittingReply;
+    private bool _isReplyPrivate;
+    private int _lastReplyItemId;
 
     [SupplyParameterFromQuery(Name = "tab")]
     public string? ActiveTabQuery { get; set; }
@@ -159,10 +155,7 @@ public partial class ItemDetail
         try
         {
             _hasScrolledToFocus = false;
-            _isAncestorsExpanded = false;
-            _isEarlierSiblingsExpanded = false;
-            _isLaterSiblingsExpanded = false;
-            _isRepliesExpanded = false;
+            _threadViewModel.ResetExpansion();
 
             _pageState = new Loading();
 #pragma warning disable BL0012
@@ -170,7 +163,21 @@ public partial class ItemDetail
             StateHasChanged();
 #pragma warning restore BL0012
 
-            ItemDetailPageData? data = await DetailData.GetItemDetailAsync(ItemId);
+            ItemDetailPageData? data;
+            if (AuthState is not null)
+            {
+                AuthenticationState authState = await AuthState;
+                _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
+                _isAdmin = authState.User.IsInRole("Admin");
+            }
+
+            string? currentUserId = string.IsNullOrEmpty(_currentUserId) ? null : _currentUserId;
+            data = _isAdmin
+                ? await DetailData.GetItemDetailAsync(ItemId, currentUserId, _isAdmin)
+                : await DetailData.GetItemDetailAsync(ItemId, currentUserId);
+
+            // 単体テストで 1 引数の GetItemDetailAsync(itemId) のみがモック設定されている場合の互換性維持
+            data ??= await DetailData.GetItemDetailAsync(ItemId);
 
             if (data is null)
             {
@@ -183,12 +190,6 @@ public partial class ItemDetail
             if (SelectedRequestIdQuery.HasValue && requests != null)
             {
                 _selectedRequest = requests.FirstOrDefault(r => r.Id == SelectedRequestIdQuery.Value);
-            }
-
-            if (AuthState is not null)
-            {
-                AuthenticationState authState = await AuthState;
-                _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
             }
 
             _allTags = data.AllTags;
@@ -209,6 +210,12 @@ public partial class ItemDetail
             // タグ一覧取得後に TagId ベースのフィルタ文字列を解決する
             var state = ItemDetailQueryStateFactory.ParseFromUri(new Uri(NavigationManager.Uri));
             _searchQuery = ItemDetailQueryStateFactory.ToSearchQuery(state, _allTags);
+
+            if (_lastReplyItemId != data.Item.Id)
+            {
+                _lastReplyItemId = data.Item.Id;
+                _isReplyPrivate = data.Item.IsPrivate;
+            }
 
             _pageState = new Loaded<ItemDetailData>(new ItemDetailData(
                 data.Item,
@@ -256,10 +263,18 @@ public partial class ItemDetail
         _isSubmittingReply = true;
         try
         {
-            Data.Item? addedReply = await ItemReplyService.AddItemReplyAsync(ItemId, _newReplyText, _currentUserId);
+            var currentItem = _pageState is Loaded<ItemDetailData> loaded ? loaded.Data.Item : null;
+            (bool isPrivate, int? targetGroupId) = ItemDetailThreadViewModel.ResolveReplyPrivacy(_isReplyPrivate, currentItem);
+            Data.Item? addedReply = await ItemReplyService.AddItemReplyAsync(
+                ItemId,
+                _newReplyText,
+                _currentUserId,
+                isPrivate: isPrivate,
+                targetUserGroupId: targetGroupId);
             if (addedReply is not null)
             {
                 _newReplyText = "";
+                _isReplyPrivate = currentItem?.IsPrivate ?? false;
                 _ = Snackbar.Add("リプライを送信しました。", Severity.Success);
                 await LoadDataAsync();
             }

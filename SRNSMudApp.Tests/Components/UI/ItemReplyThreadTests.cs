@@ -4,6 +4,7 @@ using AngleSharp.Dom;
 
 using Bunit;
 
+using MudBlazor;
 using MudBlazor.Services;
 
 using SRNSMudApp.Components.UI;
@@ -217,5 +218,52 @@ public class ItemReplyThreadTests : BunitContext, IAsyncLifetime
         showQuotesBtn.Click();
 
         Assert.True(invoked);
+    }
+
+    [Fact]
+    public void PrivateReplyToggle_NotRendered_WhenParentIsNotPrivate()
+    {
+        IRenderedComponent<ItemReplyThread> cut = Render<ItemReplyThread>(parameters => parameters
+            .Add(p => p.ItemId, 42)
+            .Add(p => p.IsExpanded, true)
+            .Add(p => p.ParentIsPrivate, false));
+
+        Assert.Empty(cut.FindAll("[data-testid='reply-private-toggle-42']"));
+    }
+
+    [Fact]
+    public void PrivateReplyToggle_RenderedAndShowsGroupName_WhenParentIsPrivate()
+    {
+        IRenderedComponent<ItemReplyThread> cut = Render<ItemReplyThread>(parameters => parameters
+            .Add(p => p.ItemId, 42)
+            .Add(p => p.IsExpanded, true)
+            .Add(p => p.ParentIsPrivate, true)
+            .Add(p => p.ParentUserGroupId, 10)
+            .Add(p => p.ParentUserGroupName, "Team Alpha")
+            .Add(p => p.IsPrivateReply, true));
+
+        Assert.NotEmpty(cut.FindAll("[data-testid='reply-private-toggle-42']"));
+        Assert.Contains("Team Alpha", cut.Markup);
+    }
+
+    [Fact]
+    public void PrivateReplyToggle_Change_InvokesOnPrivateReplyChanged()
+    {
+        bool? toggledValue = null;
+        IRenderedComponent<ItemReplyThread> cut = Render<ItemReplyThread>(parameters => parameters
+            .Add(p => p.ItemId, 42)
+            .Add(p => p.IsExpanded, true)
+            .Add(p => p.ParentIsPrivate, true)
+            .Add(p => p.ParentUserGroupId, 10)
+            .Add(p => p.ParentUserGroupName, "Team Alpha")
+            .Add(p => p.IsPrivateReply, true)
+            .Add(p => p.OnPrivateReplyChanged, Microsoft.AspNetCore.Components.EventCallback.Factory.Create<bool>(this, val => toggledValue = val)));
+
+        var mudSwitch = cut.FindComponent<MudSwitch<bool>>();
+        var switchInput = mudSwitch.Find("input[type='checkbox']");
+        switchInput.Change(false);
+
+        Assert.NotNull(toggledValue);
+        Assert.False(toggledValue.Value);
     }
 }

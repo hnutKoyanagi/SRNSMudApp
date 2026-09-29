@@ -58,6 +58,10 @@ public record TagNameProposalApprovedNotification(
 public record TagNameProposalRejectedNotification(
     int ProposalId, int TagId, string TagName, string? RejectReason);
 
+public record TagRelationCommentNotification(
+    int TagRelationId, int TargetItemId, string TagName,
+    string Comment, string ActorName);
+
 [SuppressMessage("Performance", "CA1815:Override equals and operator equals on value types", Justification = "Union type handled by C# compiler")]
 public readonly union NotificationType(
     TagRequestNotification,
@@ -74,7 +78,8 @@ public readonly union NotificationType(
     TagContentProposalRejectedNotification,
     TagNameProposalNotification,
     TagNameProposalApprovedNotification,
-    TagNameProposalRejectedNotification)
+    TagNameProposalRejectedNotification,
+    TagRelationCommentNotification)
 {
     public readonly string Icon => this switch
     {
@@ -93,6 +98,7 @@ public readonly union NotificationType(
         TagNameProposalNotification => Icons.Material.Filled.DriveFileRenameOutline,
         TagNameProposalApprovedNotification => Icons.Material.Filled.CheckCircle,
         TagNameProposalRejectedNotification => Icons.Material.Filled.Cancel,
+        TagRelationCommentNotification => Icons.Material.Filled.Comment,
         _ => throw new UnreachableException()
     };
 
@@ -113,6 +119,7 @@ public readonly union NotificationType(
         TagNameProposalNotification => "Primary",
         TagNameProposalApprovedNotification => "Success",
         TagNameProposalRejectedNotification => "Error",
+        TagRelationCommentNotification => "Primary",
         _ => throw new UnreachableException()
     };
 
@@ -133,6 +140,7 @@ public readonly union NotificationType(
         TagNameProposalNotification => "TagNameProposal",
         TagNameProposalApprovedNotification => "TagNameProposalApproved",
         TagNameProposalRejectedNotification => "TagNameProposalRejected",
+        TagRelationCommentNotification => "TagRelationComment",
         _ => throw new UnreachableException()
     };
 }

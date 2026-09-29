@@ -230,6 +230,15 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasForeignKey(tr => tr.TagId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        _ = builder.Entity<TagRelation>()
+            .Ignore(tr => tr.Comment);
+
+        _ = builder.Entity<TagRelation>()
+            .HasOne(tr => tr.CommentItem)
+            .WithMany()
+            .HasForeignKey(tr => tr.CommentItemId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         // -- BaseEntity の Owner に対する複数カスケードパス回避 --
         _ = builder.Entity<RightAsset>()
             .HasOne(r => r.Owner)

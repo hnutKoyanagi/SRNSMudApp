@@ -64,6 +64,18 @@ public interface IItemListDataProvider
         IReadOnlyList<ItemListSort> sorts,
         string? currentUserId);
 
+    /// <summary>閲覧ユーザーの可視性および管理者権限を考慮してフィルタ・ソート条件を適用したアイテム / タグ一覧を取得する。</summary>
+    /// <param name="filters">フィルタ条件一覧。</param>
+    /// <param name="sorts">ソート条件一覧。</param>
+    /// <param name="currentUserId">閲覧ユーザーID。未ログイン時は null。</param>
+    /// <param name="isAdmin">管理者権限フラグ。</param>
+    /// <returns>アイテムおよびタグ一覧データ。</returns>
+    Task<ItemListPageData> LoadItemsAndTagsAsync(
+        IReadOnlyList<ItemListFilter> filters,
+        IReadOnlyList<ItemListSort> sorts,
+        string? currentUserId,
+        bool isAdmin);
+
     /// <summary>エクスポートに必要な生データを取得する。</summary>
     Task<ItemListExportData> LoadExportDataAsync(IReadOnlyList<int> itemIds);
 
@@ -77,6 +89,15 @@ public interface IItemListDataProvider
     /// 祖先タグIDおよび閲覧ユーザーを指定して、表示可能な Item を取得する。
     /// </summary>
     Task<IReadOnlyList<Item>> LoadItemsByAncestorTagAsync(int ancestorTagId, string? currentUserId);
+
+    /// <summary>
+    /// 祖先タグID、閲覧ユーザー、および管理者権限を指定して、表示可能な Item を取得する。
+    /// </summary>
+    /// <param name="ancestorTagId">祖先タグID。</param>
+    /// <param name="currentUserId">閲覧ユーザーID。未ログイン時は null。</param>
+    /// <param name="isAdmin">管理者権限フラグ。</param>
+    /// <returns>表示可能なアイテム一覧。</returns>
+    Task<IReadOnlyList<Item>> LoadItemsByAncestorTagAsync(int ancestorTagId, string? currentUserId, bool isAdmin);
 }
 
 public class ItemListDataProvider(
@@ -88,9 +109,12 @@ public class ItemListDataProvider(
     private readonly ITagEmbeddingService _tagEmbeddingService =
         tagEmbeddingService ?? throw new ArgumentNullException(nameof(tagEmbeddingService));
     public Task<IReadOnlyList<Item>> LoadItemsByAncestorTagAsync(int ancestorTagId) =>
-        LoadItemsByAncestorTagAsync(ancestorTagId, null);
+        LoadItemsByAncestorTagAsync(ancestorTagId, null, false);
 
-    public async Task<IReadOnlyList<Item>> LoadItemsByAncestorTagAsync(int ancestorTagId, string? currentUserId)
+    public Task<IReadOnlyList<Item>> LoadItemsByAncestorTagAsync(int ancestorTagId, string? currentUserId) =>
+        LoadItemsByAncestorTagAsync(ancestorTagId, currentUserId, false);
+
+    public async Task<IReadOnlyList<Item>> LoadItemsByAncestorTagAsync(int ancestorTagId, string? currentUserId, bool isAdmin)
     {
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
 
@@ -103,11 +127,12 @@ public class ItemListDataProvider(
             ? []
             : await context.Items
                 .AsNoTracking()
+                .AsSplitQuery()
                 .Include(i => i.Owner)
                 .Include(i => i.TargetUserGroup)
                 .Include(i => i.TagRelations)
                     .ThenInclude(tr => tr.Tag)
-                .WhereVisibleToUser(context, currentUserId)
+                .WhereVisibleToUser(context, currentUserId, isAdmin)
                 .Where(i => i.TagRelations.Any(tr => tr.Tag.Node.IsDescendantOf(ancestorNode)))
                 .OrderByDescending(i => i.UpdatedDate)
                 .ToListAsync();
@@ -273,16 +298,23 @@ public class ItemListDataProvider(
 
     public Task<ItemListPageData> LoadItemsAndTagsAsync(
         IReadOnlyList<ItemListFilter> filters,
-        IReadOnlyList<ItemListSort> sorts) => LoadItemsAndTagsAsync(filters, sorts, null);
+        IReadOnlyList<ItemListSort> sorts) => LoadItemsAndTagsAsync(filters, sorts, null, false);
+
+    public Task<ItemListPageData> LoadItemsAndTagsAsync(
+        IReadOnlyList<ItemListFilter> filters,
+        IReadOnlyList<ItemListSort> sorts,
+        string? currentUserId) => LoadItemsAndTagsAsync(filters, sorts, currentUserId, false);
 
     public async Task<ItemListPageData> LoadItemsAndTagsAsync(
         IReadOnlyList<ItemListFilter> filters,
         IReadOnlyList<ItemListSort> sorts,
-        string? currentUserId)
+        string? currentUserId,
+        bool isAdmin)
     {
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
         IQueryable<Item> query = context.Items
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(i => i.Owner)
             .Include(i => i.TargetUserGroup)
             .Include(i => i.QuotedItem)
@@ -295,11 +327,12 @@ public class ItemListDataProvider(
                 .ThenInclude(t => t.Item)
             .Include(i => i.AsRequestOf)
                 .ThenInclude(r => r.RequestedTag)
-            .WhereVisibleToUser(context, currentUserId)
+            .WhereVisibleToUser(context, currentUserId, isAdmin)
             .AsQueryable();
 
         IQueryable<Tag> tagQuery = context.Tags
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(t => t.Owner)
             .Include(t => t.TargetTagRelations)
             .ThenInclude(tr => tr.Tag)

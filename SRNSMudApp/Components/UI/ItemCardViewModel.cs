@@ -312,4 +312,21 @@ public static partial class ItemCardViewModel
             }
         };
     }
+
+    /// <summary>
+    ///     リプライボタンに表示するテキストを生成する。
+    /// </summary>
+    public static string FormatReplyButtonText(int count)
+    {
+        return count > 0 ? $"リプライ ({count})" : "リプライ";
+    }
+
+    /// <summary>
+    ///     リプライのプライベート設定と対象グループIDを解決する。
+    /// </summary>
+    public static (bool IsPrivate, int? TargetGroupId) ResolveReplyPrivacy(bool isReplyPrivate, Data.Item? parentItem)
+    {
+        int? targetGroupId = isReplyPrivate ? parentItem?.TargetUserGroupId : null;
+        return (isReplyPrivate, targetGroupId);
+    }
 }

@@ -31,14 +31,7 @@
         <MudButton StartIcon="@Icons.Material.Filled.ChatBubbleOutline" Size="Size.Small" Color="Color.Default"
                    Variant="Variant.Text" OnClick="@(async () => await OnToggleReplies.InvokeAsync())"
                    data-testid="@($"reply-toggle-button-{ItemId}")">
-            @if (replyCount > 0)
-            {
-                <span>リプライ (@replyCount)</span>
-            }
-            else
-            {
-                <span>リプライ</span>
-            }
+            <span>@ItemCardViewModel.FormatReplyButtonText(replyCount)</span>
         </MudButton>
     </div>
 
@@ -78,6 +71,25 @@
                         </MudCheckBox>
                     </div>
                 }
+            </div>
+        }
+
+        @if (ParentIsPrivate)
+        {
+            <div class="d-flex align-center gap-2 mt-2 px-1" data-testid="@($"reply-private-toggle-{ItemId}")">
+                <MudSwitch T="bool" Value="@IsPrivateReply"
+                           ValueChanged="@(async (bool val) => await HandlePrivateReplyToggled(val))"
+                           Color="Color.Primary"
+                           Size="Size.Small"
+                           data-testid="@($"reply-private-switch-{ItemId}")">
+                    <MudText Typo="Typo.caption">
+                        @(IsPrivateReply
+                            ? (!string.IsNullOrWhiteSpace(ParentUserGroupName)
+                                ? $"プライベートモード ({ParentUserGroupName} のみ)"
+                                : (ParentUserGroupId.HasValue ? "プライベートモード (グループ限定)" : "プライベートモード (フォロワー限定)"))
+                            : "公開で投稿")
+                    </MudText>
+                </MudSwitch>
             </div>
         }
 
@@ -138,6 +150,21 @@
 
     [Parameter] public EventCallback<(string UserId, bool IsSelected)> OnTargetToggled { get; set; }
 
+    /// <summary>親アイテムがプライベートモードかどうか。</summary>
+    [Parameter] public bool ParentIsPrivate { get; set; }
+
+    /// <summary>親アイテムの対象ユーザーグループID。</summary>
+    [Parameter] public int? ParentUserGroupId { get; set; }
+
+    /// <summary>親アイテムの対象ユーザーグループ名。</summary>
+    [Parameter] public string? ParentUserGroupName { get; set; }
+
+    /// <summary>現在リプライにプライベートモードが適用されているかどうか。</summary>
+    [Parameter] public bool IsPrivateReply { get; set; }
+
+    /// <summary>プライベートモード切り替え時のコールバック。</summary>
+    [Parameter] public EventCallback<bool> OnPrivateReplyChanged { get; set; }
+
     private async Task HandleNewReplyContentChanged(string value)
     {
         NewReplyContent = value ?? string.Empty;
@@ -152,6 +179,15 @@
         if (OnTargetToggled.HasDelegate)
         {
             await OnTargetToggled.InvokeAsync((userId, isSelected));
+        }
+    }
+
+    private async Task HandlePrivateReplyToggled(bool isPrivate)
+    {
+        IsPrivateReply = isPrivate;
+        if (OnPrivateReplyChanged.HasDelegate)
+        {
+            await OnPrivateReplyChanged.InvokeAsync(isPrivate);
         }
     }
 }

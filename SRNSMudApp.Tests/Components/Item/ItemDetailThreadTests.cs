@@ -446,6 +446,95 @@ public sealed class ItemDetailThreadTests : IAsyncLifetime
         Assert.Empty(cut.FindAll("button[data-testid='expand-replies-btn']"));
     }
 
+    [Fact]
+    public void ItemDetail_WhenParentIsPrivate_DefaultsToPrivateWithSameGroup_AndCanToggleToPublic()
+    {
+        const int itemId = 77;
+        var author = new ApplicationUser { Id = UserId, UserName = UserName };
+        var group = new UserGroup { Id = 55, Name = "AlphaTeam", OwnerId = UserId };
+        var currentItem = new SRNSMudApp.Data.Item
+        {
+            Id = itemId,
+            Content = "Private Parent Item",
+            OwnerId = UserId,
+            Owner = author,
+            IsPrivate = true,
+            TargetUserGroupId = 55,
+            TargetUserGroup = group
+        };
+
+        var pageData = new ItemDetailPageData(currentItem, [], [], [], Ancestors: [], Replies: [], Siblings: []);
+        _ = _itemDetailDataMock.Setup(d => d.GetItemDetailAsync(itemId, default)).ReturnsAsync(pageData);
+        _ = _contractServiceMock.Setup(s => s.GetRequestsByItemIdAsync(itemId)).ReturnsAsync([]);
+
+        var newReply = new SRNSMudApp.Data.Item
+        {
+            Id = 88,
+            ParentItemId = itemId,
+            Content = "Reply to private item",
+            OwnerId = UserId,
+            IsPrivate = true,
+            TargetUserGroupId = 55
+        };
+
+        _ = _itemReplyServiceMock.Setup(s => s.AddItemReplyAsync(
+                itemId,
+                "Reply to private item",
+                UserId,
+                null,
+                true,
+                55))
+            .ReturnsAsync(newReply);
+
+        IRenderedComponent<SRNSMudApp.Components.Item.ItemDetail> cut =
+            _ctx.Render<SRNSMudApp.Components.Item.ItemDetail>(parameters => parameters.Add(p => p.ItemId, itemId));
+
+        cut.WaitForState(() => !cut.Markup.Contains("mud-progress-circular"));
+
+        // プライベートトグルが表示され、グループ名が表示されていること
+        Assert.NotEmpty(cut.FindAll("[data-testid='item-detail-reply-private-toggle']"));
+        Assert.Contains("AlphaTeam", cut.Markup);
+
+        // Act 1: そのまま（デフォルト選択のまま）送信
+        var inputElem = cut.Find("textarea[data-testid='item-detail-reply-input']");
+        inputElem.Input("Reply to private item");
+
+        var submitBtn = cut.Find("button[data-testid='item-detail-reply-submit']");
+        submitBtn.Click();
+
+        // Assert 1: 同一グループ限定プライベートで送信されたこと
+        _itemReplyServiceMock.Verify(s => s.AddItemReplyAsync(itemId, "Reply to private item", UserId, null, true, 55), Times.Once);
+
+        // Act 2: トグルをOFFにして公開で送信
+        var publicReply = new SRNSMudApp.Data.Item
+        {
+            Id = 89,
+            ParentItemId = itemId,
+            Content = "Public reply to private item",
+            OwnerId = UserId,
+            IsPrivate = false,
+            TargetUserGroupId = null
+        };
+
+        _ = _itemReplyServiceMock.Setup(s => s.AddItemReplyAsync(
+                itemId,
+                "Public reply to private item",
+                UserId,
+                null,
+                false,
+                null))
+            .ReturnsAsync(publicReply);
+
+        var switchInput = cut.Find("[data-testid='item-detail-reply-private-toggle'] input[type='checkbox']");
+        switchInput.Change(false);
+
+        inputElem.Input("Public reply to private item");
+        submitBtn.Click();
+
+        // Assert 2: 公開（isPrivate: false, targetUserGroupId: null）で送信されたこと
+        _itemReplyServiceMock.Verify(s => s.AddItemReplyAsync(itemId, "Public reply to private item", UserId, null, false, null), Times.Once);
+    }
+
     public async Task DisposeAsync()
     {
         await _ctx.DisposeAsync();

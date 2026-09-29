@@ -26,6 +26,7 @@ public sealed partial class ItemList : IDisposable
 
     [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
     private string? _currentUserId;
+    private bool _isAdmin;
 
     [Inject] private IItemListDataProvider ListData { get; set; } = null!;
     [Inject] private IJSRuntime JS { get; set; } = null!;
@@ -38,6 +39,7 @@ public sealed partial class ItemList : IDisposable
         {
             var auth = await AuthState;
             _currentUserId = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            _isAdmin = auth.User.IsInRole("Admin");
         }
 
         _tagSearchViewModel = new TagSearchViewModel(ListData);
@@ -139,7 +141,9 @@ public sealed partial class ItemList : IDisposable
         List<ItemListSort> sorts =
         [.. _sortConditions.Select(c => new ItemListSort(c.Tag.Id, c.Order == SortOrder.Asc))];
 
-        ItemListPageData page = await ListData.LoadItemsAndTagsAsync(filters, sorts, _currentUserId);
+        ItemListPageData page = _isAdmin
+            ? await ListData.LoadItemsAndTagsAsync(filters, sorts, _currentUserId, _isAdmin)
+            : await ListData.LoadItemsAndTagsAsync(filters, sorts, _currentUserId);
         _items = page.Items;
         _foundTags = page.Tags;
     }

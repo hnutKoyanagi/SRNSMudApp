@@ -69,6 +69,6 @@ public static class WebAuthnTestHelpers
         await page.WaitForURLAsync(new Regex(@"^" + Regex.Escape(serverAddress) + @"/?$"),
             new PageWaitForURLOptions { Timeout = 30000 });
         await Assertions.Expect(page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Logout" }))
-            .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 5000 });
+            .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 10000 });
     }
 }

@@ -64,6 +64,29 @@ public static class AddItemViewModel
         CreateInitialItem(userId, ItemVisibility.FromBooleans(isPrivateDefault, defaultGroupId), parentItemId, rootItemId);
 
     /// <summary>
+    ///     親アイテムやユーザー設定に基づいて、新規作成・リプライ時の初期公開範囲を決定する。
+    ///     親アイテムがプライベートモードの場合、親アイテムと同一のスコープ（グループ限定またはフォロワー限定）をデフォルトとする。
+    ///     親アイテムがない、または公開の場合は、ユーザーのデフォルト設定に従う。
+    /// </summary>
+    /// <param name="parentItem">返信先親アイテム（リプライでない場合は null）</param>
+    /// <param name="currentUser">ログイン中ユーザー情報（null の場合は公開）</param>
+    /// <returns>初期公開範囲</returns>
+    public static ItemVisibility DetermineInitialVisibility(Item? parentItem, ApplicationUser? currentUser)
+    {
+        if (parentItem is { IsPrivate: true })
+        {
+            return ItemVisibility.FromBooleans(true, parentItem.TargetUserGroupId);
+        }
+
+        if (currentUser is { IsPrivateModeDefault: true })
+        {
+            return ItemVisibility.FromBooleans(true, currentUser.DefaultPrivateUserGroupId);
+        }
+
+        return ItemVisibility.Public();
+    }
+
+    /// <summary>
     ///     テキスト中の /User/UserDetail/{userId} 形式の URL からメンション先ユーザーIDを抽出する。
     ///     ログイン中のユーザー自身は宛先から除外される。
     /// </summary>

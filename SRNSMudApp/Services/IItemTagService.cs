@@ -13,7 +13,7 @@ public interface IItemTagService
     ///     アイテムに指定タグの TagRelation を追加する。
     /// </summary>
     /// <returns>成功した場合は null、失敗した場合はエラーメッセージ。</returns>
-    Task<string?> AddTagToItemAsync(int itemId, int tagId, string currentUserId);
+    Task<string?> AddTagToItemAsync(int itemId, int tagId, string currentUserId, string? comment = null);
 
     /// <summary>
     ///     TagRelation を削除する。

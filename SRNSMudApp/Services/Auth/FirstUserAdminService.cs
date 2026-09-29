@@ -36,9 +36,9 @@ public sealed partial class FirstUserAdminService(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
 
-        // system ユーザー以外の一般ユーザーが既に 1 人でも存在する場合は昇格しない（べき等保証）
+        // system / system_root ユーザー以外の一般ユーザーが既に 1 人でも存在する場合は昇格しない（べき等保証）
         bool hasOtherUser = await _userManager.Users
-            .AnyAsync(u => u.Id != "system" && u.Id != userId, cancellationToken);
+            .AnyAsync(u => u.Id != "system" && u.Id != "system_root" && u.Id != userId, cancellationToken);
 
         if (hasOtherUser)
         {

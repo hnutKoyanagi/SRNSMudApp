@@ -40,7 +40,6 @@ public sealed class MsSqlTestDatabase : IAsyncDisposable
         var dbConnectionString = builder.ConnectionString;
 
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseSqlServer(dbConnectionString, sqlOptions => sqlOptions.UseHierarchyId())
             .UseSqlServer(dbConnectionString, sqlOptions =>
             {
                 sqlOptions.UseHierarchyId();
@@ -52,6 +51,17 @@ public sealed class MsSqlTestDatabase : IAsyncDisposable
         await using (var context = new ApplicationDbContext(options))
         {
             await context.Database.MigrateAsync();
+            var connection = context.Database.GetDbConnection();
+            if (connection.State != System.Data.ConnectionState.Open)
+            {
+                await connection.OpenAsync();
+            }
+
+            await using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = $"ALTER DATABASE [{databaseName}] SET READ_COMMITTED_SNAPSHOT ON WITH ROLLBACK IMMEDIATE;";
+                await cmd.ExecuteNonQueryAsync();
+            }
 
             var systemUser = await context.Users.FindAsync("system_root");
             if (systemUser is null)

@@ -1,0 +1,124 @@
+@implements IDisposable
+@using SRNSMudApp.Models
+
+<div class="reaction-comment-dialog-container" @onmouseenter="OnCursorEnter" @onpointerenter="OnCursorEnter" @onfocusin="OnCursorEnter">
+    <MudDialog>
+        <TitleContent>
+            <div class="d-flex align-center">
+                <MudIcon Icon="@Icons.Material.Filled.AddReaction" Class="mr-2" Color="Color.Primary" />
+                <MudText Typo="Typo.h6">@ReactionTagName リアクションにコメントを追加</MudText>
+            </div>
+        </TitleContent>
+        <DialogContent>
+            @if (!_isCursorHovered)
+            {
+                <div class="mb-3">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-1">
+                        10秒以内にカーソルを合わせると永久表示になります（残り: @_remainingSeconds 秒）
+                    </MudText>
+                    <MudProgressLinear Color="Color.Primary" Value="@(_remainingSeconds * 10)" Max="100" />
+                </div>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3" NoIcon="false">
+                    タイマーが停止しました。保存またはキャンセルボタンを押すまで表示されます。
+                </MudAlert>
+            }
+
+            <MudTextField @bind-Value="Comment"
+                          Label="コメント (オプション)"
+                          Placeholder="リアクションにコメントを添えることができます"
+                          Variant="Variant.Outlined"
+                          Lines="3"
+                          MaxLength="500"
+                          Counter="500"
+                          Immediate="true"
+                          AutoFocus="true" />
+        </DialogContent>
+        <DialogActions>
+            <MudButton OnClick="Cancel" Variant="Variant.Text">キャンセル</MudButton>
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save">保存</MudButton>
+        </DialogActions>
+    </MudDialog>
+</div>
+
+@code {
+    [CascadingParameter] public IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter] public string ReactionTagName { get; set; } = "リアクション";
+
+    private string? Comment { get; set; }
+    private int _remainingSeconds = 10;
+    private bool _isCursorHovered;
+    private CancellationTokenSource? _cts;
+    private bool _disposed;
+
+    protected override void OnInitialized()
+    {
+        _cts = new CancellationTokenSource();
+        _ = StartCountdownAsync(_cts.Token);
+    }
+
+    private async Task StartCountdownAsync(CancellationToken ct)
+    {
+        try
+        {
+            while (_remainingSeconds > 0 && !_isCursorHovered && !ct.IsCancellationRequested)
+            {
+                await Task.Delay(1000, ct);
+                if (_isCursorHovered || ct.IsCancellationRequested)
+                {
+                    break;
+                }
+                _remainingSeconds--;
+                await InvokeAsync(StateHasChanged);
+            }
+
+            if (!_isCursorHovered && _remainingSeconds <= 0 && !ct.IsCancellationRequested && !_disposed)
+            {
+                await InvokeAsync(() =>
+                {
+                    if (!_disposed)
+                    {
+                        MudDialog.Close(DialogResult.Ok(new ReactionCommentDialogResult(true, null)));
+                    }
+                });
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // キャンセルされた場合は正常終了
+        }
+    }
+
+    public void OnCursorEnter()
+    {
+        if (_isCursorHovered)
+        {
+            return;
+        }
+
+        _isCursorHovered = true;
+        _cts?.Cancel();
+    }
+
+    private void Save()
+    {
+        _cts?.Cancel();
+        MudDialog.Close(DialogResult.Ok(new ReactionCommentDialogResult(true, Comment)));
+    }
+
+    private void Cancel()
+    {
+        _cts?.Cancel();
+        MudDialog.Close(DialogResult.Ok(new ReactionCommentDialogResult(false, null)));
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+}

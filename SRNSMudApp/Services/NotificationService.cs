@@ -39,7 +39,8 @@ public class NotificationService(
                 .Concat(BuildTagContentProposalNotifications(raw.TagContentProposals ?? [], raw.ReadStates))
                 .Concat(BuildResolvedTagContentProposalNotifications(raw.ResolvedTagContentProposals ?? [], raw.ReadStates))
                 .Concat(BuildTagNameProposalNotifications(raw.TagNameProposals ?? [], raw.ReadStates))
-                .Concat(BuildResolvedTagNameProposalNotifications(raw.ResolvedTagNameProposals ?? [], raw.ReadStates));
+                .Concat(BuildResolvedTagNameProposalNotifications(raw.ResolvedTagNameProposals ?? [], raw.ReadStates))
+                .Concat(BuildTagRelationCommentNotifications(raw.TagRelationComments ?? [], raw.ReadStates));
 
         return [.. notifications.OrderByDescending(n => n.CreatedAt)];
     }
@@ -514,4 +515,31 @@ public class NotificationService(
             };
         });
     }
+
+    internal static IEnumerable<NotificationDto> BuildTagRelationCommentNotifications(
+        IEnumerable<TagRelation> tagRelations,
+        IReadOnlyList<NotificationReadState> readStates) =>
+        tagRelations.Select(tr =>
+        {
+            var actorName = tr.Owner?.UserName ?? "誰か";
+            var tagName = tr.Tag?.Name ?? "タグ";
+            var comment = tr.Comment ?? string.Empty;
+
+            return new NotificationDto
+            {
+                SourceId = tr.Id,
+                Kind = new TagRelationCommentNotification(
+                    tr.Id,
+                    tr.ItemId,
+                    tagName,
+                    comment,
+                    actorName),
+                Message = $"{actorName} さんが「{tagName}」タグにコメントしました: {comment}",
+                CreatedAt = new DateTimeOffset(tr.CreatedDate, TimeSpan.Zero),
+                TargetUrl = new RelativeUrl($"/ItemDetail/{tr.ItemId}"),
+                IsRead = IsRead(readStates, tr.Id, "TagRelationComment"),
+                ActorName = actorName,
+                AssociatedItemId = tr.ItemId
+            };
+        });
 }

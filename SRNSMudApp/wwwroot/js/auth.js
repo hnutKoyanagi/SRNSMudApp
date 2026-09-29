@@ -21,6 +21,8 @@ window.customAuth = {
             });
 
             if (response.ok) {
+                // Allow the browser cookie store to commit the authentication cookie before navigating
+                await new Promise(resolve => setTimeout(resolve, 300));
                 // Reload the page to reflect the new authenticated state
                 window.location.href = '/';
             } else {

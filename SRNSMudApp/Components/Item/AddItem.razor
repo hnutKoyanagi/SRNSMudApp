@@ -199,6 +199,8 @@
         }
     }
 
+    private int? _lastParentItemId;
+
     protected override async Task OnParametersSetAsync()
     {
         await base.OnParametersSetAsync();
@@ -206,6 +208,23 @@
         if (ParentItem == null && ParentItemId.HasValue && (_loadedParentItem == null || _loadedParentItem.Id != ParentItemId.Value))
         {
             _loadedParentItem = await ItemCardData.GetItemByIdAsync(ParentItemId.Value);
+        }
+
+        var effectiveId = EffectiveParentItem?.Id;
+        if (effectiveId != _lastParentItemId)
+        {
+            _lastParentItemId = effectiveId;
+            if (EffectiveParentItem is { IsPrivate: true })
+            {
+                var visibility = AddItemViewModel.DetermineInitialVisibility(EffectiveParentItem, null);
+                _isPrivate = visibility.IsPrivate;
+                _selectedGroupId = visibility.TargetUserGroupId;
+                if (_newItem != null)
+                {
+                    _newItem.IsPrivate = _isPrivate;
+                    _newItem.TargetUserGroupId = _selectedGroupId;
+                }
+            }
         }
 
         // リプライ時かつ未ロードの場合、初期状態（入力前）でも親アイテムに基づいたタグ提案をトリガーする
@@ -228,11 +247,9 @@
                 var appUser = await UserDataProvider.FindUserByIdAsync(userId);
                 if (appUser != null)
                 {
-                    if (appUser.IsPrivateModeDefault)
-                    {
-                        _isPrivate = true;
-                        _selectedGroupId = appUser.DefaultPrivateUserGroupId;
-                    }
+                    var initialVisibility = AddItemViewModel.DetermineInitialVisibility(EffectiveParentItem, appUser);
+                    _isPrivate = initialVisibility.IsPrivate;
+                    _selectedGroupId = initialVisibility.TargetUserGroupId;
 
                     if (appUser.TagSuggestionStrongThreshold.HasValue)
                     {

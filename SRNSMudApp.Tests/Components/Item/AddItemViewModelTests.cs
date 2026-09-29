@@ -296,4 +296,95 @@ public class AddItemViewModelTests
         Assert.Equal(77, itemDefaultRoot.ParentItemId);
         Assert.Equal(77, itemDefaultRoot.RootItemId);
     }
+
+    [Fact]
+    public void DetermineInitialVisibility_WhenParentItemIsPrivateWithGroup_ReturnsPrivateGroupWithSameGroupId()
+    {
+        var parentItem = new Item
+        {
+            Id = 10,
+            OwnerId = "owner-1",
+            IsPrivate = true,
+            TargetUserGroupId = 42
+        };
+        var currentUser = new ApplicationUser { Id = "user-1", IsPrivateModeDefault = false };
+
+        ItemVisibility result = AddItemViewModel.DetermineInitialVisibility(parentItem, currentUser);
+
+        Assert.True(result.IsPrivate);
+        Assert.Equal(42, result.TargetUserGroupId);
+        var groupScope = Assert.IsType<PrivateGroupItemScope>(result);
+        Assert.Equal(42, groupScope.GroupId);
+    }
+
+    [Fact]
+    public void DetermineInitialVisibility_WhenParentItemIsPrivateWithFollowersOnly_ReturnsPrivateFollowers()
+    {
+        var parentItem = new Item
+        {
+            Id = 10,
+            OwnerId = "owner-1",
+            IsPrivate = true,
+            TargetUserGroupId = null
+        };
+        var currentUser = new ApplicationUser { Id = "user-1", IsPrivateModeDefault = false };
+
+        ItemVisibility result = AddItemViewModel.DetermineInitialVisibility(parentItem, currentUser);
+
+        Assert.True(result.IsPrivate);
+        Assert.Null(result.TargetUserGroupId);
+        Assert.IsType<PrivateFollowersItemScope>(result);
+    }
+
+    [Fact]
+    public void DetermineInitialVisibility_WhenParentItemIsPublic_UsesCurrentUserDefaultSetting()
+    {
+        var parentItem = new Item
+        {
+            Id = 10,
+            OwnerId = "owner-1",
+            IsPrivate = false,
+            TargetUserGroupId = null
+        };
+        var userWithPrivateGroup = new ApplicationUser
+        {
+            Id = "user-1",
+            IsPrivateModeDefault = true,
+            DefaultPrivateUserGroupId = 99
+        };
+
+        ItemVisibility result = AddItemViewModel.DetermineInitialVisibility(parentItem, userWithPrivateGroup);
+
+        Assert.True(result.IsPrivate);
+        Assert.Equal(99, result.TargetUserGroupId);
+
+        var normalUser = new ApplicationUser
+        {
+            Id = "user-2",
+            IsPrivateModeDefault = false
+        };
+        ItemVisibility publicResult = AddItemViewModel.DetermineInitialVisibility(parentItem, normalUser);
+        Assert.False(publicResult.IsPrivate);
+        Assert.IsType<PublicItemScope>(publicResult);
+    }
+
+    [Fact]
+    public void DetermineInitialVisibility_WhenParentItemIsNull_UsesCurrentUserDefaultSetting()
+    {
+        var userWithPrivateFollowers = new ApplicationUser
+        {
+            Id = "user-1",
+            IsPrivateModeDefault = true,
+            DefaultPrivateUserGroupId = null
+        };
+
+        ItemVisibility result = AddItemViewModel.DetermineInitialVisibility(null, userWithPrivateFollowers);
+        Assert.True(result.IsPrivate);
+        Assert.Null(result.TargetUserGroupId);
+        Assert.IsType<PrivateFollowersItemScope>(result);
+
+        ItemVisibility nullUserResult = AddItemViewModel.DetermineInitialVisibility(null, null);
+        Assert.False(nullUserResult.IsPrivate);
+        Assert.IsType<PublicItemScope>(nullUserResult);
+    }
 }

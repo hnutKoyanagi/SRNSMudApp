@@ -279,4 +279,52 @@ public class ItemCardViewModelTests
         var count = ItemCardViewModel.GetReplyCount(null, null);
         Assert.Equal(0, count);
     }
+
+    // ────────────────────────────────────────────────────────────
+    // FormatReplyButtonText
+    // ────────────────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(0, "リプライ")]
+    [InlineData(-1, "リプライ")]
+    [InlineData(1, "リプライ (1)")]
+    [InlineData(5, "リプライ (5)")]
+    public void FormatReplyButtonText_ReturnsExpectedLabel(int count, string expected)
+    {
+        var text = ItemCardViewModel.FormatReplyButtonText(count);
+        Assert.Equal(expected, text);
+    }
+
+    // ────────────────────────────────────────────────────────────
+    // ResolveReplyPrivacy
+    // ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void ResolveReplyPrivacy_WhenPrivateWithGroup_ReturnsPrivateAndGroupId()
+    {
+        var parent = new SRNSMudApp.Data.Item { Id = 1, OwnerId = "u1", IsPrivate = true, TargetUserGroupId = 99 };
+        (bool isPrivate, int? groupId) = ItemCardViewModel.ResolveReplyPrivacy(true, parent);
+
+        Assert.True(isPrivate);
+        Assert.Equal(99, groupId);
+    }
+
+    [Fact]
+    public void ResolveReplyPrivacy_WhenNotPrivate_ReturnsFalseAndNull()
+    {
+        var parent = new SRNSMudApp.Data.Item { Id = 1, OwnerId = "u1", IsPrivate = true, TargetUserGroupId = 99 };
+        (bool isPrivate, int? groupId) = ItemCardViewModel.ResolveReplyPrivacy(false, parent);
+
+        Assert.False(isPrivate);
+        Assert.Null(groupId);
+    }
+
+    [Fact]
+    public void ResolveReplyPrivacy_WhenParentIsNull_ReturnsPrivateAndNull()
+    {
+        (bool isPrivate, int? groupId) = ItemCardViewModel.ResolveReplyPrivacy(true, null);
+
+        Assert.True(isPrivate);
+        Assert.Null(groupId);
+    }
 }

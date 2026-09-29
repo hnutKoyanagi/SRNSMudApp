@@ -198,4 +198,72 @@ public class ItemReplyServiceTests : IAsyncLifetime
             Assert.Equal(0, nonExistentCount);
         }
     }
+
+    [Fact]
+    public async Task AddItemReplyAsync_ShouldSavePrivateModeAndGroup_WhenSpecified()
+    {
+        var (dbContext, service, tid) = CreateScope();
+        await using (dbContext)
+        {
+            var userId = $"user_{tid}";
+            await dbContext.SeedUsersAsync(userId);
+
+            var group = new UserGroup { Name = $"Group_{tid}", OwnerId = userId };
+            dbContext.UserGroups.Add(group);
+            await dbContext.SaveChangesAsync();
+
+            var parentItem = new Item
+            {
+                Content = $"Parent Item_{tid}",
+                OwnerId = userId,
+                IsPrivate = true,
+                TargetUserGroupId = group.Id
+            };
+            dbContext.Items.Add(parentItem);
+            await dbContext.SaveChangesAsync();
+
+            // Act: 同一の user group を指定してプライベートモードでリプライ
+            Item? reply = await service.AddItemReplyAsync(
+                parentItem.Id,
+                $"Private Reply_{tid}",
+                userId,
+                isPrivate: true,
+                targetUserGroupId: group.Id);
+
+            // Assert
+            Assert.NotNull(reply);
+            Assert.True(reply.IsPrivate);
+            Assert.Equal(group.Id, reply.TargetUserGroupId);
+
+            var saved = await dbContext.Items.AsNoTracking().FirstOrDefaultAsync(i => i.Id == reply.Id);
+            Assert.NotNull(saved);
+            Assert.True(saved.IsPrivate);
+            Assert.Equal(group.Id, saved.TargetUserGroupId);
+
+            // Act 2: オフにして公開でリプライ
+            Item? publicReply = await service.AddItemReplyAsync(
+                parentItem.Id,
+                $"Public Reply_{tid}",
+                userId,
+                isPrivate: false,
+                targetUserGroupId: null);
+
+            // Assert 2
+            Assert.NotNull(publicReply);
+            Assert.False(publicReply.IsPrivate);
+            Assert.Null(publicReply.TargetUserGroupId);
+
+            var savedPublic = await dbContext.Items.AsNoTracking().FirstOrDefaultAsync(i => i.Id == publicReply.Id);
+            Assert.NotNull(savedPublic);
+            Assert.False(savedPublic.IsPrivate);
+            Assert.Null(savedPublic.TargetUserGroupId);
+
+            // Act 3: GetItemRepliesAsync で TargetUserGroup が Include されること
+            IReadOnlyList<Item> replies = await service.GetItemRepliesAsync(parentItem.Id);
+            var privateReplyInList = replies.FirstOrDefault(r => r.Id == reply.Id);
+            Assert.NotNull(privateReplyInList);
+            Assert.NotNull(privateReplyInList.TargetUserGroup);
+            Assert.Equal($"Group_{tid}", privateReplyInList.TargetUserGroup.Name);
+        }
+    }
 }

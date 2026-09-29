@@ -236,6 +236,8 @@ public class MutualContractExecutor(
             NewWeight = contract.ProposedWeight
         });
 
+        _ = await dbContext.SaveChangesAsync();
+
         return new Success<string>("相互タグ付けが完了しました。");
     }
 }
