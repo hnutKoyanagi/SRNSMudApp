@@ -6,6 +6,7 @@ public record ReplyItem(int ParentItemId);
 public record RequestReplyItem(int TaggingRequestEntityId);
 public record RequestBodyItem(int TaggingRequestEntityId);
 public record QuoteItem(int QuotedItemId);
+public record TagCommentItem(int TargetItemId, int TagId);
 
 [SuppressMessage("Performance", "CA1815:Override equals and operator equals on value types", Justification = "Union type handled by C# compiler")]
-public readonly union ItemKind(StandaloneItem, ReplyItem, RequestReplyItem, RequestBodyItem, QuoteItem);
+public readonly union ItemKind(StandaloneItem, ReplyItem, RequestReplyItem, RequestBodyItem, QuoteItem, TagCommentItem);

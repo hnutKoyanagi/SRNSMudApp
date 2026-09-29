@@ -211,10 +211,55 @@ public class ItemReactionServiceTests : IAsyncLifetime
             Assert.NotNull(relation.CommentItem);
             Assert.Equal(comment, relation.CommentItem.Content);
             Assert.Equal(userId, relation.CommentItem.OwnerId);
+
             var tagComment = System.Text.Json.JsonSerializer.Deserialize<TagCommentItem>(relation.CommentItem.ItemKindJson);
             Assert.NotNull(tagComment);
             Assert.Equal(itemId, tagComment.TargetItemId);
             Assert.Equal(tagId, tagComment.TagId);
+        }
+    }
+
+    [Fact]
+    public async Task ToggleItemReaction_OppositeDirectionToZero_RemovesCommentItem()
+    {
+        var (db, sut, userId, tagId, itemId, _) = await CreateScopeAsync();
+        await using (db)
+        {
+            var comment = "取り消されるコメント";
+            ItemVoteResult addResult = await sut.ToggleItemReactionAsync(itemId, userId, tagId, 1, comment);
+            Assert.Equal(ItemVoteAction.Added, addResult.Action);
+
+            TagRelation relation = await db.TagRelations.SingleAsync(tr => tr.Id == addResult.RelationId);
+            var commentItemId = relation.CommentItemId;
+            Assert.NotNull(commentItemId);
+
+            ItemVoteResult removeResult = await sut.ToggleItemReactionAsync(itemId, userId, tagId, -1);
+            Assert.Equal(ItemVoteAction.Removed, removeResult.Action);
+
+            Assert.False(await db.TagRelations.AnyAsync(tr => tr.Id == addResult.RelationId));
+            Assert.False(await db.Items.AnyAsync(i => i.Id == commentItemId.Value));
+        }
+    }
+
+    [Fact]
+    public async Task ToggleItemVote_SameWeightTwice_RemovesCommentItem()
+    {
+        var (db, sut, userId, goodTagId, itemId, _) = await CreateScopeAsync();
+        await using (db)
+        {
+            var comment = "取り消されるVoteコメント";
+            ItemVoteResult addResult = await sut.ToggleItemVoteAsync(itemId, userId, goodTagId, 1, comment);
+            Assert.Equal(ItemVoteAction.Added, addResult.Action);
+
+            TagRelation relation = await db.TagRelations.SingleAsync(tr => tr.Id == addResult.RelationId);
+            var commentItemId = relation.CommentItemId;
+            Assert.NotNull(commentItemId);
+
+            ItemVoteResult removeResult = await sut.ToggleItemVoteAsync(itemId, userId, goodTagId, 1);
+            Assert.Equal(ItemVoteAction.Removed, removeResult.Action);
+
+            Assert.False(await db.TagRelations.AnyAsync(tr => tr.Id == addResult.RelationId));
+            Assert.False(await db.Items.AnyAsync(i => i.Id == commentItemId.Value));
         }
     }
 
@@ -239,6 +284,11 @@ public class ItemReactionServiceTests : IAsyncLifetime
             Assert.NotNull(relation.CommentItem);
             Assert.Equal(updatedComment, relation.CommentItem.Content);
             Assert.Equal(userId, relation.CommentItem.OwnerId);
+
+            var tagComment = System.Text.Json.JsonSerializer.Deserialize<TagCommentItem>(relation.CommentItem.ItemKindJson);
+            Assert.NotNull(tagComment);
+            Assert.Equal(itemId, tagComment.TargetItemId);
+            Assert.Equal(tagId, tagComment.TagId);
         }
     }
 

@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 using Microsoft.EntityFrameworkCore;
 
 using SRNSMudApp.Data;
@@ -34,16 +36,52 @@ public class ItemReactionService(
     public async Task<bool> UpdateTagRelationCommentAsync(int relationId, string userId, string? comment)
     {
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
-        TagRelation? relation = await context.TagRelations.FirstOrDefaultAsync(tr => tr.Id == relationId && tr.OwnerId == userId);
+        TagRelation? relation = await context.TagRelations
+            .Include(tr => tr.CommentItem)
+            .FirstOrDefaultAsync(tr => tr.Id == relationId && tr.OwnerId == userId);
         if (relation is null)
         {
             return false;
         }
 
-        relation.Comment = comment;
-        relation.UpdatedDate = _timeProvider.GetUtcNow().UtcDateTime;
+        DateTime now = _timeProvider.GetUtcNow().UtcDateTime;
+        if (string.IsNullOrWhiteSpace(comment))
+        {
+            if (relation.CommentItem is not null)
+            {
+                _ = context.Items.Remove(relation.CommentItem);
+                relation.CommentItem = null;
+                relation.CommentItemId = null;
+            }
+        }
+        else
+        {
+            if (relation.CommentItem is not null)
+            {
+                relation.CommentItem.Content = comment;
+                relation.CommentItem.UpdatedDate = now;
+            }
+            else
+            {
+                relation.CommentItem = CreateTagCommentItem(relation.ItemId, relation.TagId, userId, comment, now);
+            }
+        }
+
+        relation.UpdatedDate = now;
         _ = await context.SaveChangesAsync();
         return true;
+    }
+
+    private static Item CreateTagCommentItem(int itemId, int tagId, string userId, string content, DateTime createdDate)
+    {
+        return new Item
+        {
+            Content = content,
+            OwnerId = userId,
+            CreatedDate = createdDate,
+            UpdatedDate = createdDate,
+            ItemKindJson = JsonSerializer.Serialize(new TagCommentItem(itemId, tagId))
+        };
     }
 
     private async Task<ItemVoteResult> ApplyReactionChangeAsync(
@@ -58,6 +96,7 @@ public class ItemReactionService(
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
         DateTime now = _timeProvider.GetUtcNow().UtcDateTime;
         TagRelation? existingRelation = await context.TagRelations
+            .Include(tr => tr.CommentItem)
             .FirstOrDefaultAsync(tr => tr.ItemId == itemId && tr.OwnerId == userId && tr.TagId == tagId);
         Tag? tag = await context.Tags.FindAsync(tagId);
 
@@ -69,7 +108,9 @@ public class ItemReactionService(
                 TagId = tagId,
                 OwnerId = userId,
                 Weight = targetWeight,
-                Comment = comment,
+                CommentItem = !string.IsNullOrWhiteSpace(comment)
+                    ? CreateTagCommentItem(itemId, tagId, userId, comment, now)
+                    : null,
                 CreatedDate = now,
                 UpdatedDate = now
             };
@@ -83,7 +124,27 @@ public class ItemReactionService(
 
         if (comment is not null)
         {
-            existingRelation.Comment = comment;
+            if (string.IsNullOrWhiteSpace(comment))
+            {
+                if (existingRelation.CommentItem is not null)
+                {
+                    _ = context.Items.Remove(existingRelation.CommentItem);
+                    existingRelation.CommentItem = null;
+                    existingRelation.CommentItemId = null;
+                }
+            }
+            else
+            {
+                if (existingRelation.CommentItem is not null)
+                {
+                    existingRelation.CommentItem.Content = comment;
+                    existingRelation.CommentItem.UpdatedDate = now;
+                }
+                else
+                {
+                    existingRelation.CommentItem = CreateTagCommentItem(itemId, tagId, userId, comment, now);
+                }
+            }
         }
 
         int previousWeight = existingRelation.Weight;
@@ -93,6 +154,10 @@ public class ItemReactionService(
             int delta = -previousWeight;
             RecordWeightChange(context, tag, itemId, "TagRelationDelete", null, delta, $"{reasonPrefix}取り消し", userId);
             AddTimelineEvent(context, itemId, userId, tagId, "Delete", now, previousWeight: previousWeight);
+            if (existingRelation.CommentItem is not null)
+            {
+                _ = context.Items.Remove(existingRelation.CommentItem);
+            }
             _ = context.TagRelations.Remove(existingRelation);
 
             _ = await context.SaveChangesAsync();

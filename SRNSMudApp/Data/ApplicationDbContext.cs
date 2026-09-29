@@ -231,8 +231,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .OnDelete(DeleteBehavior.Cascade);
 
         _ = builder.Entity<TagRelation>()
-            .Property(tr => tr.Comment)
-            .HasMaxLength(500);
+            .Ignore(tr => tr.Comment);
+
+        _ = builder.Entity<TagRelation>()
+            .HasOne(tr => tr.CommentItem)
+            .WithMany()
+            .HasForeignKey(tr => tr.CommentItemId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         // -- BaseEntity の Owner に対する複数カスケードパス回避 --
         _ = builder.Entity<RightAsset>()

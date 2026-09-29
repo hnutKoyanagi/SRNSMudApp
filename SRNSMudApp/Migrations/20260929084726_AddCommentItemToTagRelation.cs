@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace SRNSMudApp.Migrations;
 
 /// <inheritdoc />
-public partial class _20260929034753_AddCommentItemToTagRelation : Migration
+public partial class _20260929084726_AddCommentItemToTagRelation : Migration
 {
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)
@@ -31,7 +31,7 @@ public partial class _20260929034753_AddCommentItemToTagRelation : Migration
             column: "CommentItemId",
             principalTable: "Items",
             principalColumn: "Id",
-            onDelete: ReferentialAction.SetNull);
+            onDelete: ReferentialAction.Restrict);
     }
 
     /// <inheritdoc />

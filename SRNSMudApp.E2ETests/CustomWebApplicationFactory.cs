@@ -45,6 +45,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
     private bool _disposed;
     private IHost? _host;
+    private IDisposable? _containerSlot;
     private MsSqlContainer? _msSqlContainer;
 
     public string ServerAddress { get; private set; } = "http://localhost";
@@ -96,9 +97,19 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
     {
         if (_msSqlContainer == null)
         {
-            _msSqlContainer = new MsSqlBuilder().Build();
-            _msSqlContainer.StartAsync().GetAwaiter().GetResult();
-            _connectionString = _msSqlContainer.GetConnectionString();
+            _containerSlot = ContainerLimiter.AcquireSlotAsync().GetAwaiter().GetResult();
+            try
+            {
+                _msSqlContainer = new MsSqlBuilder().Build();
+                _msSqlContainer.StartAsync().GetAwaiter().GetResult();
+                _connectionString = _msSqlContainer.GetConnectionString();
+            }
+            catch
+            {
+                _containerSlot?.Dispose();
+                _containerSlot = null;
+                throw;
+            }
         }
 
         _ = builder.UseEnvironment("Testing");
@@ -192,6 +203,11 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             catch
             {
                 /* Container disposal failures are non-critical during cleanup */
+            }
+            finally
+            {
+                _containerSlot?.Dispose();
+                _containerSlot = null;
             }
 
             _host?.Dispose();

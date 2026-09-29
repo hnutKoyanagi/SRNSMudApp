@@ -29,8 +29,16 @@ public class TagRelation : BaseEntity
             }
             else
             {
-                CommentItem ??= new Item { OwnerId = OwnerId ?? string.Empty };
+                CommentItem ??= new Item
+                {
+                    OwnerId = OwnerId ?? string.Empty,
+                    ItemKindJson = System.Text.Json.JsonSerializer.Serialize(new SRNSMudApp.Models.Unions.TagCommentItem(ItemId, TagId))
+                };
                 CommentItem.Content = value;
+                if (string.IsNullOrEmpty(CommentItem.ItemKindJson))
+                {
+                    CommentItem.ItemKindJson = System.Text.Json.JsonSerializer.Serialize(new SRNSMudApp.Models.Unions.TagCommentItem(ItemId, TagId));
+                }
             }
         }
     }

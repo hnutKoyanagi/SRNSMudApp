@@ -14,8 +14,8 @@ using SRNSMudApp.Data;
 namespace SRNSMudApp.Migrations;
 
 [DbContext(typeof(ApplicationDbContext))]
-[Migration("20260929034753_AddCommentItemToTagRelation")]
-partial class _20260929034753_AddCommentItemToTagRelation
+[Migration("20260929084726_AddCommentItemToTagRelation")]
+partial class _20260929084726_AddCommentItemToTagRelation
 {
     /// <inheritdoc />
     protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -2120,7 +2120,7 @@ partial class _20260929034753_AddCommentItemToTagRelation
                 b.HasOne("SRNSMudApp.Data.Item", "CommentItem")
                     .WithMany()
                     .HasForeignKey("CommentItemId")
-                    .OnDelete(DeleteBehavior.SetNull);
+                    .OnDelete(DeleteBehavior.Restrict);
 
                 b.HasOne("SRNSMudApp.Data.Item", "Item")
                     .WithMany("TagRelations")
