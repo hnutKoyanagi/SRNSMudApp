@@ -185,7 +185,8 @@ public class NotificationsDataProvider(IDbContextFactory<ApplicationDbContext> d
             .Include(tr => tr.Item)
             .Include(tr => tr.Tag)
             .Include(tr => tr.Owner)
-            .Where(tr => tr.Item.OwnerId == userId && tr.OwnerId != userId && !string.IsNullOrEmpty(tr.Comment))
+            .Include(tr => tr.CommentItem)
+            .Where(tr => tr.Item.OwnerId == userId && tr.OwnerId != userId && tr.CommentItem != null && !string.IsNullOrEmpty(tr.CommentItem.Content))
             .ToListAsync(cancellationToken);
 
         return new NotificationRawData(
