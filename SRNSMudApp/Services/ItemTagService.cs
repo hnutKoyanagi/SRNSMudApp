@@ -95,7 +95,16 @@ public class ItemTagService(
     {
         await context.Database.ExecuteWithStrategyAsync(async () =>
         {
-            var newRelation = new TagRelation { ItemId = itemId, TagId = tagId, Weight = 1, OwnerId = currentUserId, Comment = comment };
+            var newRelation = new TagRelation { ItemId = itemId, TagId = tagId, Weight = 1, OwnerId = currentUserId };
+            if (!string.IsNullOrWhiteSpace(comment))
+            {
+                newRelation.CommentItem = new Item
+                {
+                    OwnerId = currentUserId,
+                    Content = comment,
+                    ItemKindJson = System.Text.Json.JsonSerializer.Serialize(new TagCommentItem(itemId, tagId))
+                };
+            }
             _ = context.TagRelations.Add(newRelation);
 
             _timelineRecorder.RecordTagRelationAdded(context, currentUserId, itemId, tagId, 1);

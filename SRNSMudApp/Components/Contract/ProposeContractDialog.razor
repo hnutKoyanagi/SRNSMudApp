@@ -1,7 +1,7 @@
 @using System.Security.Claims
 @using SRNSMudApp.Services
 @inject IContractLookupDataProvider ContractData
-@inject ITaggingContractService ContractService
+@inject ProposeContractViewModel ViewModel
 @inject ISnackbar Snackbar
 
 <MudDialog>
@@ -151,23 +151,24 @@
         }
 
         var isMutual = _activeTabIndex == 1;
-        if (isMutual && (_offeredItem is null || _offeredTag is null || _selectedRightAsset is null))
-        {
-            Snackbar.Add("相互タグ付けに必要な項目を入力してください。", Severity.Error);
-            return;
-        }
-
-        var requestType = IsRemovalRequest
-            ? TaggingRequestType.Remove
-            : ProposedWeightInput > 0
-                ? TaggingRequestType.Add
-                : TaggingRequestType.DecreaseWeight;
-
-        var absoluteWeight = Math.Abs(ProposedWeightInput);
-
         if (isMutual)
         {
-            await ContractService.ProposeMutualContractAsync(
+            (bool isMutualValid, string? mutualError) = ProposeContractViewModel.ValidateMutualProposal(
+                _offeredItem?.Id ?? 0,
+                _offeredTag?.Id ?? 0,
+                _selectedRightAsset?.Id);
+            if (!isMutualValid)
+            {
+                Snackbar.Add(mutualError ?? "相互タグ付けに必要な項目を入力してください。", Severity.Error);
+                return;
+            }
+        }
+
+        var requestType = ProposeContractViewModel.ResolveRequestType(IsRemovalRequest, ProposedWeightInput);
+        var absoluteWeight = Math.Abs(ProposedWeightInput);
+
+        (bool success, string? errorMessage) = isMutual
+            ? await ViewModel.ProposeMutualContractAsync(
                 _currentUserId,
                 RequestedTag.OwnerId,
                 effectiveTargetItem.Id,
@@ -176,20 +177,20 @@
                 _offeredTag!.Id,
                 _selectedRightAsset!.Id,
                 requestType,
-                absoluteWeight
-            );
-        }
-        else
-        {
-            await ContractService.ProposeGratisContractAsync(
+                absoluteWeight)
+            : await ViewModel.ProposeGratisContractAsync(
                 _currentUserId,
                 RequestedTag.OwnerId,
                 effectiveTargetItem.Id,
                 RequestedTag.Id,
                 requestType,
                 absoluteWeight,
-                _gratisMessage
-            );
+                _gratisMessage);
+
+        if (!success)
+        {
+            Snackbar.Add(errorMessage ?? "契約提案の送信に失敗しました。", Severity.Error);
+            return;
         }
 
         Snackbar.Add("コントラクトを提案しました。", Severity.Success);

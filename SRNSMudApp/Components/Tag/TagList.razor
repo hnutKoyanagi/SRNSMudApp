@@ -1,25 +1,14 @@
 @page "/Tag/TagList"
 @rendermode InteractiveServer
-@using SRNSMudApp.Services
-@inject ITagSearchQueryService TagSearchQueryService
+@inject TagListViewModel ViewModel
 
 <MudText Typo="Typo.h4" GutterBottom="true">Tag List</MudText>
 
-<SRNSMudApp.Components.Tag.TagTable Tags="@tags" OnDataChanged="LoadDataAsync" />
+<SRNSMudApp.Components.Tag.TagTable Tags="@ViewModel.Tags" OnDataChanged="ViewModel.LoadDataAsync" />
 
 @code {
-    private List<Tag>? tags;
-
     protected override async Task OnInitializedAsync()
     {
-        await LoadDataAsync();
+        await ViewModel.LoadDataAsync();
     }
-
-    private async Task LoadDataAsync()
-    {
-        tags = await TagSearchQueryService.GetTagsWithDetailsAsync();
-
-        // StateHasChanged();
-    }
-
 }

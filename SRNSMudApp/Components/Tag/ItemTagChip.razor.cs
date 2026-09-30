@@ -23,6 +23,7 @@ public partial class ItemTagChip
     [Inject] private NavigationManager NavigationManager { get; set; } = null!;
     [Inject] private IItemTagService ItemTagService { get; set; } = null!;
     [Inject] private IJSRuntime JS { get; set; } = null!;
+    [Inject] private ItemTagChipActionViewModel ActionViewModel { get; set; } = null!;
 
     [Parameter][EditorRequired] public TagRelation TagRelation { get; set; } = null!;
     [Parameter][EditorRequired] public Data.Item Item { get; set; } = null!;
@@ -130,28 +131,20 @@ public partial class ItemTagChip
 
     private async Task UpdateTagRelationWeightAsync(int delta)
     {
-        await ((TagRelation.OwnerId == CurrentUserId, TagRelation.Tag != null) switch
+        TagWeightActionResult result = await ActionViewModel.UpdateWeightAsync(TagRelation, delta, CurrentUserId);
+        await (result.OperationType switch
         {
-            (false, true) => ProposeUpdateContractAsync(delta),
-            (true, _) => ExecuteWeightUpdateAsync(delta),
+            TagWeightOperationType.ExecutedDirectly => result.IsSuccess
+                ? NotifyChangedAsync()
+                : HandleError(result.ErrorMessage ?? "エラーが発生しました。"),
+            TagWeightOperationType.ProposedContract => ProposeUpdateContractAsync(delta),
+            TagWeightOperationType.Ignored => Task.CompletedTask,
             _ => Task.CompletedTask
         });
     }
 
     private Task ProposeUpdateContractAsync(int delta) =>
         ProposeContractAsync(delta, isRemovalRequest: false);
-
-    private async Task ExecuteWeightUpdateAsync(int delta)
-    {
-        UpdateWeightResult result = await ItemTagService.UpdateTagWeightAsync(TagRelation.Id, delta, CurrentUserId);
-        await (result switch
-        {
-            UpdateWeightResult.Success => NotifyChangedAsync(),
-            UpdateWeightResult.NoPermission => HandleError("関連付けた本人ではないため、Weightを変更する権限がありません。"),
-            UpdateWeightResult.NotFound => HandleError("タグの関連付けが見つかりません。"),
-            _ => HandleError("不明なエラーが発生しました。")
-        });
-    }
 
     private async Task EditTagRelationWeightAsync()
     {

@@ -53,6 +53,8 @@ TemporaryDependencyNodeTargetIdentifier=net11.0
 /utf8output
 /deterministic+
 /langversion:15.0
+/skipanalyzers+
+/features:run-nullable-analysis=never
 /features:use-roslyn-tokenizer=true
 /warnaserror+:NU1605,SYSLIB0011
 

@@ -67,7 +67,14 @@ public static class ContainerLimiter
             {
                 try
                 {
-                    lockFile.Dispose();
+                    try
+                    {
+                        lockFile.Dispose();
+                    }
+                    catch (Exception)
+                    {
+                        // 破棄時の例外は無視するがセマフォは解放する
+                    }
                 }
                 finally
                 {

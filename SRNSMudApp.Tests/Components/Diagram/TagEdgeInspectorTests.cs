@@ -22,6 +22,7 @@ public class TagEdgeInspectorTests : IAsyncDisposable
     {
         _ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         _ = _ctx.Services.AddMudServices();
+        _ = _ctx.Services.AddTransient<TagEdgeInspectorViewModel>();
         _popoverProvider = _ctx.Render<MudPopoverProvider>();
     }
 

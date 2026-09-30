@@ -2,7 +2,7 @@
 @using SRNSMudApp.Components.UI
 @using SRNSMudApp.Services
 @inject IDialogLauncher DialogLauncher
-@inject ITaggingRequestActions RequestActions
+@inject TaggingRequestActionViewModel ViewModel
 <MudTable T="TaggingRequestEntity" Items="[.. Requests.Where(r => r.Status != TradeStatus.Rejected)]" Hover="true"
           Breakpoint="Breakpoint.Sm" Elevation="0" @bind-SelectedItem="SelectedRequest" OnRowClick="OnRowClicked"
           RowClassFunc="SelectedRowClassFunc">
@@ -98,7 +98,7 @@
 
     private bool CanApprove(TaggingRequestEntity request)
     {
-        return RequestActions.CanApprove(request, _currentUserId);
+        return ViewModel.CanApprove(request, _currentUserId ?? "");
     }
 
     private async Task ApproveRequestAsync(TaggingRequestEntity request)
@@ -108,7 +108,7 @@
             return;
         }
 
-        if (await RequestActions.ApproveAsync(request.Id, _currentUserId))
+        if (await ViewModel.ApproveRequestAsync(request.Id, _currentUserId))
         {
             await OnRequestChanged.InvokeAsync();
         }
@@ -121,7 +121,7 @@
             return;
         }
 
-        if (await RequestActions.RejectViaDialogAsync(request.Id, _currentUserId))
+        if (await ViewModel.RejectRequestAsync(request.Id, _currentUserId))
         {
             await OnRequestChanged.InvokeAsync();
         }

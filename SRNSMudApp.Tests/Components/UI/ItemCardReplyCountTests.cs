@@ -14,6 +14,8 @@ using SRNSMudApp.Data;
 using SRNSMudApp.Services;
 using SRNSMudApp.Tests.TestSupport;
 
+using UserGroup = SRNSMudApp.Data.UserGroup;
+
 namespace SRNSMudApp.Tests.Components.UI;
 
 /// <summary>
@@ -130,7 +132,7 @@ public sealed class ItemCardReplyCountTests : IAsyncLifetime
             OwnerId = UserId,
             IsPrivate = true,
             TargetUserGroupId = 99,
-            TargetUserGroup = new UserGroup { Id = 99, Name = "Alpha", OwnerId = UserId }
+            TargetUserGroup = new SRNSMudApp.Data.UserGroup { Id = 99, Name = "Alpha", OwnerId = UserId }
         };
 
         var replyItem = new SRNSMudApp.Data.Item
@@ -186,7 +188,7 @@ public sealed class ItemCardReplyCountTests : IAsyncLifetime
             OwnerId = UserId,
             IsPrivate = true,
             TargetUserGroupId = 99,
-            TargetUserGroup = new UserGroup { Id = 99, Name = "Alpha", OwnerId = UserId }
+            TargetUserGroup = new SRNSMudApp.Data.UserGroup { Id = 99, Name = "Alpha", OwnerId = UserId }
         };
 
         var publicReplyItem = new SRNSMudApp.Data.Item

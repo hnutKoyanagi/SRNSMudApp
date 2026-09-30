@@ -3,9 +3,8 @@
 @using System.Security.Claims
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = "Admin")]
-@using SRNSMudApp.Services
-@inject IUserDataProvider UserData
-@inject ITagCommandService TagCommandService
+@using SRNSMudApp.Models.Unions
+@inject AddTagPageViewModel ViewModel
 @inject NavigationManager NavigationManager
 @inject ISnackbar Snackbar
 
@@ -13,7 +12,7 @@
 
 <hr />
 
-<EditForm Model="@Input" OnValidSubmit="AddTagAsync">
+<EditForm Model="@ViewModel" OnValidSubmit="AddTagAsync">
     <DataAnnotationsValidator />
     <MudCard Class="add-tag-card">
         <MudCardHeader>
@@ -22,13 +21,14 @@
             </CardHeaderContent>
         </MudCardHeader>
         <MudCardContent>
-            <MudTextField @bind-Value="Input.Name" Label="Tag Name" For="@(() => Input.Name)" Required="true"
+            <MudTextField @bind-Value="ViewModel.Name" Label="Tag Name" For="@(() => ViewModel.Name)" Required="true"
                           RequiredError="Tag Name is required." Immediate="true" />
-            <MudTextField @bind-Value="Input.Content" Label="Content" For="@(() => Input.Content)" Lines="4"
+            <MudTextField @bind-Value="ViewModel.Content" Label="Content" For="@(() => ViewModel.Content)" Lines="4"
                           Class="mt-3" Immediate="true" />
         </MudCardContent>
         <MudCardActions>
-            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Class="w-100">
+            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Class="w-100"
+                       Disabled="@(!ViewModel.CanSubmit)">
                 Add
             </MudButton>
         </MudCardActions>
@@ -38,55 +38,19 @@
 @code {
     [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
 
-    private InputModel Input { get; } = new();
-
-    public class InputModel
-    {
-        [Required] public string Name { get; set; } = "";
-        public string? Content { get; set; }
-    }
-
     private async Task AddTagAsync()
     {
-        Console.WriteLine($"[DEBUG] AddTagAsync started! Input.Name='{Input.Name}'");
         var authState = await AuthStateTask;
-        var user = authState.User;
-        string? userId = null;
-        ApplicationUser? currentUser = null;
+        var result = await ViewModel.CreateTagAsync(authState.User);
 
-        if (user.Identity is { IsAuthenticated: true })
+        switch (result)
         {
-            userId = user.FindFirst(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
-            if (!string.IsNullOrEmpty(userId))
-            {
-                currentUser = await UserData.FindUserByIdAsync(userId);
-            }
-        }
-
-        if (currentUser is null)
-        {
-            Snackbar.Add("ユーザーが見つかりません。", Severity.Error);
-            return;
-        }
-
-        var tag = new Tag
-        {
-            Name = Input.Name,
-            Content = Input.Content ?? string.Empty,
-            OwnerId = userId!,
-            Owner = currentUser,
-            CachedWeight = 0
-        };
-        try
-        {
-            await TagCommandService.CreateTagWithoutEmbeddingAsync(tag);
-            NavigationManager.NavigateTo("/Tag/TagList");
-        }
-        catch (DbUpdateException ex)
-        {
-            Snackbar.Add(ex.InnerException?.Message.Contains("UNIQUE constraint failed") == true ? "同じ名前のタグが既に存在します。" :
-$"エラーが発生しました: {ex.Message}", Severity.Error);
+            case Success<Tag>:
+                NavigationManager.NavigateTo("/Tag/TagList");
+                break;
+            case Failure fail:
+                Snackbar.Add(fail.ErrorMessage, Severity.Error);
+                break;
         }
     }
-
 }

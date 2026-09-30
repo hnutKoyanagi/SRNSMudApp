@@ -4,7 +4,7 @@
 @using SRNSMudApp.Services
 @using SRNSMudApp.Services.Dialogs
 @attribute [Authorize(Roles = "Admin")]
-@inject IContentReportService ContentReportService
+@inject ReportManagerViewModel ViewModel
 @inject IDialogLauncher DialogLauncher
 @inject ISnackbar Snackbar
 
@@ -99,10 +99,18 @@
 </MudTable>
 
 @code {
-    private List<ContentReport> _reports = [];
-    private ReportStatus? _selectedStatus = ReportStatus.Pending;
-    private ReportTargetType? _selectedTargetType;
-    private bool _isLoading = true;
+    private IReadOnlyList<ContentReport> _reports => ViewModel.Reports;
+    private ReportStatus? _selectedStatus
+    {
+        get => ViewModel.SelectedStatus;
+        set => ViewModel.SelectedStatus = value;
+    }
+    private ReportTargetType? _selectedTargetType
+    {
+        get => ViewModel.SelectedTargetType;
+        set => ViewModel.SelectedTargetType = value;
+    }
+    private bool _isLoading => ViewModel.IsLoading;
 
     protected override async Task OnInitializedAsync()
     {
@@ -111,18 +119,10 @@
 
     private async Task LoadReportsAsync()
     {
-        _isLoading = true;
-        try
+        var (success, errorMessage) = await ViewModel.LoadReportsAsync();
+        if (!success && !string.IsNullOrEmpty(errorMessage))
         {
-            _reports = await ContentReportService.GetReportsAsync(_selectedStatus, _selectedTargetType);
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"通報一覧の取得中にエラーが発生しました: {ex.Message}", Severity.Error);
-        }
-        finally
-        {
-            _isLoading = false;
+            Snackbar.Add(errorMessage, Severity.Error);
         }
     }
 
@@ -140,8 +140,7 @@
 
     private async Task OpenDetailDialogAsync(ContentReport report)
     {
-        // 最新の詳細情報を再取得してダイアログを開く
-        var latestReport = await ContentReportService.GetReportByIdAsync(report.Id);
+        var latestReport = await ViewModel.GetReportByIdAsync(report.Id);
         if (latestReport is null)
         {
             Snackbar.Add("通報が見つかりません。", Severity.Error);

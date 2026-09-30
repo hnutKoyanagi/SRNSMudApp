@@ -2,8 +2,7 @@
 @using SRNSMudApp.Models.Unions
 @using SRNSMudApp.Services
 @using SRNSMudApp.Services.Commands
-@inject IContractLookupDataProvider ContractData
-@inject ICommandHandler<CreateTriggerContractCommand, Result<bool>> CreateTriggerContractHandler
+@inject TriggerPublicOfferViewModel ViewModel
 @inject ISnackbar Snackbar
 
 <MudDialog>
@@ -56,64 +55,56 @@
 
     private MudForm? _form;
     private bool _isValid;
-    private string _currentUserId = string.Empty;
 
-    private Item? _selectedItem;
-    private RightAsset? _selectedAsset;
-    private List<RightAsset> _validAssets = [];
+    private Item? _selectedItem
+    {
+        get => ViewModel.SelectedItem;
+        set => ViewModel.SelectedItem = value;
+    }
+
+    private RightAsset? _selectedAsset
+    {
+        get => ViewModel.SelectedAsset;
+        set => ViewModel.SelectedAsset = value;
+    }
+
+    private IReadOnlyList<RightAsset> _validAssets => ViewModel.ValidAssets;
 
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthStateTask;
-        _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        ViewModel.CurrentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        ViewModel.Offer = Offer;
 
         if (Offer.RequiredAssetAmount > 0)
         {
-            await LoadMyAssetsAsync();
+            await ViewModel.LoadMyAssetsAsync();
         }
-    }
-
-    private async Task LoadMyAssetsAsync()
-    {
-        // Asset must match the OfferedTagId
-        // ("ユーザーが提供する RightAsset の TargetTagId は、OfferedTagId と一致しているか判定に使用します")
-        _validAssets = await ContractData.GetValidRightAssetsAsync(
-            _currentUserId, Offer.OfferedTagId, Offer.RequiredAssetAmount);
     }
 
     private async Task<IEnumerable<Item>> SearchItems(string? value, CancellationToken token)
     {
-        return await ContractData.SearchItemsAsync(value, token);
+        return await ViewModel.SearchItemsAsync(value, token);
     }
 
     private async Task Submit()
     {
         await _form!.ValidateAsync();
-        if (!_isValid || _selectedItem is null)
-        {
-            return;
-        }
-        if (Offer.RequiredAssetAmount > 0 && _selectedAsset is null)
+        if (!_isValid)
         {
             return;
         }
 
-        var triggerContract = new TaggingRequestEntity
+        Result<int> result = await ViewModel.SubmitAsync();
+        switch (result)
         {
-            ContractType = "Trigger",
-            OwnerId = _currentUserId,
-            RequesterUserId = _currentUserId,
-            TagOwnerUserId = Offer.OwnerId,
-            TargetItemId = _selectedItem.Id,
-            RequestedTagId = Offer.OfferedTagId,
-
-            Payload = new SRNSMudApp.Models.Unions.PublicOfferPayload(Offer.Id),
-            ConsumedRightAssetId = _selectedAsset?.Id
-        };
-
-        _ = await CreateTriggerContractHandler.HandleAsync(new CreateTriggerContractCommand(triggerContract));
-
-        MudDialog.Close(DialogResult.Ok(triggerContract.Id));
+            case Success<int> success:
+                MudDialog.Close(DialogResult.Ok(success.Value));
+                break;
+            case Failure failure:
+                Snackbar.Add(failure.ErrorMessage, Severity.Error);
+                break;
+        }
     }
 
     private void Cancel()

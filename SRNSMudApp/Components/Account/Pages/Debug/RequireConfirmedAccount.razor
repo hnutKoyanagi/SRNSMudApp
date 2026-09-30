@@ -1,24 +1,22 @@
 @page "/Admin/RequireConfirmedAccount"
 @using Microsoft.AspNetCore.Authorization
-@using Microsoft.AspNetCore.Identity
 @using MudBlazor
 @using SRNSMudApp.Data
-@using SRNSMudApp.Services
+@using SRNSMudApp.Models.Unions
 @attribute [Authorize(Roles = "Admin")]
-@inject IUserDataProvider UserDataProvider
-@inject UserManager<ApplicationUser> UserManager
+@inject RequireConfirmedAccountViewModel ViewModel
 @inject ISnackbar Snackbar
 
 <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-4">
     <MudText Typo="Typo.h5" Class="mb-4">Require Confirmed Account (Debug)</MudText>
     
-    @if (_users == null)
+    @if (ViewModel.Users == null)
     {
         <MudProgressCircular Indeterminate="true" />
     }
     else
     {
-        <MudTable Items="@_users" Dense="true" Hover="true">
+        <MudTable Items="@ViewModel.Users" Dense="true" Hover="true">
             <HeaderContent>
                 <MudTh>Email</MudTh>
                 <MudTh>Confirmed</MudTh>
@@ -48,30 +46,21 @@
 </MudContainer>
 
 @code {
-    private List<ApplicationUser>? _users;
-
     protected override async Task OnInitializedAsync()
     {
-        await LoadUsersAsync();
-    }
-
-    private async Task LoadUsersAsync()
-    {
-        _users = await UserDataProvider.GetAllUsersAsync();
+        await ViewModel.LoadUsersAsync();
     }
 
     private async Task ToggleConfirmationAsync(ApplicationUser user)
     {
-        user.EmailConfirmed = !user.EmailConfirmed;
-        var result = await UserManager.UpdateAsync(user);
-        if (result.Succeeded)
+        var result = await ViewModel.ToggleConfirmationAsync(user);
+        if (result is Success<bool> success)
         {
             Snackbar.Add($"Updated {user.Email}", Severity.Success);
-            await LoadUsersAsync();
         }
-        else
+        else if (result is Failure failure)
         {
-            Snackbar.Add("Failed to update user", Severity.Error);
+            Snackbar.Add(failure.ErrorMessage, Severity.Error);
         }
     }
 }

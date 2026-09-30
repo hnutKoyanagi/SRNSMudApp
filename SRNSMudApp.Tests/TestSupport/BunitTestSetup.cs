@@ -15,6 +15,7 @@ using Moq;
 using MudBlazor.Services;
 
 using SRNSMudApp.Data;
+using SRNSMudApp.Extensions;
 using SRNSMudApp.Models;
 using SRNSMudApp.Services;
 using SRNSMudApp.Services.Dialogs;
@@ -159,6 +160,7 @@ public static class BunitTestSetup
             })
             .AddScoped(_ => new Mock<IAdminDataProvider>().Object)
             .AddScoped(_ => new Mock<IUserDataProvider>().Object)
+            .AddScoped(_ => new Mock<IRightAssetDataProvider>().Object)
             .AddScoped(_ => new Mock<IContentReportService>().Object)
             .AddScoped(_ =>
             {
@@ -193,7 +195,8 @@ public static class BunitTestSetup
                 mock.Setup(p => p.GetOrCreateUserDepositWalletAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
                     .ReturnsAsync(new UserDepositWalletDto("user", "polygon-amoy", "0x0000000000000000000000000000000000000000", DateTime.UtcNow));
                 return mock.Object;
-            });
+            })
+            .AddViewModels();
     }
 
     /// <summary>

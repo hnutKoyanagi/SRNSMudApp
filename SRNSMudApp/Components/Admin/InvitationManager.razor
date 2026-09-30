@@ -1,9 +1,8 @@
 @page "/Admin/Invitations"
 @using System.Security.Claims
-
 @attribute [Authorize(Roles = "Admin")]
-@using SRNSMudApp.Services
-@inject IAdminDataProvider AdminData
+@using SRNSMudApp.Models.Unions
+@inject InvitationManagerViewModel ViewModel
 @inject ISnackbar Snackbar
 
 <PageTitle>Invitation Management</PageTitle>
@@ -14,18 +13,18 @@
     <MudText Typo="Typo.h6">Create New Invitation</MudText>
     <MudGrid>
         <MudItem xs="12" md="8">
-            <MudTextField @bind-Value="_newEmail" Label="Invitee Email Address" Variant="Variant.Outlined" />
+            <MudTextField @bind-Value="ViewModel.NewEmail" Label="Invitee Email Address" Variant="Variant.Outlined" />
         </MudItem>
         <MudItem xs="12" md="4" Class="d-flex align-center">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateInvitation"
-                       DisableElevation="true">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateInvitationAsync"
+                       Disabled="ViewModel.IsProcessing" DisableElevation="true">
                 Generate Invite Link
             </MudButton>
         </MudItem>
     </MudGrid>
 </MudPaper>
 
-<MudTable Items="@_invitations" Hover="true" Dense="true" Elevation="1">
+<MudTable Items="@ViewModel.Invitations" Hover="true" Dense="true" Elevation="1">
     <HeaderContent>
         <MudTh>Email</MudTh>
         <MudTh>Code</MudTh>
@@ -53,7 +52,7 @@
         </MudTd>
         <MudTd DataLabel="Action">
             <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
-                           OnClick="@(() => DeleteInvitation(context))" />
+                           OnClick="@(() => DeleteInvitationAsync(context))" Disabled="ViewModel.IsProcessing" />
         </MudTd>
     </RowTemplate>
 </MudTable>
@@ -61,60 +60,45 @@
 @code {
     [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
 
-    private string _newEmail = "";
-    private List<Invitation> _invitations = [];
-    private string? _currentUserId;
-
     protected override async Task OnInitializedAsync()
     {
-        var authState = await AuthStateTask;
-        _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-        await LoadInvitations();
-    }
-
-    private async Task LoadInvitations()
-    {
-        _invitations = await AdminData.GetInvitationsAsync();
-    }
-
-    private async Task CreateInvitation()
-    {
-        if (string.IsNullOrWhiteSpace(_newEmail))
+        if (AuthStateTask is not null)
         {
-            Snackbar.Add("Email is required.", Severity.Error);
-            return;
+            var authState = await AuthStateTask;
+            ViewModel.Initialize(authState.User);
         }
 
-        var code = InvitationManagerViewModel.GenerateRandomCode(16);
-        var invitation = new Invitation
-        {
-            Email = _newEmail,
-            InvitationCode = code,
-            ExpirationDate = DateTime.UtcNow.AddDays(7), // 7 days expiration
-            IsUsed = false,
-            InvitedByAdminId = _currentUserId ?? string.Empty,
-            OwnerId = _currentUserId ?? "system"
-        };
-
-        await AdminData.CreateInvitationAsync(invitation);
-
-        Snackbar.Add("Invitation created successfully.", Severity.Success);
-        _newEmail = "";
-        await LoadInvitations();
+        await ViewModel.LoadInvitationsAsync();
     }
 
-    private async Task DeleteInvitation(Invitation invitation)
+    private async Task CreateInvitationAsync()
     {
-        await AdminData.DeleteInvitationAsync(invitation);
-        Snackbar.Add("Invitation deleted.", Severity.Info);
-        await LoadInvitations();
+        var result = await ViewModel.CreateInvitationAsync();
+        if (result is Success<Invitation>)
+        {
+            Snackbar.Add("Invitation created successfully.", Severity.Success);
+        }
+        else if (result is Failure failure)
+        {
+            Snackbar.Add(failure.ErrorMessage, Severity.Error);
+        }
     }
 
-    // This method simulates copying to clipboard. In a real app, use JSInterop.
+    private async Task DeleteInvitationAsync(Invitation invitation)
+    {
+        var result = await ViewModel.DeleteInvitationAsync(invitation);
+        if (result is Success<bool>)
+        {
+            Snackbar.Add("Invitation deleted.", Severity.Info);
+        }
+        else if (result is Failure failure)
+        {
+            Snackbar.Add(failure.ErrorMessage, Severity.Error);
+        }
+    }
+
     private void CopyLink(string code)
     {
-        // For simplicity, just show snackbar. JS interop needed for real clipboard copy.
-        Snackbar.Add($"Link to copy: /Account/Login?inviteCode={code}", Severity.Info);
+        Snackbar.Add($"Link to copy: {InvitationManagerViewModel.BuildInviteLink(code)}", Severity.Info);
     }
 }

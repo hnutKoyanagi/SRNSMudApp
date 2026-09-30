@@ -68,19 +68,24 @@ public class NotificationsDataProvider(IDbContextFactory<ApplicationDbContext> d
     /// <inheritdoc />
     public async Task<NotificationRawData> GetNotificationRawDataAsync(string userId, CancellationToken cancellationToken = default)
     {
-        await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync(cancellationToken);
-
         // 1. Tag Requests targeting the user
-        List<TaggingRequestEntity> tagRequests = await context.TaggingRequestEntities!
+        var tagRequestsTask = Task.Run(async () =>
+        {
+            await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync(cancellationToken);
+            return await context.TaggingRequestEntities!
             .AsNoTracking()
             .Include(r => r.Target).ThenInclude(t => t.Item)
             .Include(r => r.RequestedTag)
             .Where(r => r.RequesterUserId != userId &&
                         (r.Target.OwnerId == userId || r.RequestedTag.OwnerId == userId))
             .ToListAsync(cancellationToken);
+        }, cancellationToken);
 
         // 2. Item Replies targeting the user
-        List<Item> itemReplies = await context.Items!
+        var itemRepliesTask = Task.Run(async () =>
+        {
+            await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync(cancellationToken);
+            return await context.Items!
             .AsNoTracking()
             .Include(i => i.ParentItem)
             .Include(i => i.Owner)
@@ -90,25 +95,37 @@ public class NotificationsDataProvider(IDbContextFactory<ApplicationDbContext> d
                          (!i.NotificationRecipients.Any() && i.ParentItem!.OwnerId == userId)) &&
                         i.OwnerId != userId)
             .ToListAsync(cancellationToken);
+        }, cancellationToken);
 
         // 3. Rejected requests for the user
-        List<TaggingRequestEntity> rejectedRequests = await context.TaggingRequestEntities!
+        var rejectedRequestsTask = Task.Run(async () =>
+        {
+            await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync(cancellationToken);
+            return await context.TaggingRequestEntities!
             .AsNoTracking()
             .Include(r => r.Target).ThenInclude(t => t.Item)
             .Include(r => r.RequestedTag)
             .Where(r => r.RequesterUserId == userId && r.Status == TradeStatus.Rejected)
             .ToListAsync(cancellationToken);
+        }, cancellationToken);
 
         // 4. Approved requests for the user
-        List<TaggingRequestEntity> approvedRequests = await context.TaggingRequestEntities!
+        var approvedRequestsTask = Task.Run(async () =>
+        {
+            await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync(cancellationToken);
+            return await context.TaggingRequestEntities!
             .AsNoTracking()
             .Include(r => r.Target).ThenInclude(t => t.Item)
             .Include(r => r.RequestedTag)
             .Where(r => r.RequesterUserId == userId && r.Status == TradeStatus.Executed)
             .ToListAsync(cancellationToken);
+        }, cancellationToken);
 
         // 5. Replies to the user's requests
-        List<Item> requestReplies = await context.Items!
+        var requestRepliesTask = Task.Run(async () =>
+        {
+            await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync(cancellationToken);
+            return await context.Items!
             .AsNoTracking()
             .Include(i => i.TaggingRequest)
             .Include(i => i.Owner)
@@ -116,71 +133,107 @@ public class NotificationsDataProvider(IDbContextFactory<ApplicationDbContext> d
                         i.TaggingRequest!.RequesterUserId == userId &&
                         i.OwnerId != userId)
             .ToListAsync(cancellationToken);
+        }, cancellationToken);
 
-        List<NotificationReadState> readStates = await context.NotificationReadStates!
+        var readStatesTask = Task.Run(async () =>
+        {
+            await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync(cancellationToken);
+            return await context.NotificationReadStates!
             .AsNoTracking()
             .Where(n => n.UserId == userId)
             .ToListAsync(cancellationToken);
+        }, cancellationToken);
 
         // 6. Resolved reports submitted by the user
-        List<ContentReport> resolvedReports = await context.ContentReports!
+        var resolvedReportsTask = Task.Run(async () =>
+        {
+            await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync(cancellationToken);
+            return await context.ContentReports!
             .AsNoTracking()
             .Where(r => r.OwnerId == userId && r.Status != ReportStatus.Pending && r.HandledDate != null)
             .ToListAsync(cancellationToken);
+        }, cancellationToken);
 
         // 7. Split requests targeting the user (as item owner)
-        List<ItemSplitRequest> splitRequests = await context.ItemSplitRequests!
+        var splitRequestsTask = Task.Run(async () =>
+        {
+            await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync(cancellationToken);
+            return await context.ItemSplitRequests!
             .AsNoTracking()
             .Include(r => r.RequesterUser)
             .Include(r => r.OriginalItem)
             .Where(r => r.OwnerUserId == userId && r.RequesterUserId != userId)
             .ToListAsync(cancellationToken);
+        }, cancellationToken);
 
         // 8. Resolved split requests (approved/rejected) for the requester
-        List<ItemSplitRequest> resolvedSplitRequests = await context.ItemSplitRequests!
+        var resolvedSplitRequestsTask = Task.Run(async () =>
+        {
+            await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync(cancellationToken);
+            return await context.ItemSplitRequests!
             .AsNoTracking()
             .Include(r => r.OwnerUser)
             .Include(r => r.OriginalItem)
             .Where(r => r.RequesterUserId == userId &&
                         (r.Status == TradeStatus.Executed || r.Status == TradeStatus.Rejected))
             .ToListAsync(cancellationToken);
+        }, cancellationToken);
 
         // 9. Tag Content proposals targeting the user (as tag owner)
-        List<TagContentProposal> tagContentProposals = await context.TagContentProposals!
+        var tagContentProposalsTask = Task.Run(async () =>
+        {
+            await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync(cancellationToken);
+            return await context.TagContentProposals!
             .AsNoTracking()
             .Include(p => p.RequesterUser)
             .Include(p => p.Tag)
             .Where(p => p.OwnerUserId == userId && p.RequesterUserId != userId)
             .ToListAsync(cancellationToken);
+        }, cancellationToken);
 
         // 10. Resolved Tag Content proposals (approved/rejected) for the requester
-        List<TagContentProposal> resolvedTagContentProposals = await context.TagContentProposals!
+        var resolvedTagContentProposalsTask = Task.Run(async () =>
+        {
+            await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync(cancellationToken);
+            return await context.TagContentProposals!
             .AsNoTracking()
             .Include(p => p.OwnerUser)
             .Include(p => p.Tag)
             .Where(p => p.RequesterUserId == userId &&
                         (p.Status == TradeStatus.Executed || p.Status == TradeStatus.Rejected))
             .ToListAsync(cancellationToken);
+        }, cancellationToken);
 
         // 11. Tag Name proposals targeting the user (as tag owner)
-        List<TagNameProposal> tagNameProposals = await context.TagNameProposals!
+        var tagNameProposalsTask = Task.Run(async () =>
+        {
+            await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync(cancellationToken);
+            return await context.TagNameProposals!
             .AsNoTracking()
             .Include(p => p.RequesterUser)
             .Include(p => p.Tag)
             .Where(p => p.OwnerUserId == userId && p.RequesterUserId != userId)
             .ToListAsync(cancellationToken);
+        }, cancellationToken);
 
         // 12. Resolved Tag Name proposals (approved/rejected) for the requester
-        List<TagNameProposal> resolvedTagNameProposals = await context.TagNameProposals!
+        var resolvedTagNameProposalsTask = Task.Run(async () =>
+        {
+            await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync(cancellationToken);
+            return await context.TagNameProposals!
             .AsNoTracking()
             .Include(p => p.OwnerUser)
             .Include(p => p.Tag)
             .Where(p => p.RequesterUserId == userId &&
                         (p.Status == TradeStatus.Executed || p.Status == TradeStatus.Rejected))
             .ToListAsync(cancellationToken);
+        }, cancellationToken);
 
         // 13. TagRelation comments targeting the user (as item owner)
-        List<TagRelation> tagRelationComments = await context.TagRelations!
+        var tagRelationCommentsTask = Task.Run(async () =>
+        {
+            await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync(cancellationToken);
+            return await context.TagRelations!
             .AsNoTracking()
             .Include(tr => tr.Item)
             .Include(tr => tr.Tag)
@@ -188,22 +241,28 @@ public class NotificationsDataProvider(IDbContextFactory<ApplicationDbContext> d
             .Include(tr => tr.CommentItem)
             .Where(tr => tr.Item.OwnerId == userId && tr.OwnerId != userId && tr.CommentItem != null && !string.IsNullOrEmpty(tr.CommentItem.Content))
             .ToListAsync(cancellationToken);
+        }, cancellationToken);
+        await Task.WhenAll(
+            tagRequestsTask, itemRepliesTask, rejectedRequestsTask, approvedRequestsTask, requestRepliesTask, readStatesTask,
+            resolvedReportsTask, splitRequestsTask, resolvedSplitRequestsTask, tagContentProposalsTask,
+            resolvedTagContentProposalsTask, tagNameProposalsTask, resolvedTagNameProposalsTask, tagRelationCommentsTask
+        );
 
         return new NotificationRawData(
-            tagRequests,
-            itemReplies,
-            rejectedRequests,
-            approvedRequests,
-            requestReplies,
-            readStates,
-            resolvedReports,
-            splitRequests,
-            resolvedSplitRequests,
-            tagContentProposals,
-            resolvedTagContentProposals,
-            tagNameProposals,
-            resolvedTagNameProposals,
-            tagRelationComments);
+            await tagRequestsTask,
+            await itemRepliesTask,
+            await rejectedRequestsTask,
+            await approvedRequestsTask,
+            await requestRepliesTask,
+            await readStatesTask,
+            await resolvedReportsTask,
+            await splitRequestsTask,
+            await resolvedSplitRequestsTask,
+            await tagContentProposalsTask,
+            await resolvedTagContentProposalsTask,
+            await tagNameProposalsTask,
+            await resolvedTagNameProposalsTask,
+            await tagRelationCommentsTask);
     }
 
     /// <inheritdoc />

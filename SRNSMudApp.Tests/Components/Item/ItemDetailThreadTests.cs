@@ -14,6 +14,8 @@ using SRNSMudApp.Components.Item;
 using SRNSMudApp.Data;
 using SRNSMudApp.Services;
 
+using UserGroup = SRNSMudApp.Data.UserGroup;
+
 namespace SRNSMudApp.Tests.Components.Item;
 
 public sealed class ItemDetailThreadTests : IAsyncLifetime
@@ -451,7 +453,7 @@ public sealed class ItemDetailThreadTests : IAsyncLifetime
     {
         const int itemId = 77;
         var author = new ApplicationUser { Id = UserId, UserName = UserName };
-        var group = new UserGroup { Id = 55, Name = "AlphaTeam", OwnerId = UserId };
+        var group = new SRNSMudApp.Data.UserGroup { Id = 55, Name = "AlphaTeam", OwnerId = UserId };
         var currentItem = new SRNSMudApp.Data.Item
         {
             Id = itemId,

@@ -6,6 +6,7 @@
 @using SRNSMudApp.Components.Tag
 @using SRNSMudApp.Services
 @inject IUserDataProvider UserData
+@inject UserDetailActionViewModel ActionViewModel
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JSRuntime
 
@@ -236,7 +237,7 @@
             return;
         }
 
-        _isFollowing = await UserData.ToggleFollowUserAsync(_currentUserId, UserId);
+        _isFollowing = await ActionViewModel.ToggleFollowAsync(_currentUserId, UserId);
         if (_isFollowing)
         {
             _followersCount++;

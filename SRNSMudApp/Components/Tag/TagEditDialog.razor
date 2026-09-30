@@ -1,22 +1,22 @@
 @using System.Security.Claims
 @using SRNSMudApp.Data
+@using SRNSMudApp.Models.Unions
 @using SRNSMudApp.Services
-@inject ITagCommandService TagCommandService
-@inject IUserGroupDataProvider UserGroupData
+@inject TagEditViewModel ViewModel
 @inject ISnackbar Snackbar
-@inject ITagEmbeddingService TagEmbeddingService
 
 <MudDialog>
     <DialogContent>
-        <MudTextField T="string" @bind-Value="_editName" Label="タグ名" Variant="Variant.Outlined" Class="mb-4"
+        <MudTextField T="string" @bind-Value="ViewModel.EditName" Label="タグ名" Variant="Variant.Outlined" Class="mb-4"
                       AutoFocus="true" Required="true" RequiredError="タグ名は必須です" />
 
-        <MudTextField T="string" @bind-Value="_editContent" Label="内容" Variant="Variant.Outlined" Lines="3" MaxLines="5"
-                      Class="mb-4" />
+        <MudTextField T="string" @bind-Value="ViewModel.EditContent" Label="内容" Variant="Variant.Outlined" Lines="3"
+                      MaxLines="5" Class="mb-4" />
 
-        <MudSelect T="int" @bind-SelectedValues="_selectedGroupIds" Label="自動承認を許可するユーザーグループ" MultiSelection="true"
-                   Variant="Variant.Outlined" Clearable="true" HelperText="選択されたいずれかのグループに所属するユーザーからのタグ付けリクエストが自動承認されます。">
-            @foreach (var group in _myGroups)
+        <MudSelect T="int" @bind-SelectedValues="ViewModel.SelectedGroupIds" Label="自動承認を許可するユーザーグループ"
+                   MultiSelection="true" Variant="Variant.Outlined" Clearable="true"
+                   HelperText="選択されたいずれかのグループに所属するユーザーからのタグ付けリクエストが自動承認されます。">
+            @foreach (var group in ViewModel.MyGroups)
             {
                 <MudSelectItem T="int" Value="@group.Id">@group.Name</MudSelectItem>
             }
@@ -24,44 +24,24 @@
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="@Cancel">キャンセル</MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="@SaveAsync">保存</MudButton>
-    </DialogActions>
-</MudDialog>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="@SaveAsync" Disabled="@(!ViewModel.CanSave)">
+            保存</MudButton>
+        </DialogActions>
+    </MudDialog>
 
 @code {
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
     [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
 
-    // TagList.razor から渡される Tag パラメータ
     [Parameter] public Tag Tag { get; set; } = null!;
-
-    // 編集用のバインド変数（キャンセル時に元のオブジェクトを汚染しないため）
-    private string _editName = null!;
-    private string _editContent = null!;
-    private IReadOnlyCollection<int> _selectedGroupIds = [];
-    private List<UserGroup> _myGroups = [];
-    private bool _isAdmin;
 
     protected override async Task OnInitializedAsync()
     {
-        // 初期値として現在の値をセット
-        _editName = Tag.Name;
-        _editContent = Tag.Content;
-
-        var initialGroups = Tag.AutoApproveUserGroups.Select(g => g.UserGroupId).ToHashSet();
-        _selectedGroupIds = initialGroups;
-
         var auth = await AuthStateTask;
         string? currentUserId = auth.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        _isAdmin = auth.User.IsInRole("Admin");
+        bool isAdmin = auth.User.IsInRole("Admin");
 
-        currentUserId ??= Tag.OwnerId;
-
-        if (!string.IsNullOrEmpty(currentUserId))
-        {
-            var groups = await UserGroupData.GetManagedGroupsAsync(currentUserId);
-            _myGroups = groups.ToList();
-        }
+        await ViewModel.InitializeAsync(Tag, currentUserId, isAdmin);
     }
 
     private void Cancel()
@@ -71,31 +51,22 @@
 
     private async Task SaveAsync()
     {
-        if (string.IsNullOrWhiteSpace(_editName))
+        var result = await ViewModel.SaveAsync();
+        if (result is Success<bool>)
         {
-            Snackbar.Add("タグ名は空にできません。", Severity.Warning);
-            return;
+            MudDialog.Close(DialogResult.Ok(true));
         }
-
-        try
+        else if (result is Failure failure)
         {
-            bool updated = await TagCommandService.UpdateTagAsync(Tag.Id, _editName, _editContent,
-                Tag.AutoAcceptIncomingTaggingRequests, _selectedGroupIds, _isAdmin);
+            var severity = failure.ErrorMessage.Contains("ロック", StringComparison.Ordinal)
+                ? Severity.Warning
+                : Severity.Error;
+            Snackbar.Add(failure.ErrorMessage, severity);
 
-            if (updated)
+            if (severity == Severity.Warning)
             {
-                MudDialog.Close(DialogResult.Ok(true));
-            }
-            else
-            {
-                Snackbar.Add("対象のタグが見つからないか、ロックされているため更新できません。", Severity.Warning);
                 MudDialog.Cancel();
             }
         }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"エラーが発生しました: {ex.Message}", Severity.Error);
-        }
     }
-
 }

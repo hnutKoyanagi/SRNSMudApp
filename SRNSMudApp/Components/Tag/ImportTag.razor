@@ -2,9 +2,10 @@
 @attribute [Authorize]
 @using System.Security.Claims
 @using System.Text
+@using SRNSMudApp.Models.Unions
 @using SRNSMudApp.Services
 @rendermode InteractiveServer
-@inject IImportTagDataProvider ImportTagData
+@inject ImportTagViewModel ViewModel
 @inject ISnackbar Snackbar
 @inject NavigationManager NavigationManager
 
@@ -20,7 +21,7 @@
     <MudText Typo="Typo.body2" Class="mb-4">
         選択したタグの子としてインポートします。親タグの選択は必須です。
     </MudText>
-    <MudAutocomplete T="Tag" Label="親タグを検索" @bind-Value="_selectedParentTag" SearchFunc="@SearchTagsAsync"
+    <MudAutocomplete T="Tag" Label="親タグを検索" @bind-Value="ViewModel.SelectedParentTag" SearchFunc="@SearchTagsAsync"
                      ToStringFunc="@(tag => tag == null ? null : tag.Name)" Placeholder="タグ名を入力..."
                      ResetValueOnEmptyText="false" CoerceValue="true"
                      Clearable="true" Class="mb-4">
@@ -34,9 +35,9 @@
         </NoItemsTemplate>
     </MudAutocomplete>
 
-    @if (_isAdmin)
+    @if (ViewModel.IsAdmin)
     {
-        <MudSwitch T="bool" @bind-Value="_importAsSystem" Label="システムタグとしてインポート (Owner: system)" Color="Color.Warning"
+        <MudSwitch T="bool" @bind-Value="ViewModel.ImportAsSystem" Label="システムタグとしてインポート (Owner: system)" Color="Color.Warning"
                    Class="mb-4" />
     }
 
@@ -50,8 +51,8 @@
     {
         <MudText Typo="Typo.body2" Class="mt-2">選択されたファイル: @_file.Name (@_file.Size bytes)</MudText>
         <MudButton Variant="Variant.Filled" Color="Color.Success" Class="mt-4" OnClick="@ImportData"
-                   Disabled="@(_isImporting || _selectedParentTag == null)">
-            @if (_isImporting)
+                   Disabled="@(!ViewModel.CanImport)">
+            @if (ViewModel.IsImporting)
             {
                 <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
                 <MudText Class="ms-2">インポート中...</MudText>
@@ -68,27 +69,16 @@
     [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
     public int Weight { get; set; } = 0;
     private IBrowserFile? _file;
-    private bool _isImporting;
-    private bool _isAdmin;
-    private bool _importAsSystem;
-    private string? _currentUserId;
-    private Tag? _selectedParentTag;
 
     private async Task<IEnumerable<Tag>> SearchTagsAsync(string? value, CancellationToken token)
     {
-        if (string.IsNullOrEmpty(_currentUserId))
-        {
-            return [];
-        }
-
-        return await ImportTagData.SearchUserTagsAsync(_currentUserId!, value, token);
+        return await ViewModel.SearchTagsAsync(value, token);
     }
 
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthStateTask;
-        _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        _isAdmin = authState.User.IsInRole("Admin");
+        ViewModel.Initialize(authState.User);
     }
 
     private void UploadFiles(IBrowserFile? file)
@@ -98,56 +88,35 @@
 
     private async Task ImportData()
     {
-        if (_isImporting)
-        {
-            return;
-        }
-
-        if (_selectedParentTag is null)
-        {
-            Snackbar.Add("親タグを選択してください", Severity.Warning);
-            return;
-        }
-
         if (_file is null)
         {
             Snackbar.Add("ファイルが選択されていません", Severity.Warning);
             return;
         }
 
-        if (string.IsNullOrEmpty(_currentUserId))
-        {
-            Snackbar.Add("ログインが必要です", Severity.Error);
-            return;
-        }
-
-        _isImporting = true;
-
         try
         {
-            // Read file content
             using var stream = _file.OpenReadStream(104857600); // Max 10MB
             using var reader = new StreamReader(stream, Encoding.UTF8);
             var content = await reader.ReadToEndAsync();
 
-            TagImportResult result =
-                await ImportTagData.ImportCsvTagsAsync(_currentUserId!, _selectedParentTag.Name, content, _isAdmin && _importAsSystem);
+            var result = await ViewModel.ImportCsvAsync(content);
 
-            Snackbar.Add($"インポートが完了しました。{result.CreatedCount}個のタグを新規作成、{result.UpdatedCount}個のタグを更新しました。", Severity.Success);
-            _file = null;
-
-            // Redirect to Tag Tree page
-            NavigationManager.NavigateTo("/tag-tree");
+            switch (result)
+            {
+                case Success<TagImportResult> success:
+                    Snackbar.Add($"インポートが完了しました。{success.Value.CreatedCount}個のタグを新規作成、{success.Value.UpdatedCount}個のタグを更新しました。", Severity.Success);
+                    _file = null;
+                    NavigationManager.NavigateTo("/tag-tree");
+                    break;
+                case Failure fail:
+                    Snackbar.Add(fail.ErrorMessage, Severity.Error);
+                    break;
+            }
         }
         catch (Exception ex)
         {
             Snackbar.Add($"インポート中にエラーが発生しました: {ex.Message}", Severity.Error);
         }
-        finally
-        {
-            _isImporting = false;
-            // StateHasChanged();
-        }
     }
-
 }

@@ -41,8 +41,8 @@ public partial class ItemCard : IAsyncDisposable
     [Inject] private IDialogLauncher DialogLauncher { get; set; } = null!;
     [Inject] private ISnackbar Snackbar { get; set; } = null!;
     [Inject] private IJSRuntime JS { get; set; } = null!;
-    [Inject] private ITaggingContractService TaggingContractService { get; set; } = null!;
     [Inject] private IItemCardDataProvider ItemCardData { get; set; } = null!;
+    [Inject] private ItemCardActionViewModel ActionViewModel { get; set; } = null!;
     [Inject] private ILinkPreviewService PreviewService { get; set; } = null!;
     [Inject] private NavigationManager NavigationManager { get; set; } = null!;
     [CascadingParameter] private Task<AuthenticationState>? AuthStateTask { get; set; }
@@ -204,43 +204,17 @@ public partial class ItemCard : IAsyncDisposable
     // --- Tagging Contract Request Alerts ---
     private async Task CancelTaggingRequestAsync()
     {
-        if (Item.AsRequestOf is null)
+        if (await ActionViewModel.CancelTaggingRequestAsync(Item.AsRequestOf, CurrentUserId))
         {
-            return;
-        }
-
-        Result<string> result = await TaggingContractService.CancelContractAsync(Item.AsRequestOf.Id, CurrentUserId);
-        switch (result)
-        {
-            case Success<string>:
-                _ = Item.AsRequestOf.Cancel();
-                _ = Snackbar.Add(ErrorMessages.ContractCancelSuccess, Severity.Success);
-                await NotifyDataChangedAsync();
-                break;
-            case Failure f:
-                _ = Snackbar.Add($"エラー: {f.ErrorMessage}", Severity.Error);
-                break;
+            await NotifyDataChangedAsync();
         }
     }
 
     private async Task ApproveTaggingRequestAsync()
     {
-        if (Item.AsRequestOf is null)
+        if (await ActionViewModel.ApproveTaggingRequestAsync(Item.AsRequestOf, CurrentUserId))
         {
-            return;
-        }
-
-        Result<string> result = await TaggingContractService.AcceptContractAsync(Item.AsRequestOf.Id, CurrentUserId);
-        switch (result)
-        {
-            case Success<string>:
-                _ = Item.AsRequestOf.Execute();
-                _ = Snackbar.Add(ErrorMessages.ContractApproveSuccess, Severity.Success);
-                await NotifyDataChangedAsync();
-                break;
-            case Failure f:
-                _ = Snackbar.Add($"エラー: {f.ErrorMessage}", Severity.Error);
-                break;
+            await NotifyDataChangedAsync();
         }
     }
 
@@ -364,14 +338,13 @@ public partial class ItemCard : IAsyncDisposable
         _isSubmittingReply = true;
         try
         {
-            (bool isPrivate, int? targetGroupId) = ItemCardViewModel.ResolveReplyPrivacy(_isReplyPrivate, Item);
-            Data.Item? addedReply = await ItemReplyService.AddItemReplyAsync(
-                Item.Id,
+            Data.Item? addedReply = await ActionViewModel.SubmitReplyAsync(
+                Item,
                 _newReplyContent,
                 CurrentUserId,
-                _selectedTargetUserIds,
-                isPrivate: isPrivate,
-                targetUserGroupId: targetGroupId);
+                _isReplyPrivate,
+                _selectedTargetUserIds);
+
             if (addedReply is not null)
             {
                 _newReplyContent = "";
@@ -579,7 +552,7 @@ public partial class ItemCard : IAsyncDisposable
             return;
         }
 
-        var success = await ItemCardData.DeleteItemByAdminAsync(Item.Id, CurrentUserId);
+        var success = await ActionViewModel.DeleteItemByAdminAsync(Item.Id, CurrentUserId, _isAdmin);
         if (success)
         {
             await NotifyDataChangedAsync();
@@ -600,7 +573,7 @@ public partial class ItemCard : IAsyncDisposable
         }
 
         var newIsHidden = !Item.IsAdminHidden;
-        var success = await ItemCardData.SetAdminHiddenAsync(Item.Id, newIsHidden, null, CurrentUserId);
+        var success = await ActionViewModel.SetAdminHiddenAsync(Item.Id, newIsHidden, null, CurrentUserId, _isAdmin);
         if (success)
         {
             Item.IsAdminHidden = newIsHidden;

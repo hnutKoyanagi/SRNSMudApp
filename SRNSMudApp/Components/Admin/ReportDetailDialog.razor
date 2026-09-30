@@ -1,8 +1,7 @@
 @using System.Security.Claims
 @using SRNSMudApp.Data
 @using SRNSMudApp.Services
-@inject IContentReportService ContentReportService
-@inject ISnackbar Snackbar
+@inject ReportDetailActionViewModel ActionViewModel
 @inject NavigationManager NavigationManager
 
 <MudDialog>
@@ -210,26 +209,11 @@
         try
         {
             var adminId = await GetAdminUserIdAsync();
-            if (string.IsNullOrEmpty(adminId))
-            {
-                Snackbar.Add("管理者情報が取得できません。", Severity.Error);
-                return;
-            }
-
-            var success = await ContentReportService.UpdateReportStatusAsync(Report.Id, status, _resolutionNote, adminId);
+            var success = await ActionViewModel.UpdateStatusAsync(Report.Id, status, _resolutionNote, adminId, successMessage);
             if (success)
             {
-                Snackbar.Add(successMessage, Severity.Success);
                 MudDialog.Close(DialogResult.Ok(true));
             }
-            else
-            {
-                Snackbar.Add("通報の更新に失敗しました。", Severity.Error);
-            }
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"エラーが発生しました: {ex.Message}", Severity.Error);
         }
         finally
         {
@@ -245,26 +229,11 @@
         try
         {
             var adminId = await GetAdminUserIdAsync();
-            if (string.IsNullOrEmpty(adminId))
-            {
-                Snackbar.Add("管理者情報が取得できません。", Severity.Error);
-                return;
-            }
-
-            var success = await ContentReportService.ResolveReportWithHideAsync(Report.Id, _resolutionNote, adminId);
+            var success = await ActionViewModel.ResolveAndHideTargetAsync(Report.Id, _resolutionNote, adminId);
             if (success)
             {
-                Snackbar.Add("対象コンテンツを非公開化し、処置完了としました。", Severity.Success);
                 MudDialog.Close(DialogResult.Ok(true));
             }
-            else
-            {
-                Snackbar.Add("非公開化の実行に失敗しました。", Severity.Error);
-            }
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"エラーが発生しました: {ex.Message}", Severity.Error);
         }
         finally
         {
@@ -280,27 +249,11 @@
         try
         {
             var adminId = await GetAdminUserIdAsync();
-            if (string.IsNullOrEmpty(adminId))
-            {
-                Snackbar.Add("管理者情報が取得できません。", Severity.Error);
-                return;
-            }
-
-            var success = await ContentReportService.ResolveReportWithActionAsync(Report.Id, deleteTarget: true, _resolutionNote,
-adminId);
+            var success = await ActionViewModel.ResolveAndDeleteTargetAsync(Report.Id, _resolutionNote, adminId);
             if (success)
             {
-                Snackbar.Add("対象コンテンツを削除し、処置完了としました。", Severity.Success);
                 MudDialog.Close(DialogResult.Ok(true));
             }
-            else
-            {
-                Snackbar.Add("処置の実行に失敗しました。", Severity.Error);
-            }
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"エラーが発生しました: {ex.Message}", Severity.Error);
         }
         finally
         {

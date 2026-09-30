@@ -19,34 +19,22 @@ public partial class QuotedItemListDialog
 {
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
 
-    [Inject] private IItemQuoteService ItemQuoteService { get; set; } = null!;
+    [Inject] private QuotedItemListViewModel ViewModel { get; set; } = null!;
 
     [Parameter] public DataItem TargetItem { get; set; } = null!;
     [Parameter] public string CurrentUserId { get; set; } = "";
     [Parameter] public IReadOnlyList<DataTag> AllTags { get; set; } = [];
     [Parameter] public IReadOnlyList<TagRelationToTag> AllTagRelationsToTags { get; set; } = [];
 
-    private DataItem? _sourceItem;
-    private IReadOnlyList<DataItem> _quotedItems = [];
-    private bool _isLoading = true;
-
     protected override async Task OnInitializedAsync()
     {
-        await LoadQuotedItemsAsync();
+        ViewModel.TargetItem = TargetItem;
+        await ViewModel.LoadAsync();
     }
 
     private async Task LoadQuotedItemsAsync()
     {
-        _isLoading = true;
-        try
-        {
-            _sourceItem = await ItemQuoteService.GetSourceItemAsync(TargetItem.Id);
-            _quotedItems = await ItemQuoteService.GetQuotedByItemsAsync(TargetItem.Id);
-        }
-        finally
-        {
-            _isLoading = false;
-        }
+        await ViewModel.LoadAsync();
     }
 
     private void Close()

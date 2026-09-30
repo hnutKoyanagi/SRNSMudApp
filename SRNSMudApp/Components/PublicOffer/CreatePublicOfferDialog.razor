@@ -2,18 +2,17 @@
 @using SRNSMudApp.Models.Unions
 @using SRNSMudApp.Services
 @using SRNSMudApp.Services.Commands
-@inject IContractLookupDataProvider ContractData
-@inject ICommandHandler<CreatePublicOfferCommand, Result<bool>> CreatePublicOfferHandler
+@inject CreatePublicOfferViewModel ViewModel
 @inject ISnackbar Snackbar
 
 <MudDialog>
     <DialogContent>
         <MudForm @ref="_form" @bind-IsValid="@_isValid">
-            <MudAutocomplete T="Tag" Label="提供するタグ（自分が作成したタグのみ）" @bind-Value="_selectedTag" SearchFunc="@SearchMyTags"
-                             ToStringFunc="@(t => t?.Name ?? "")" Required="true" RequiredError="タグを選択してください"
-                             ResetValueOnEmptyText="true" CoerceText="true" CoerceValue="true" />
+            <MudAutocomplete T="Tag" Label="提供するタグ（自分が作成したタグのみ）" @bind-Value="ViewModel.SelectedTag"
+                             SearchFunc="@SearchMyTags" ToStringFunc="@(t => t?.Name ?? "")" Required="true"
+                             RequiredError="タグを選択してください" ResetValueOnEmptyText="true" CoerceText="true" CoerceValue="true" />
 
-            <MudNumericField T="int" Label="要求するアセット量" @bind-Value="_requiredAssetAmount" Min="0"
+            <MudNumericField T="int" Label="要求するアセット量" @bind-Value="ViewModel.RequiredAssetAmount" Min="0"
                              HelperText="0の場合は無償で提供します。" />
         </MudForm>
     </DialogContent>
@@ -31,42 +30,36 @@
 
     private MudForm? _form;
     private bool _isValid;
-    private string _currentUserId = string.Empty;
-
-    private Tag? _selectedTag;
-    private int _requiredAssetAmount;
 
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthStateTask;
-        _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        ViewModel.CurrentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
     }
 
     private async Task<IEnumerable<Tag>> SearchMyTags(string? value, CancellationToken token)
     {
-        return await ContractData.SearchMyTagsAsync(_currentUserId, value, token);
+        return await ViewModel.SearchMyTagsAsync(value, token);
     }
 
     private async Task Submit()
     {
         await _form!.ValidateAsync();
-        if (!_isValid || _selectedTag is null)
+        if (!_isValid || ViewModel.SelectedTag is null)
         {
             return;
         }
 
-        var offer = new PublicTradeOffer
+        var result = await ViewModel.SubmitAsync();
+        if (result is Success<bool>)
         {
-            OwnerId = _currentUserId,
-            OfferedTagId = _selectedTag.Id,
-            RequiredAssetAmount = _requiredAssetAmount,
-            IsActive = true
-        };
-
-        _ = await CreatePublicOfferHandler.HandleAsync(new CreatePublicOfferCommand(offer));
-
-        Snackbar.Add("公開オファーを作成しました。", Severity.Success);
-        MudDialog.Close(DialogResult.Ok(true));
+            Snackbar.Add("公開オファーを作成しました。", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        else if (result is Failure failure)
+        {
+            Snackbar.Add(failure.ErrorMessage, Severity.Error);
+        }
     }
 
     private void Cancel()
