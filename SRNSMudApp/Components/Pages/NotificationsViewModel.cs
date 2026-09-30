@@ -1,16 +1,346 @@
+using System.Diagnostics.CodeAnalysis;
+
+using SRNSMudApp.Components.UI;
 using SRNSMudApp.Data;
 using SRNSMudApp.Models;
-
-// 親名前空間 Pages と同名型の衝突を避けるため、エイリアスを置く
+using SRNSMudApp.Models.Unions;
+using SRNSMudApp.Services;
 
 namespace SRNSMudApp.Components.Pages;
 
 /// <summary>
-///     NotificationsPage コンポーネントに含まれる純粋なロジックを切り出した ViewModel。
-///     UI への依存を持たないため、bUnit を使わずに xUnit で直接単体テストできる。
+///     NotificationsPage コンポーネントに含まれる表示ロジックおよび通知操作ロジックを集約する ViewModel。
+///     UI (MudBlazor / Dialog) への依存を持たないため、bUnit を使わずに xUnit で直接単体テストできる。
 /// </summary>
-public static class NotificationsViewModel
+public class NotificationsViewModel
 {
+    private readonly INotificationService _notificationService;
+    private readonly IHomeDataProvider _homeData;
+    private readonly INotificationsDataProvider _notificationsData;
+    private readonly ITaggingRequestActions _requestActions;
+    private readonly ISystemTagEnsurer _systemTagEnsurer;
+    private readonly ITaggingContractService _taggingContractService;
+    private readonly IItemSplitService _itemSplitService;
+    private readonly ITagContentProposalService _tagContentProposalService;
+    private readonly ITagNameProposalService _tagNameProposalService;
+
+    public NotificationsViewModel(
+        INotificationService notificationService,
+        IHomeDataProvider homeData,
+        INotificationsDataProvider notificationsData,
+        ITaggingRequestActions requestActions,
+        ISystemTagEnsurer systemTagEnsurer,
+        ITaggingContractService taggingContractService,
+        IItemSplitService itemSplitService,
+        ITagContentProposalService tagContentProposalService,
+        ITagNameProposalService tagNameProposalService)
+    {
+        _notificationService = notificationService;
+        _homeData = homeData;
+        _notificationsData = notificationsData;
+        _requestActions = requestActions;
+        _systemTagEnsurer = systemTagEnsurer;
+        _taggingContractService = taggingContractService;
+        _itemSplitService = itemSplitService;
+        _tagContentProposalService = tagContentProposalService;
+        _tagNameProposalService = tagNameProposalService;
+    }
+
+    public string? CurrentUserId { get; private set; }
+    public IReadOnlyList<NotificationDto> Notifications { get; private set; } = [];
+    public bool IsLoading { get; private set; } = true;
+
+    [SuppressMessage("Usage", "CA1002:Do not expose generic lists", Justification = "Blazor component parameter requirement")]
+    public List<Data.Tag> AllTags { get; private set; } = [];
+
+    [SuppressMessage("Usage", "CA1002:Do not expose generic lists", Justification = "Blazor component parameter requirement")]
+    public List<TagRelationToTag> AllTagRelationsToTags { get; private set; } = [];
+
+    public int? CurrentUserGoodTagId { get; private set; }
+    public int? CurrentUserBadTagId { get; private set; }
+    public int? CurrentUserShinjiTagId { get; private set; }
+    public int? CurrentUserZenTagId { get; private set; }
+    public int? CurrentUserBiTagId { get; private set; }
+
+    public async Task InitializeAsync(string? userId)
+    {
+        CurrentUserId = userId;
+        if (!string.IsNullOrEmpty(userId))
+        {
+            Notifications = await _notificationService.GetUserNotificationsAsync(userId);
+
+            await FetchTagsAsync();
+            await FetchAssociatedItemsAsync();
+
+            await _notificationService.MarkAllAsReadAsync(userId);
+        }
+
+        IsLoading = false;
+    }
+
+    public async Task FetchTagsAsync()
+    {
+        (List<Data.Tag> tags, List<TagRelationToTag> relations) = await _homeData.GetTagsAndRelationsAsync();
+        AllTags = tags;
+        AllTagRelationsToTags = relations;
+
+        if (!string.IsNullOrEmpty(CurrentUserId))
+        {
+            SystemTagIds systemTags = ResourceListViewModel.FindSystemTags(AllTags, CurrentUserId);
+            CurrentUserGoodTagId = systemTags.GoodTagId;
+            CurrentUserBadTagId = systemTags.BadTagId;
+
+            ReactionTagIds reactionTags = ResourceListViewModel.FindReactionTags(AllTags, CurrentUserId);
+            CurrentUserShinjiTagId = reactionTags.ShinjiTagId;
+            CurrentUserZenTagId = reactionTags.ZenTagId;
+            CurrentUserBiTagId = reactionTags.BiTagId;
+        }
+    }
+
+    public async Task FetchAssociatedItemsAsync()
+    {
+        IReadOnlyList<int> itemIds = GetAssociatedItemIds(Notifications);
+        if (itemIds.Count == 0)
+        {
+            return;
+        }
+
+        List<Data.Item> items = await _notificationsData.GetAssociatedItemsAsync(itemIds);
+        MapAssociatedItems(Notifications, items);
+    }
+
+    public async Task EnsureSystemTagsExistAsync()
+    {
+        (SystemTagIds voteIds, ReactionTagIds reactionIds, var refetch) = await _systemTagEnsurer.EnsureAllAsync(
+            CurrentUserId,
+            new SystemTagIds(CurrentUserGoodTagId, CurrentUserBadTagId),
+            new ReactionTagIds(CurrentUserShinjiTagId, CurrentUserZenTagId, CurrentUserBiTagId));
+
+        CurrentUserGoodTagId = voteIds.GoodTagId;
+        CurrentUserBadTagId = voteIds.BadTagId;
+        CurrentUserShinjiTagId = reactionIds.ShinjiTagId;
+        CurrentUserZenTagId = reactionIds.ZenTagId;
+        CurrentUserBiTagId = reactionIds.BiTagId;
+
+        if (refetch)
+        {
+            await FetchTagsAsync();
+        }
+    }
+
+    public async Task MarkAsReadAsync(NotificationDto notification)
+    {
+        if (!notification.IsRead && CurrentUserId != null)
+        {
+            await _notificationService.MarkAsReadAsync(CurrentUserId, notification.SourceId, notification.Kind.SourceType);
+        }
+    }
+
+    public async Task<TagCardActionResult> ApproveRequestAsync(NotificationDto notification)
+    {
+        if (CurrentUserId == null)
+        {
+            return TagCardActionResult.NoOp();
+        }
+
+        if (!await _requestActions.ApproveAsync(notification.SourceId, CurrentUserId))
+        {
+            return TagCardActionResult.NoOp();
+        }
+
+        UpdateNotificationStatus(notification, TradeStatus.Executed);
+        return TagCardActionResult.Success(shouldNotifyChanged: true);
+    }
+
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "例外をUI向けメッセージに変換するため")]
+    public async Task<TagCardActionResult> RejectRequestAsync(NotificationDto notification, string? comment)
+    {
+        if (CurrentUserId == null)
+        {
+            return TagCardActionResult.NoOp();
+        }
+
+        try
+        {
+            _ = await _taggingContractService.CancelContractAsync(notification.SourceId, CurrentUserId);
+            UpdateNotificationStatus(notification, TradeStatus.Rejected);
+            return TagCardActionResult.Success("リクエストを却下しました。");
+        }
+        catch (Exception ex)
+        {
+            return TagCardActionResult.Error($"エラー: {ex.Message}");
+        }
+    }
+
+    public async Task<TagCardActionResult> ApproveSplitRequestAsync(NotificationDto notification)
+    {
+        if (CurrentUserId == null)
+        {
+            return TagCardActionResult.NoOp();
+        }
+
+        Result<Data.Item> result = await _itemSplitService.ApproveSplitAsync(notification.SourceId, CurrentUserId);
+        switch (result)
+        {
+            case Success<Data.Item>:
+                UpdateNotificationStatus(notification, TradeStatus.Executed);
+                await FetchAssociatedItemsAsync();
+                return TagCardActionResult.Success("分割リクエストを承認しました。");
+            case Failure fail:
+                return TagCardActionResult.Error(fail.ErrorMessage);
+            default:
+                return TagCardActionResult.NoOp();
+        }
+    }
+
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "例外をUI向けメッセージに変換するため")]
+    public async Task<TagCardActionResult> RejectSplitRequestAsync(NotificationDto notification, string? comment)
+    {
+        if (CurrentUserId == null)
+        {
+            return TagCardActionResult.NoOp();
+        }
+
+        try
+        {
+            Result<bool> rejectResult = await _itemSplitService.RejectSplitAsync(notification.SourceId, CurrentUserId, comment);
+            switch (rejectResult)
+            {
+                case Success<bool>:
+                    UpdateNotificationStatus(notification, TradeStatus.Rejected);
+                    return TagCardActionResult.Success("分割リクエストを却下しました。");
+                case Failure fail:
+                    return TagCardActionResult.Error(fail.ErrorMessage);
+                default:
+                    return TagCardActionResult.NoOp();
+            }
+        }
+        catch (Exception ex)
+        {
+            return TagCardActionResult.Error($"エラー: {ex.Message}");
+        }
+    }
+
+    public async Task<TagCardActionResult> ApproveTagProposalAsync(NotificationDto notification)
+    {
+        if (CurrentUserId == null)
+        {
+            return TagCardActionResult.NoOp();
+        }
+
+        Result<Data.Tag> result = await _tagContentProposalService.ApproveProposalAsync(notification.SourceId, CurrentUserId);
+        switch (result)
+        {
+            case Success<Data.Tag>:
+                UpdateNotificationStatus(notification, TradeStatus.Executed);
+                await FetchTagsAsync();
+                return TagCardActionResult.Success("編集提案を承認しました。");
+            case Failure fail:
+                return TagCardActionResult.Error(fail.ErrorMessage);
+            default:
+                return TagCardActionResult.NoOp();
+        }
+    }
+
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "例外をUI向けメッセージに変換するため")]
+    public async Task<TagCardActionResult> RejectTagProposalAsync(NotificationDto notification, string? comment)
+    {
+        if (CurrentUserId == null)
+        {
+            return TagCardActionResult.NoOp();
+        }
+
+        try
+        {
+            Result<bool> rejectResult = await _tagContentProposalService.RejectProposalAsync(notification.SourceId, CurrentUserId, comment);
+            switch (rejectResult)
+            {
+                case Success<bool>:
+                    UpdateNotificationStatus(notification, TradeStatus.Rejected);
+                    return TagCardActionResult.Success("編集提案を却下しました。", shouldNotifyChanged: true);
+                case Failure fail:
+                    return TagCardActionResult.Error(fail.ErrorMessage);
+                default:
+                    return TagCardActionResult.NoOp();
+            }
+        }
+        catch (Exception ex)
+        {
+            return TagCardActionResult.Error($"エラー: {ex.Message}");
+        }
+    }
+
+    public async Task<TagCardActionResult> ApproveTagNameProposalAsync(NotificationDto notification)
+    {
+        if (CurrentUserId == null)
+        {
+            return TagCardActionResult.NoOp();
+        }
+
+        Result<Data.Tag> result = await _tagNameProposalService.ApproveProposalAsync(notification.SourceId, CurrentUserId);
+        switch (result)
+        {
+            case Success<Data.Tag>:
+                UpdateNotificationStatus(notification, TradeStatus.Executed);
+                await FetchTagsAsync();
+                return TagCardActionResult.Success("名前変更提案を承認しました。");
+            case Failure fail:
+                return TagCardActionResult.Error(fail.ErrorMessage);
+            default:
+                return TagCardActionResult.NoOp();
+        }
+    }
+
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "例外をUI向けメッセージに変換するため")]
+    public async Task<TagCardActionResult> RejectTagNameProposalAsync(NotificationDto notification, string? comment)
+    {
+        if (CurrentUserId == null)
+        {
+            return TagCardActionResult.NoOp();
+        }
+
+        try
+        {
+            Result<bool> rejectResult = await _tagNameProposalService.RejectProposalAsync(notification.SourceId, CurrentUserId, comment);
+            switch (rejectResult)
+            {
+                case Success<bool>:
+                    UpdateNotificationStatus(notification, TradeStatus.Rejected);
+                    return TagCardActionResult.Success("名前変更提案を却下しました。", shouldNotifyChanged: true);
+                case Failure fail:
+                    return TagCardActionResult.Error(fail.ErrorMessage);
+                default:
+                    return TagCardActionResult.NoOp();
+            }
+        }
+        catch (Exception ex)
+        {
+            return TagCardActionResult.Error($"エラー: {ex.Message}");
+        }
+    }
+
+    [SuppressMessage("Maintainability", "CA1508:Avoid dead code", Justification = "NotificationKind pattern matching false positive")]
+    private void UpdateNotificationStatus(NotificationDto notification, TradeStatus newStatus)
+    {
+        NotificationDto? updated = notification.Kind switch
+        {
+            TagRequestNotification reqNote => notification with { Kind = reqNote with { Status = newStatus }, IsRead = true },
+            ItemSplitRequestNotification splitNote => notification with { Kind = splitNote with { Status = newStatus }, IsRead = true },
+            TagContentProposalNotification proposalNote => notification with { Kind = proposalNote with { Status = newStatus }, IsRead = true },
+            TagNameProposalNotification nameNote => notification with { Kind = nameNote with { Status = newStatus }, IsRead = true },
+            _ => null
+        };
+
+        if (updated != null)
+        {
+            Notifications = [.. Notifications.Select(n => ReferenceEquals(n, notification) ? updated : n)];
+        }
+    }
+
+    // ============================================================
+    // 純粋静的ヘルパーメソッド群
+    // ============================================================
+
     /// <summary>
     ///     通知に関連付けられたアイテム ID の一覧（重複なし、ID 0 は除外）を返す。
     /// </summary>

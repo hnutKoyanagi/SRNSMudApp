@@ -7,6 +7,7 @@ using MudBlazor;
 using SRNSMudApp.Components.Item;
 using SRNSMudApp.Components.UI;
 using SRNSMudApp.Data;
+using SRNSMudApp.Models;
 using SRNSMudApp.Services;
 
 using Xunit;
@@ -17,7 +18,7 @@ namespace SRNSMudApp.Tests.Components.Item;
 
 /// <summary>
 ///     <see cref="ItemEditViewModel" /> の単体テスト。
-///     アイテム編集の初期化、文字数カウント、Pill HTML 生成、URL 抽出、タグ/ユーザー検索、保存処理を検証する。
+///     アイテム編集の初期化、文字数カウント、Pill HTML 生成、URL 抽出、タグ/ユーザー検索、リンクプレビュー、保存処理を検証する。
 /// </summary>
 public sealed class ItemEditViewModelTests
 {
@@ -27,6 +28,7 @@ public sealed class ItemEditViewModelTests
     private readonly Mock<ISnackbar> _mockSnackbar = new();
     private readonly Mock<ITagSearchQueryService> _mockTagSearch = new();
     private readonly Mock<IUserDataProvider> _mockUserData = new();
+    private readonly Mock<ILinkPreviewService> _mockLinkPreview = new();
     private readonly ItemCardActionViewModel _actionViewModel;
 
     public ItemEditViewModelTests()
@@ -35,30 +37,61 @@ public sealed class ItemEditViewModelTests
             _mockItemReply.Object,
             _mockItemCardData.Object,
             _mockTaggingContract.Object,
+            new Mock<IItemTagService>().Object,
+            new Mock<IItemSplitService>().Object,
+            new Mock<IItemQuoteService>().Object,
             _mockSnackbar.Object);
     }
 
     private ItemEditViewModel CreateViewModel()
     {
-        return new ItemEditViewModel(_actionViewModel, _mockTagSearch.Object, _mockUserData.Object);
+        return new ItemEditViewModel(
+            _actionViewModel,
+            _mockTagSearch.Object,
+            _mockUserData.Object,
+            _mockLinkPreview.Object);
     }
 
     [Fact]
     public void Constructor_NullActionViewModel_ThrowsArgumentNullException()
     {
-        _ = Assert.Throws<ArgumentNullException>(() => new ItemEditViewModel(null!, _mockTagSearch.Object, _mockUserData.Object));
+        _ = Assert.Throws<ArgumentNullException>(() => new ItemEditViewModel(null!, _mockTagSearch.Object, _mockUserData.Object, _mockLinkPreview.Object));
     }
 
     [Fact]
     public void Constructor_NullTagSearchQueryService_ThrowsArgumentNullException()
     {
-        _ = Assert.Throws<ArgumentNullException>(() => new ItemEditViewModel(_actionViewModel, null!, _mockUserData.Object));
+        _ = Assert.Throws<ArgumentNullException>(() => new ItemEditViewModel(_actionViewModel, null!, _mockUserData.Object, _mockLinkPreview.Object));
     }
 
     [Fact]
     public void Constructor_NullUserDataProvider_ThrowsArgumentNullException()
     {
-        _ = Assert.Throws<ArgumentNullException>(() => new ItemEditViewModel(_actionViewModel, _mockTagSearch.Object, null!));
+        _ = Assert.Throws<ArgumentNullException>(() => new ItemEditViewModel(_actionViewModel, _mockTagSearch.Object, null!, _mockLinkPreview.Object));
+    }
+
+    [Fact]
+    public void Constructor_NullLinkPreviewService_ThrowsArgumentNullException()
+    {
+        _ = Assert.Throws<ArgumentNullException>(() => new ItemEditViewModel(_actionViewModel, _mockTagSearch.Object, _mockUserData.Object, null!));
+    }
+
+    [Fact]
+    public async Task GetPreviewAsync_DelegatesToLinkPreviewService()
+    {
+        // Arrange
+        const string testUrl = "https://example.com";
+        var expectedData = new LinkPreviewData { Url = testUrl, Title = "Example" };
+        _mockLinkPreview.Setup(s => s.GetPreviewAsync(testUrl)).ReturnsAsync(expectedData);
+
+        var vm = CreateViewModel();
+
+        // Act
+        var actual = await vm.GetPreviewAsync(testUrl);
+
+        // Assert
+        Assert.Same(expectedData, actual);
+        _mockLinkPreview.Verify(s => s.GetPreviewAsync(testUrl), Times.Once);
     }
 
     [Fact]

@@ -34,28 +34,16 @@ public partial class ResourceList : IAsyncDisposable
     [Parameter] public bool EnableUrlUpdate { get; set; } = true;
     [Parameter] public bool EnableItemNavigation { get; set; } = true;
 
-    [Inject] private IHomeDataProvider HomeData { get; set; } = null!;
-    [Inject] private ISystemTagEnsurer SystemTagEnsurer { get; set; } = null!;
+    [Inject] private ResourceListViewModel ViewModel { get; set; } = null!;
     [Inject] private IJSRuntime JS { get; set; } = null!;
     [Inject] private NavigationManager NavigationManager { get; set; } = null!;
 
     private string _currentUserId = "";
 
-    // ===== タグツリーポップオーバー用ステート（子に渡すため取得しておく） =====
-    private List<Data.Tag> _allTags = [];
-    private List<TagRelationToTag> _allTagRelationsToTags = [];
-
     // ===== フォーカスステート =====
     private int? _focusTagId;
     private int? _focusItemId;
     private bool _hasScrolledToFocus;
-
-    // ===== Voting用システムタグ =====
-    private int? _currentUserGoodTagId;
-    private int? _currentUserBadTagId;
-    private int? _currentUserShinjiTagId;
-    private int? _currentUserZenTagId;
-    private int? _currentUserBiTagId;
 
     protected override async Task OnInitializedAsync()
     {
@@ -66,28 +54,12 @@ public partial class ResourceList : IAsyncDisposable
 
         AuthenticationState authState = await AuthState;
         _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
-        await FetchTagsAsync();
-    }
-
-    private async Task FetchTagsAsync()
-    {
-        (List<Data.Tag> tags, List<TagRelationToTag> relations) = await HomeData.GetTagsAndRelationsAsync();
-        _allTags = tags;
-        _allTagRelationsToTags = relations;
-
-        SystemTagIds systemTags = ResourceListViewModel.FindSystemTags(_allTags, _currentUserId);
-        _currentUserGoodTagId = systemTags.GoodTagId;
-        _currentUserBadTagId = systemTags.BadTagId;
-
-        ReactionTagIds reactionTags = ResourceListViewModel.FindReactionTags(_allTags, _currentUserId);
-        _currentUserShinjiTagId = reactionTags.ShinjiTagId;
-        _currentUserZenTagId = reactionTags.ZenTagId;
-        _currentUserBiTagId = reactionTags.BiTagId;
+        await ViewModel.InitializeAsync(_currentUserId);
     }
 
     private async Task NotifyChangedAsync()
     {
-        await FetchTagsAsync();
+        await ViewModel.FetchTagsAsync();
         if (OnDataChanged.HasDelegate)
         {
             await OnDataChanged.InvokeAsync();
@@ -181,21 +153,7 @@ public partial class ResourceList : IAsyncDisposable
 
     public async Task EnsureSystemTagsExistAsync()
     {
-        (SystemTagIds voteIds, ReactionTagIds reactionIds, var refetch) = await SystemTagEnsurer.EnsureAllAsync(
-            _currentUserId,
-            new SystemTagIds(_currentUserGoodTagId, _currentUserBadTagId),
-            new ReactionTagIds(_currentUserShinjiTagId, _currentUserZenTagId, _currentUserBiTagId));
-
-        _currentUserGoodTagId = voteIds.GoodTagId;
-        _currentUserBadTagId = voteIds.BadTagId;
-        _currentUserShinjiTagId = reactionIds.ShinjiTagId;
-        _currentUserZenTagId = reactionIds.ZenTagId;
-        _currentUserBiTagId = reactionIds.BiTagId;
-
-        if (refetch)
-        {
-            await FetchTagsAsync();
-        }
+        await ViewModel.EnsureSystemTagsExistAsync();
     }
 
     public ValueTask DisposeAsync()

@@ -56,7 +56,7 @@
     [Parameter] public Func<string?, CancellationToken, Task<IEnumerable<Tag>>>? CustomSearchFunc { get; set; }
     [Parameter] public RenderFragment<Tag>? ItemTemplate { get; set; }
 
-    [Inject] private ITagSearchQueryService TagSearchQueryService { get; set; } = null!;
+    [Inject] private TagAutocompleteViewModel ViewModel { get; set; } = null!;
 
     private async Task OnValueChanged(Tag? tag)
     {
@@ -66,11 +66,6 @@
 
     private async Task<IEnumerable<Tag>> SearchTagsAsync(string? value, CancellationToken token)
     {
-        if (CustomSearchFunc != null)
-        {
-            return await CustomSearchFunc(value, token);
-        }
-
-        return await TagSearchQueryService.SearchTagsWithFallbackAsync(value, token);
+        return await ViewModel.SearchTagsAsync(value, CustomSearchFunc, token);
     }
 }

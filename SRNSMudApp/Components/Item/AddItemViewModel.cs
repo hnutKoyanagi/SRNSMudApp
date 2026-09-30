@@ -1,10 +1,17 @@
-namespace SRNSMudApp.Components.Item;
-
+using System.Diagnostics.CodeAnalysis;
+using System.Security.Claims;
 using System.Text.Json.Serialization;
 
 using SRNSMudApp.Components.UI;
 using SRNSMudApp.Data;
 using SRNSMudApp.Models;
+using SRNSMudApp.Services;
+
+namespace SRNSMudApp.Components.Item;
+
+using Item = SRNSMudApp.Data.Item;
+using Tag = SRNSMudApp.Data.Tag;
+using UserGroup = SRNSMudApp.Data.UserGroup;
 
 /// <summary>
 ///     Tribute.js の補完候補アイテム。
@@ -14,13 +21,306 @@ public record MentionItem(
     [property: JsonPropertyName("replacement")] string Replacement);
 
 /// <summary>
-///     AddItem コンポーネントに含まれる純粋なロジックを切り出した ViewModel。
+///     AddItem コンポーネントの状態管理、データロード、タグ提案、リンク変換、投稿ロジックを集約する ViewModel。
+///     UI（Blazor / bUnit）から切り離し、純粋な xUnit + Moq 単体テストを可能にする。
 ///     ItemVisibility や ItemPostDraft などの型表現により、
 ///     公開範囲や投稿下書きのドメイン制約を型安全に管理する。
 /// </summary>
-public static class AddItemViewModel
+public class AddItemViewModel
 {
     public const int MaxContentLength = 1000;
+
+    private readonly IItemCardDataProvider _itemCardData;
+    private readonly IUserGroupDataProvider _userGroupData;
+    private readonly IUserDataProvider _userDataProvider;
+    private readonly ILinkPreviewService _linkPreviewService;
+    private readonly ITagSearchQueryService _tagSearchQueryService;
+    private readonly ITagSuggestionService _tagSuggestionService;
+    private readonly IInternalLinkConversionService _linkConversionService;
+
+    public AddItemViewModel(
+        IItemCardDataProvider itemCardData,
+        IUserGroupDataProvider userGroupData,
+        IUserDataProvider userDataProvider,
+        ILinkPreviewService linkPreviewService,
+        ITagSearchQueryService tagSearchQueryService,
+        ITagSuggestionService tagSuggestionService,
+        IInternalLinkConversionService linkConversionService)
+    {
+        _itemCardData = itemCardData ?? throw new ArgumentNullException(nameof(itemCardData));
+        _userGroupData = userGroupData ?? throw new ArgumentNullException(nameof(userGroupData));
+        _userDataProvider = userDataProvider ?? throw new ArgumentNullException(nameof(userDataProvider));
+        _linkPreviewService = linkPreviewService ?? throw new ArgumentNullException(nameof(linkPreviewService));
+        _tagSearchQueryService = tagSearchQueryService ?? throw new ArgumentNullException(nameof(tagSearchQueryService));
+        _tagSuggestionService = tagSuggestionService ?? throw new ArgumentNullException(nameof(tagSuggestionService));
+        _linkConversionService = linkConversionService ?? throw new ArgumentNullException(nameof(linkConversionService));
+    }
+
+    public Item? NewItem { get; set; }
+    public Item? ParentItem { get; set; }
+    public Item? LoadedParentItem { get; private set; }
+    public Item? EffectiveParentItem => ParentItem ?? LoadedParentItem;
+    public int? ParentItemId { get; set; }
+
+    public bool IsPrivate { get; set; }
+    public int? SelectedGroupId { get; set; }
+    public IReadOnlyList<UserGroup> UserGroups { get; private set; } = [];
+
+    public IReadOnlyList<ReplyTargetCandidate> TargetCandidates { get; private set; } = [];
+    public HashSet<string> SelectedTargetUserIds { get; } = [];
+    public HashSet<string> UnselectedTargetUserIds { get; } = [];
+    public bool HasManuallyModifiedTargets { get; set; }
+
+    public IReadOnlyList<SuggestedTag> SuggestedTags { get; set; } = [];
+    public HashSet<int> ConfirmedSuggestedTagIds { get; } = [];
+    public bool IsLoadingSuggestions { get; set; }
+    public float CurrentCandidateThreshold { get; set; } = SuggestedTag.DefaultCandidateThreshold;
+    public float? UserStrongThreshold { get; set; }
+    public float? UserCandidateThreshold { get; set; }
+
+    public bool IsLinkConversionEnabled { get; set; }
+    public float LinkConversionThreshold { get; set; } = LinkConversionCandidate.DefaultAutoReplaceThreshold;
+    public IReadOnlyList<LinkConversionCandidate> LinkAutoReplaceCandidates { get; set; } = [];
+    public IReadOnlyList<LinkConversionCandidate> LinkManualCandidates { get; set; } = [];
+    public IReadOnlyList<LinkConversionCandidate> ConfirmedLinkCandidates { get; set; } = [];
+    public bool IsLoadingLinkCandidates { get; set; }
+
+    public string CurrentUserId { get; private set; } = string.Empty;
+
+    public bool CanSubmitCurrent => CanSubmit(NewItem?.Content);
+
+    /// <summary>
+    ///     ログインユーザーおよび親アイテム情報から状態を初期化する。
+    /// </summary>
+    public async Task InitializeAsync(ClaimsPrincipal user, Item? parentItem = null, int? parentItemId = null)
+    {
+        ParentItem = parentItem;
+        ParentItemId = parentItemId;
+        CurrentUserId = string.Empty;
+
+        if (user.Identity is { IsAuthenticated: true })
+        {
+            CurrentUserId = user.FindFirst(c => c.Type == ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+            if (!string.IsNullOrEmpty(CurrentUserId))
+            {
+                UserGroups = await _userGroupData.GetUserGroupsForUserAsync(CurrentUserId);
+                var appUser = await _userDataProvider.FindUserByIdAsync(CurrentUserId);
+                if (appUser != null)
+                {
+                    var initialVisibility = DetermineInitialVisibility(EffectiveParentItem, appUser);
+                    IsPrivate = initialVisibility.IsPrivate;
+                    SelectedGroupId = initialVisibility.TargetUserGroupId;
+
+                    if (appUser.TagSuggestionStrongThreshold.HasValue)
+                    {
+                        UserStrongThreshold = appUser.TagSuggestionStrongThreshold.Value;
+                    }
+
+                    if (appUser.TagSuggestionCandidateThreshold.HasValue)
+                    {
+                        UserCandidateThreshold = appUser.TagSuggestionCandidateThreshold.Value;
+                        CurrentCandidateThreshold = UserCandidateThreshold.Value;
+                    }
+
+                    IsLinkConversionEnabled = appUser.IsLinkConversionEnabled;
+                    if (appUser.LinkConversionThreshold.HasValue)
+                    {
+                        LinkConversionThreshold = appUser.LinkConversionThreshold.Value;
+                    }
+                }
+            }
+        }
+
+        await LoadParentItemIfNeededAsync();
+        ResetItem();
+    }
+
+    /// <summary>
+    ///     親アイテムIDが渡されており ParentItem がロードされていない場合にロードする。
+    /// </summary>
+    public async Task LoadParentItemIfNeededAsync()
+    {
+        if (ParentItem == null && ParentItemId.HasValue && (LoadedParentItem == null || LoadedParentItem.Id != ParentItemId.Value))
+        {
+            LoadedParentItem = await _itemCardData.GetItemByIdAsync(ParentItemId.Value);
+        }
+
+        if (EffectiveParentItem is { IsPrivate: true })
+        {
+            var visibility = DetermineInitialVisibility(EffectiveParentItem, null);
+            IsPrivate = visibility.IsPrivate;
+            SelectedGroupId = visibility.TargetUserGroupId;
+            if (NewItem != null)
+            {
+                NewItem.IsPrivate = IsPrivate;
+                NewItem.TargetUserGroupId = SelectedGroupId;
+            }
+        }
+    }
+
+    /// <summary>
+    ///     投稿用 Item オブジェクトおよびタグ・リンク候補をリセットする。
+    /// </summary>
+    public void ResetItem()
+    {
+        var parentId = EffectiveParentItem?.Id ?? ParentItemId;
+        var rootId = EffectiveParentItem?.RootItemId ?? parentId;
+        NewItem = CreateInitialItem(CurrentUserId, IsPrivate, SelectedGroupId, parentId, rootId);
+
+        SuggestedTags = [];
+        ConfirmedSuggestedTagIds.Clear();
+        LinkAutoReplaceCandidates = [];
+        LinkManualCandidates = [];
+        ConfirmedLinkCandidates = [];
+    }
+
+    /// <summary>
+    ///     本文中のメンションから通知先候補ユーザーを解決・更新する。
+    /// </summary>
+    public async Task UpdateTargetCandidatesAsync()
+    {
+        if (string.IsNullOrWhiteSpace(NewItem?.Content))
+        {
+            TargetCandidates = [];
+            SelectedTargetUserIds.Clear();
+            return;
+        }
+
+        var userIdsInText = ExtractMentionedUserIds(NewItem.Content, CurrentUserId);
+        if (userIdsInText.Count == 0)
+        {
+            TargetCandidates = [];
+            SelectedTargetUserIds.Clear();
+            return;
+        }
+
+        var users = await _userDataProvider.GetUsersByIdsAsync(userIdsInText);
+        TargetCandidates = (users ?? []).Select(u => new ReplyTargetCandidate(u.Id, u.UserName!)).ToList();
+
+        SyncSelectedTargets(
+            TargetCandidates.Select(c => c.Id),
+            HasManuallyModifiedTargets,
+            SelectedTargetUserIds,
+            UnselectedTargetUserIds);
+    }
+
+    /// <summary>
+    ///     通知先ユーザーの選択状態を手動トグルする。
+    /// </summary>
+    public void ApplyTargetToggle(string userId, bool isSelected)
+    {
+        HasManuallyModifiedTargets = true;
+        ApplyTargetToggle(userId, isSelected, SelectedTargetUserIds, UnselectedTargetUserIds);
+    }
+
+    /// <summary>
+    ///     タグ提案の閾値設定を更新し永続化する。
+    /// </summary>
+    public async Task UpdateTagSuggestionThresholdsAsync(float strong, float candidate)
+    {
+        UserStrongThreshold = strong;
+        UserCandidateThreshold = candidate;
+        CurrentCandidateThreshold = candidate;
+
+        if (!string.IsNullOrEmpty(CurrentUserId))
+        {
+            await _userDataProvider.UpdateTagSuggestionThresholdsAsync(CurrentUserId, strong, candidate);
+        }
+    }
+
+    /// <summary>
+    ///     タグ提案を取得する。
+    /// </summary>
+    public async Task<IReadOnlyList<SuggestedTag>> SuggestTagsAsync(string queryText, float threshold, CancellationToken ct)
+    {
+        return await _tagSuggestionService.SuggestTagsAsync(queryText, threshold, ct);
+    }
+
+    /// <summary>
+    ///     内部リンク候補を検出する。
+    /// </summary>
+    public async Task<InternalLinkConversionResult> DetectLinkCandidatesAsync(string content, float threshold, CancellationToken ct)
+    {
+        return await _linkConversionService.DetectLinkCandidatesAsync(content, threshold, ct);
+    }
+
+    /// <summary>
+    ///     内部リンク変換の設定を更新し永続化する。
+    /// </summary>
+    public async Task UpdateLinkConversionSettingsAsync(float threshold)
+    {
+        LinkConversionThreshold = threshold;
+        if (!string.IsNullOrEmpty(CurrentUserId))
+        {
+            await _userDataProvider.UpdateLinkConversionSettingsAsync(CurrentUserId, IsLinkConversionEnabled, threshold);
+        }
+    }
+
+    /// <summary>
+    ///     指定された URL のリンクプレビューを取得する。
+    /// </summary>
+    [SuppressMessage("Design", "CA1054:URI-like parameters should not be strings",
+        Justification = "Blazor コンポーネントおよび ILinkPreviewService の仕様に合わせて string を受け取るため")]
+    public Task<LinkPreviewData> GetPreviewAsync(string url) => _linkPreviewService.GetPreviewAsync(url);
+
+    /// <summary>
+    ///     Tribute.js 用にタグを部分一致検索する。
+    /// </summary>
+    public async Task<IEnumerable<MentionItem>> SearchTagsAsync(string query)
+    {
+        var tags = await _tagSearchQueryService.SearchTagsWithFallbackAsync(query);
+        return tags.Select(FormatTagMentionItem);
+    }
+
+    /// <summary>
+    ///     Tribute.js 用にユーザーを部分一致検索する。
+    /// </summary>
+    public async Task<IEnumerable<MentionItem>> SearchUsersAsync(string query)
+    {
+        var users = await _userDataProvider.SearchUsersAsync(query);
+        return users.Select(FormatUserMentionItem);
+    }
+
+    /// <summary>
+    ///     アイテムの投稿を保存する。
+    /// </summary>
+    [SuppressMessage("Design", "CA1031:Do not catch generic exception types",
+        Justification = "Blazor UI にエラーメッセージを表示するため汎用例外を捕捉する")]
+    public async Task<(bool Success, string? ErrorMessage)> SaveItemAsync(IEnumerable<Tag>? initialTags)
+    {
+        if (NewItem == null || !CanSubmit(NewItem.Content))
+        {
+            return (false, "入力内容を確認してください。");
+        }
+
+        try
+        {
+            var initialIds = initialTags?.Select(t => t.Id) ?? [];
+            var parentId = EffectiveParentItem?.Id ?? ParentItemId;
+            var rootId = EffectiveParentItem?.RootItemId ?? parentId;
+
+            (Item itemToSave, IReadOnlyList<int> allTagIds) = PrepareItemForSave(
+                NewItem.Content,
+                NewItem.OwnerId,
+                IsPrivate,
+                SelectedGroupId,
+                SelectedTargetUserIds,
+                initialIds,
+                ConfirmedSuggestedTagIds,
+                parentId,
+                rootId);
+
+            await _itemCardData.CreateItemAsync(itemToSave, allTagIds);
+            ResetItem();
+            return (true, null);
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message);
+        }
+    }
+
+    // --- 既存の静的メソッド群（ドメインロジック / 後方互換） ---
 
     /// <summary>
     ///     コンテンツが送信可能（空文字でなく、かつ文字数上限以下）かどうかを判定する。
@@ -68,9 +368,6 @@ public static class AddItemViewModel
     ///     親アイテムがプライベートモードの場合、親アイテムと同一のスコープ（グループ限定またはフォロワー限定）をデフォルトとする。
     ///     親アイテムがない、または公開の場合は、ユーザーのデフォルト設定に従う。
     /// </summary>
-    /// <param name="parentItem">返信先親アイテム（リプライでない場合は null）</param>
-    /// <param name="currentUser">ログイン中ユーザー情報（null の場合は公開）</param>
-    /// <returns>初期公開範囲</returns>
     public static ItemVisibility DetermineInitialVisibility(Item? parentItem, ApplicationUser? currentUser)
     {
         if (parentItem is { IsPrivate: true })
@@ -232,9 +529,6 @@ public static class AddItemViewModel
     ///     関連タグ提案の参考テキスト（クエリ文字列）を構築する。
     ///     リプライの場合は親アイテムの本文も含める。
     /// </summary>
-    /// <param name="currentContent">入力中のコンテンツ本文</param>
-    /// <param name="parentContent">リプライ先親アイテムの本文（リプライでない場合は null または空）</param>
-    /// <returns>タグ提案のベクトル検索に使用する参照文字列</returns>
     public static string BuildTagSuggestionQueryText(string? currentContent, string? parentContent)
     {
         var hasParent = !string.IsNullOrWhiteSpace(parentContent);

@@ -1,14 +1,12 @@
 @page "/User/UserSearch"
 @rendermode InteractiveServer
 @attribute [AllowAnonymous]
-@using SRNSMudApp.Services
-@inject IUserDataProvider UserData
-
+@inject UserSearchViewModel ViewModel
 
 <MudContainer MaxWidth="MaxWidth.Small" Class="mt-10">
     <MudText Typo="Typo.h5" GutterBottom="true">ユーザー検索</MudText>
 
-    <MudAutocomplete T="ApplicationUser" Label="ユーザーを検索" @bind-Value="SelectedUser" SearchFunc="@SearchUsersAsync"
+    <MudAutocomplete T="ApplicationUser" Label="ユーザーを検索" @bind-Value="ViewModel.SelectedUser" SearchFunc="@SearchUsersAsync"
                      ToStringFunc="@(user => user == null ? null : user.UserName)" Placeholder="ユーザー名を入力..."
                      ResetValueOnEmptyText="true" Clearable="true">
 
@@ -25,14 +23,14 @@
         </NoItemsTemplate>
     </MudAutocomplete>
 
-    @if (SelectedUser is not null)
+    @if (ViewModel.SelectedUser is not null)
     {
         <MudCard Class="mt-4">
             <MudCardContent>
-                <MudText>選択されたユーザー: <strong>@SelectedUser.UserName</strong></MudText>
+                <MudText>選択されたユーザー: <strong>@ViewModel.SelectedUser.UserName</strong></MudText>
             </MudCardContent>
             <MudCardActions>
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="@($"/User/UserDetail/{SelectedUser.Id}")">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="@($"/User/UserDetail/{ViewModel.SelectedUser.Id}")">
                     詳細を見る
                 </MudButton>
             </MudCardActions>
@@ -41,10 +39,8 @@
 </MudContainer>
 
 @code {
-    private ApplicationUser? SelectedUser { get; set; }
-
-    private async Task<IEnumerable<ApplicationUser>> SearchUsersAsync(string? value, CancellationToken token)
+    private Task<IEnumerable<ApplicationUser>> SearchUsersAsync(string? value, CancellationToken token)
     {
-        return await UserData.SearchUsersByNormalizedNameAsync(value, token);
+        return ViewModel.SearchUsersAsync(value, token);
     }
 }

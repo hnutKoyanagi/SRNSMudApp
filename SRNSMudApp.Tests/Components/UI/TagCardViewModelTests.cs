@@ -1,7 +1,10 @@
+using Moq;
+
 using MudBlazor;
 
 using SRNSMudApp.Components.UI;
 using SRNSMudApp.Data;
+using SRNSMudApp.Services;
 
 namespace SRNSMudApp.Tests.Components.UI;
 
@@ -204,4 +207,223 @@ public class TagCardViewModelTests
     [InlineData(5, 7, true)]
     [InlineData(7, 5, true)]
     public void HasWeightChange_DetectsWeightDelta(int currentWeight, int newWeight, bool expected) => Assert.Equal(expected, TagCardViewModel.HasWeightChange(currentWeight, newWeight));
+
+    // --- インスタンスメソッド（データ操作）のテスト ---
+
+    [Fact]
+    public async Task ToggleTagVoteAsync_Unauthenticated_ReturnsWarning()
+    {
+        var mock = new Moq.Mock<ITagCardDataProvider>();
+        var vm = new TagCardViewModel(mock.Object);
+
+        TagCardActionResult result = await vm.ToggleTagVoteAsync(1, "", 10, 20, true);
+
+        Assert.Equal(TagCardActionResultType.Warning, result.Type);
+        Assert.Equal("ログインが必要です。", result.Message);
+        mock.Verify(x => x.ToggleTagVoteAsync(Moq.It.IsAny<int>(), Moq.It.IsAny<string>(), Moq.It.IsAny<int>(), Moq.It.IsAny<int>()), Moq.Times.Never);
+    }
+
+    [Fact]
+    public async Task ToggleTagVoteAsync_MissingSystemTags_ReturnsError()
+    {
+        var mock = new Moq.Mock<ITagCardDataProvider>();
+        var vm = new TagCardViewModel(mock.Object);
+
+        TagCardActionResult result = await vm.ToggleTagVoteAsync(1, "u1", null, 20, true);
+
+        Assert.Equal(TagCardActionResultType.Error, result.Type);
+        Assert.Equal("システムタグの取得に失敗しました。", result.Message);
+        mock.Verify(x => x.ToggleTagVoteAsync(Moq.It.IsAny<int>(), Moq.It.IsAny<string>(), Moq.It.IsAny<int>(), Moq.It.IsAny<int>()), Moq.Times.Never);
+    }
+
+    [Fact]
+    public async Task ToggleTagVoteAsync_ValidInput_CallsDataProviderAndReturnsSuccess()
+    {
+        var mock = new Moq.Mock<ITagCardDataProvider>();
+        var vm = new TagCardViewModel(mock.Object);
+
+        TagCardActionResult result = await vm.ToggleTagVoteAsync(1, "u1", 10, 20, isUpvote: true);
+
+        Assert.Equal(TagCardActionResultType.Success, result.Type);
+        Assert.True(result.ShouldNotifyChanged);
+        mock.Verify(x => x.ToggleTagVoteAsync(1, "u1", 10, 20), Moq.Times.Once);
+    }
+
+    [Fact]
+    public async Task AddTagToTagAsync_AlreadyExists_ReturnsWarning()
+    {
+        var mock = new Moq.Mock<ITagCardDataProvider>();
+        mock.Setup(x => x.AddTagToTagAsync(1, 2, "u1")).ReturnsAsync(TagCardOperationResult.AlreadyExists);
+        var vm = new TagCardViewModel(mock.Object);
+
+        TagCardActionResult result = await vm.AddTagToTagAsync(1, 2, "u1");
+
+        Assert.Equal(TagCardActionResultType.Warning, result.Type);
+        Assert.Equal("このタグは既に追加されています。", result.Message);
+        Assert.False(result.ShouldNotifyChanged);
+    }
+
+    [Fact]
+    public async Task AddTagToTagAsync_Success_ReturnsSuccess()
+    {
+        var mock = new Moq.Mock<ITagCardDataProvider>();
+        mock.Setup(x => x.AddTagToTagAsync(1, 2, "u1")).ReturnsAsync(TagCardOperationResult.Success);
+        var vm = new TagCardViewModel(mock.Object);
+
+        TagCardActionResult result = await vm.AddTagToTagAsync(1, 2, "u1");
+
+        Assert.Equal(TagCardActionResultType.Success, result.Type);
+        Assert.Equal("タグを追加しました。", result.Message);
+        Assert.True(result.ShouldNotifyChanged);
+    }
+
+    [Fact]
+    public async Task RemoveRelationAsync_NotOwner_ReturnsError()
+    {
+        var mock = new Moq.Mock<ITagCardDataProvider>();
+        var vm = new TagCardViewModel(mock.Object);
+        var relation = CreateRelation(1, 10, ownerId: "other");
+
+        TagCardActionResult result = await vm.RemoveRelationAsync(relation, "me");
+
+        Assert.Equal(TagCardActionResultType.Error, result.Type);
+        Assert.Equal("関連付けた本人ではないため、解除する権限がありません。", result.Message);
+        mock.Verify(x => x.RemoveRelationAsync(Moq.It.IsAny<int>(), Moq.It.IsAny<string>()), Moq.Times.Never);
+    }
+
+    [Fact]
+    public async Task RemoveRelationAsync_Owner_CallsDataProviderAndReturnsSuccess()
+    {
+        var mock = new Moq.Mock<ITagCardDataProvider>();
+        mock.Setup(x => x.RemoveRelationAsync(1, "me")).ReturnsAsync(TagCardOperationResult.Success);
+        var vm = new TagCardViewModel(mock.Object);
+        var relation = CreateRelation(1, 10, ownerId: "me");
+
+        TagCardActionResult result = await vm.RemoveRelationAsync(relation, "me");
+
+        Assert.Equal(TagCardActionResultType.Success, result.Type);
+        Assert.Equal("タグの関連付けを解除しました。", result.Message);
+        Assert.True(result.ShouldNotifyChanged);
+    }
+
+    [Fact]
+    public async Task UpdateRelationWeightAsync_NotOwner_ReturnsError()
+    {
+        var mock = new Moq.Mock<ITagCardDataProvider>();
+        var vm = new TagCardViewModel(mock.Object);
+        var relation = CreateRelation(1, 10, ownerId: "other");
+
+        TagCardActionResult result = await vm.UpdateRelationWeightAsync(relation, 1, "me");
+
+        Assert.Equal(TagCardActionResultType.Error, result.Type);
+        Assert.Equal("関連付けた本人ではないため、Weightを変更する権限がありません。", result.Message);
+    }
+
+    [Fact]
+    public async Task UpdateRelationWeightAsync_Owner_CallsDataProviderAndReturnsSuccess()
+    {
+        var mock = new Moq.Mock<ITagCardDataProvider>();
+        mock.Setup(x => x.UpdateRelationWeightAsync(1, 1, "me")).ReturnsAsync(TagCardOperationResult.Success);
+        var vm = new TagCardViewModel(mock.Object);
+        var relation = CreateRelation(1, 10, ownerId: "me");
+
+        TagCardActionResult result = await vm.UpdateRelationWeightAsync(relation, 1, "me");
+
+        Assert.Equal(TagCardActionResultType.Success, result.Type);
+        Assert.True(result.ShouldNotifyChanged);
+    }
+
+    [Fact]
+    public async Task SetRelationWeightAsync_NotOwner_ReturnsError()
+    {
+        var mock = new Moq.Mock<ITagCardDataProvider>();
+        var vm = new TagCardViewModel(mock.Object);
+        var relation = CreateRelation(1, 10, weight: 2, ownerId: "other");
+
+        TagCardActionResult result = await vm.SetRelationWeightAsync(relation, 5, "me");
+
+        Assert.Equal(TagCardActionResultType.Error, result.Type);
+    }
+
+    [Fact]
+    public async Task SetRelationWeightAsync_NoChange_ReturnsNoOp()
+    {
+        var mock = new Moq.Mock<ITagCardDataProvider>();
+        var vm = new TagCardViewModel(mock.Object);
+        var relation = CreateRelation(1, 10, weight: 5, ownerId: "me");
+
+        TagCardActionResult result = await vm.SetRelationWeightAsync(relation, 5, "me");
+
+        Assert.Equal(TagCardActionResultType.NoOp, result.Type);
+        mock.Verify(x => x.SetRelationWeightAsync(Moq.It.IsAny<int>(), Moq.It.IsAny<int>(), Moq.It.IsAny<string>()), Moq.Times.Never);
+    }
+
+    [Fact]
+    public async Task SetRelationWeightAsync_OwnerWithChange_CallsDataProviderAndReturnsSuccess()
+    {
+        var mock = new Moq.Mock<ITagCardDataProvider>();
+        mock.Setup(x => x.SetRelationWeightAsync(1, 10, "me")).ReturnsAsync(TagCardOperationResult.Success);
+        var vm = new TagCardViewModel(mock.Object);
+        var relation = CreateRelation(1, 10, weight: 5, ownerId: "me");
+
+        TagCardActionResult result = await vm.SetRelationWeightAsync(relation, 10, "me");
+
+        Assert.Equal(TagCardActionResultType.Success, result.Type);
+        Assert.True(result.ShouldNotifyChanged);
+    }
+
+    [Fact]
+    public async Task ChangeRelationTagAsync_SameTag_ReturnsNoOp()
+    {
+        var mock = new Moq.Mock<ITagCardDataProvider>();
+        var vm = new TagCardViewModel(mock.Object);
+        var relation = CreateRelation(1, 10, ownerId: "me");
+
+        TagCardActionResult result = await vm.ChangeRelationTagAsync(relation, 1, 10, "me");
+
+        Assert.Equal(TagCardActionResultType.NoOp, result.Type);
+        mock.Verify(x => x.ChangeRelationTagAsync(Moq.It.IsAny<int>(), Moq.It.IsAny<int>(), Moq.It.IsAny<int>(), Moq.It.IsAny<string>()), Moq.Times.Never);
+    }
+
+    [Fact]
+    public async Task ChangeRelationTagAsync_NotOwner_ReturnsError()
+    {
+        var mock = new Moq.Mock<ITagCardDataProvider>();
+        var vm = new TagCardViewModel(mock.Object);
+        var relation = CreateRelation(1, 10, ownerId: "other");
+
+        TagCardActionResult result = await vm.ChangeRelationTagAsync(relation, 1, 20, "me");
+
+        Assert.Equal(TagCardActionResultType.Error, result.Type);
+        Assert.Equal("関連付けた本人ではないため、変更する権限がありません。", result.Message);
+    }
+
+    [Fact]
+    public async Task ChangeRelationTagAsync_AlreadyExists_ReturnsWarning()
+    {
+        var mock = new Moq.Mock<ITagCardDataProvider>();
+        mock.Setup(x => x.ChangeRelationTagAsync(1, 1, 20, "me")).ReturnsAsync(TagCardOperationResult.AlreadyExists);
+        var vm = new TagCardViewModel(mock.Object);
+        var relation = CreateRelation(1, 10, ownerId: "me");
+
+        TagCardActionResult result = await vm.ChangeRelationTagAsync(relation, 1, 20, "me");
+
+        Assert.Equal(TagCardActionResultType.Warning, result.Type);
+        Assert.Equal("変更先のタグは既に追加されています。", result.Message);
+    }
+
+    [Fact]
+    public async Task ChangeRelationTagAsync_Success_ReturnsSuccess()
+    {
+        var mock = new Moq.Mock<ITagCardDataProvider>();
+        mock.Setup(x => x.ChangeRelationTagAsync(1, 1, 20, "me")).ReturnsAsync(TagCardOperationResult.Success);
+        var vm = new TagCardViewModel(mock.Object);
+        var relation = CreateRelation(1, 10, ownerId: "me");
+
+        TagCardActionResult result = await vm.ChangeRelationTagAsync(relation, 1, 20, "me");
+
+        Assert.Equal(TagCardActionResultType.Success, result.Type);
+        Assert.Equal("タグを変更しました。", result.Message);
+        Assert.True(result.ShouldNotifyChanged);
+    }
 }

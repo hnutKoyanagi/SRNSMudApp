@@ -2,6 +2,7 @@ using Moq;
 
 using SRNSMudApp.Components.Item;
 using SRNSMudApp.Data;
+using SRNSMudApp.Models;
 using SRNSMudApp.Models.Unions;
 using SRNSMudApp.Services;
 
@@ -16,11 +17,35 @@ namespace SRNSMudApp.Tests.Components.Item;
 public sealed class QuoteItemViewModelTests
 {
     private readonly Mock<IItemQuoteService> _itemQuoteServiceMock = new();
+    private readonly Mock<ILinkPreviewService> _linkPreviewServiceMock = new();
     private readonly QuoteItemViewModel _sut;
 
     public QuoteItemViewModelTests()
     {
-        _sut = new QuoteItemViewModel(_itemQuoteServiceMock.Object);
+        _sut = new QuoteItemViewModel(_itemQuoteServiceMock.Object, _linkPreviewServiceMock.Object);
+    }
+
+    [Fact]
+    public void Constructor_WhenArgumentNull_ThrowsArgumentNullException()
+    {
+        _ = Assert.Throws<ArgumentNullException>(() => new QuoteItemViewModel(null!, _linkPreviewServiceMock.Object));
+        _ = Assert.Throws<ArgumentNullException>(() => new QuoteItemViewModel(_itemQuoteServiceMock.Object, null!));
+    }
+
+    [Fact]
+    public async Task GetPreviewAsync_DelegatesToLinkPreviewService()
+    {
+        // Arrange
+        const string testUrl = "https://example.com";
+        var expectedData = new LinkPreviewData { Url = testUrl, Title = "Example" };
+        _linkPreviewServiceMock.Setup(s => s.GetPreviewAsync(testUrl)).ReturnsAsync(expectedData);
+
+        // Act
+        var actual = await _sut.GetPreviewAsync(testUrl);
+
+        // Assert
+        Assert.Same(expectedData, actual);
+        _linkPreviewServiceMock.Verify(s => s.GetPreviewAsync(testUrl), Times.Once);
     }
 
     [Fact]

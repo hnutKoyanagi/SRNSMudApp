@@ -9,10 +9,10 @@
     <MudStack Spacing="3">
         @foreach (var item in Items)
         {
-            <SRNSMudApp.Components.UI.ItemCard Item="@item" AllTags="@_allTags" AllTagRelationsToTags="@_allTagRelationsToTags"
-                                               CurrentUserId="@_currentUserId" CurrentUserGoodTagId="@_currentUserGoodTagId"
-                                               CurrentUserBadTagId="@_currentUserBadTagId" CurrentUserShinjiTagId="@_currentUserShinjiTagId"
-                                               CurrentUserZenTagId="@_currentUserZenTagId" CurrentUserBiTagId="@_currentUserBiTagId"
+            <SRNSMudApp.Components.UI.ItemCard Item="@item" AllTags="@ViewModel.AllTags" AllTagRelationsToTags="@ViewModel.AllTagRelationsToTags"
+                                               CurrentUserId="@_currentUserId" CurrentUserGoodTagId="@ViewModel.CurrentUserGoodTagId"
+                                               CurrentUserBadTagId="@ViewModel.CurrentUserBadTagId" CurrentUserShinjiTagId="@ViewModel.CurrentUserShinjiTagId"
+                                               CurrentUserZenTagId="@ViewModel.CurrentUserZenTagId" CurrentUserBiTagId="@ViewModel.CurrentUserBiTagId"
                                                OnEnsureSystemTags="EnsureSystemTagsExistAsync" OnDataChanged="NotifyChangedAsync"
                                                IsFocused="@(_focusItemId == item.Id)" OnFocus="SetFocusItem" EnableNavigation="EnableItemNavigation" />
         }
@@ -25,8 +25,8 @@
     <MudStack Spacing="3" Class="@(Items.Any() ? "mt-4" : "")">
         @foreach (var tag in Tags)
         {
-            <SRNSMudApp.Components.UI.TagCard Tag="@tag" AllTags="@_allTags" CurrentUserId="@_currentUserId"
-                                              CurrentUserGoodTagId="@_currentUserGoodTagId" CurrentUserBadTagId="@_currentUserBadTagId"
+            <SRNSMudApp.Components.UI.TagCard Tag="@tag" AllTags="@ViewModel.AllTags" CurrentUserId="@_currentUserId"
+                                              CurrentUserGoodTagId="@ViewModel.CurrentUserGoodTagId" CurrentUserBadTagId="@ViewModel.CurrentUserBadTagId"
                                               OnEnsureSystemTags="EnsureSystemTagsExistAsync" OnDataChanged="NotifyChangedAsync"
                                               IsFocused="@(_focusTagId == tag.Id)" OnFocus="SetFocusTag" />
         }

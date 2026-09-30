@@ -3,14 +3,12 @@ using System.Security.Claims;
 
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.JSInterop;
 
 using MudBlazor;
 
+using SRNSMudApp.Components.UI;
 using SRNSMudApp.Data;
-using SRNSMudApp.Models;
-using SRNSMudApp.Models.Unions;
 using SRNSMudApp.Services;
 using SRNSMudApp.Services.Dialogs;
 
@@ -19,44 +17,45 @@ namespace SRNSMudApp.Components.Tag;
 /// <summary>
 ///     TagTree ページのコードビハインド。
 ///     マークアップ (.razor) 側は表示のみを担い、jqTree との JS 連携・
-///     タグの追加 / 削除 / 移動オーケストレーションはこちらに集約する。
-///     純粋なツリー構築ロジックは <see cref="TagTreeViewModel" /> へ。
+///     UI オーケストレーションはこちらに集約する。
+///     データアクセスおよびビジネスロジックは <see cref="TagTreeViewModel" /> へ委譲する。
 /// </summary>
 public partial class TagTree : IAsyncDisposable
 {
-    [Inject] private ITagTreeDataProvider TagTreeData { get; set; } = null!;
+    [Inject] private TagTreeViewModel ViewModel { get; set; } = null!;
     [Inject] private ISnackbar Snackbar { get; set; } = null!;
     [Inject] private IJSRuntime JSRuntime { get; set; } = null!;
     [Inject] private IDialogLauncher DialogLauncher { get; set; } = null!;
     [Inject] private NavigationManager NavigationManager { get; set; } = null!;
-    [Inject] private ITagLockService TagLockService { get; set; } = null!;
 
     [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
 
     private const string TreeContainerId = "jqtree-container";
 
-    private List<Data.Tag> _tags = [];
-    private List<PendingTagMoveDto> _pendingMoves = [];
+#pragma warning disable IDE1006 // Naming Styles for Blazor bindings
+    private string? _currentUserId => ViewModel.CurrentUserId;
+#pragma warning restore IDE1006
+
     private string? _searchText;
     private DotNetObjectReference<TagTree>? _dotNetRef;
     private bool _isTreeInitialized;
     private bool _dataLoaded;
-    private string? _currentUserId;
-    private bool _isAdmin;
-    private HashSet<int> _lockedTagIds = [];
 
     [SupplyParameterFromQuery(Name = "tagId")]
     public int? SelectedTagId { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
+        string? currentUserId = null;
+        var isAdmin = false;
         if (AuthState is not null)
         {
             AuthenticationState authState = await AuthState;
-            _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            _isAdmin = authState.User.IsInRole("Admin");
+            currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            isAdmin = authState.User.IsInRole("Admin");
         }
 
+        ViewModel.SetUser(currentUserId, isAdmin);
         await LoadDataAsync();
         _dataLoaded = true;
     }
@@ -67,10 +66,7 @@ public partial class TagTree : IAsyncDisposable
     {
         try
         {
-            _tags = await TagTreeData.LoadTagsAsync();
-            _pendingMoves = await TagTreeData.LoadPendingTagMovesAsync();
-            var allStatus = await TagLockService.GetAllTagsWithLockStatusAsync();
-            _lockedTagIds = allStatus.Where(s => s.IsLockedEffective).Select(s => s.Id).ToHashSet();
+            await ViewModel.LoadDataAsync();
         }
         catch (Exception ex)
         {
@@ -100,10 +96,10 @@ public partial class TagTree : IAsyncDisposable
         }
     }
 
-    private IEnumerable<Data.Tag> GetFilteredTags() => TagTreeViewModel.FilterTags(_tags, _searchText, _currentUserId);
+    private IEnumerable<Data.Tag> GetFilteredTags() => TagTreeViewModel.FilterTags(ViewModel.Tags, _searchText, _currentUserId);
 
     private string GetSerializedTreeData() =>
-        TagTreeViewModel.SerializeTreeData(GetFilteredTags(), _pendingMoves, _currentUserId, _lockedTagIds);
+        TagTreeViewModel.SerializeTreeData(GetFilteredTags(), ViewModel.PendingMoves, _currentUserId, ViewModel.LockedTagIds);
 
     /// <summary>初期化済みの場合、jqTree 側のデータを現在のフィルタ結果で差し替える。</summary>
     private async Task ReloadTreeDataAsync()
@@ -159,11 +155,9 @@ public partial class TagTree : IAsyncDisposable
                 break;
         }
 
-        var hasDeleted = false;
-
         try
         {
-            TagTreeDeleteResult result = await TagTreeData.DeleteTagsAsync(_currentUserId, selectedIds, _isAdmin);
+            TagTreeDeleteResult result = await ViewModel.DeleteTagsAsync(selectedIds);
 
             if (result.UnauthorizedNames.Count > 0)
             {
@@ -177,18 +171,46 @@ public partial class TagTree : IAsyncDisposable
 
             if (result.HasDeleted)
             {
-                hasDeleted = true;
                 _ = Snackbar.Add($"{result.DeletedCount}個のタグを削除しました。", Severity.Success);
+                StateHasChanged();
+                await ReloadTreeDataAsync();
             }
         }
         catch (Exception ex)
         {
             _ = Snackbar.Add($"削除中にエラーが発生しました: {ex.Message}", Severity.Error);
         }
+    }
 
-        if (hasDeleted)
+    private async Task ApplyResultAsync(TagCardActionResult result)
+    {
+        switch (result.Type)
         {
-            await LoadDataAsync();
+            case TagCardActionResultType.Warning:
+                if (result.Message != null)
+                {
+                    _ = Snackbar.Add(result.Message, Severity.Warning);
+                }
+                break;
+            case TagCardActionResultType.Error:
+                if (result.Message != null)
+                {
+                    _ = Snackbar.Add(result.Message, Severity.Error);
+                }
+                break;
+            case TagCardActionResultType.Success:
+                if (result.Message != null)
+                {
+                    _ = Snackbar.Add(result.Message, Severity.Success);
+                }
+                break;
+            case TagCardActionResultType.NoOp:
+            default:
+                break;
+        }
+
+        if (result.ShouldNotifyChanged)
+        {
             StateHasChanged();
             await ReloadTreeDataAsync();
         }
@@ -204,172 +226,31 @@ public partial class TagTree : IAsyncDisposable
             return;
         }
 
-        var isRestricted = await TagLockService.IsChildCreationRestrictedAsync(parentId);
-        if (isRestricted && !_isAdmin)
-        {
-            _ = Snackbar.Add("選択された親タグ配下（または兄弟）はロックされているため子タグを作成できません。", Severity.Warning);
-            return;
-        }
-
         IDialogReference dialog = await DialogLauncher.ShowAsync<TagCreateChildDialog>("子タグの追加");
         DialogResult? result = await dialog.Result;
 
         switch (result)
         {
             case { Canceled: false, Data: TagCreateChildDialog.Result data }:
-                try
-                {
-                    Data.Tag newTag = new()
-                    {
-                        Name = data.Name,
-                        Content = data.Content,
-                        ParentTagId = parentId,
-                        OwnerId = _currentUserId,
-                        CachedWeight = 0,
-                        CreatedDate = DateTime.UtcNow,
-                        UpdatedDate = DateTime.UtcNow
-                    };
-
-                    await TagTreeData.AddTagAsync(newTag);
-
-                    _ = Snackbar.Add($"'{data.Name}' を追加しました。", Severity.Success);
-
-                    await LoadDataAsync();
-                    StateHasChanged();
-                    await ReloadTreeDataAsync();
-                }
-                catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("UNIQUE constraint failed", StringComparison.Ordinal) == true)
-                {
-                    _ = Snackbar.Add("同じ名前のタグが既に存在します。", Severity.Error);
-                }
-                catch (Exception ex)
-                {
-                    _ = Snackbar.Add($"エラーが発生しました: {ex.Message}", Severity.Error);
-                }
+                TagCardActionResult actionResult = await ViewModel.AddChildTagAsync(parentId, data.Name, data.Content);
+                await ApplyResultAsync(actionResult);
                 break;
             default:
                 break;
         }
-    }
-
-    /// <summary>移動要求が無効な場合に、クライアント側のツリー状態をサーバー側の状態で復元する。</summary>
-    private async Task RejectTreeMoveAsync(string message, Severity severity)
-    {
-        _ = Snackbar.Add(message, severity);
-        StateHasChanged();
-        await ReloadTreeDataAsync();
     }
 
     [JSInvokable]
-    [SuppressMessage("Design", "CA1031:Do not catch general exception types",
-        Justification = "UI 層で発生した例外の内容をユーザーへ通知するために広く捕捉する")]
     public async Task OnTreeMove(int movedNodeId, int targetNodeId, string position)
     {
-        Data.Tag? movedItem = _tags.Find(t => t.Id == movedNodeId);
-        Data.Tag? targetItem = _tags.Find(t => t.Id == targetNodeId);
-
-        switch ((movedItem, targetItem))
-        {
-            case (null, _):
-            case (_, null):
-                return;
-            default:
-                break;
-        }
-
-        // 自分自身の子孫へのドロップは無効（循環参照を防ぐ）
-        // movedItem が targetItem の祖先（または自身）であるかを確認する
-        if (TagTreeViewModel.IsDescendantOrSelf(_tags, movedItem, targetItem))
-        {
-            await RejectTreeMoveAsync(
-                $"'{movedItem.Name}' を自身の配下 '{targetItem.Name}' に移動することはできません。", Severity.Warning);
-            return;
-        }
-
-        int? newParentTagId = position switch
-        {
-            "inside" => targetItem.Id,
-            "before" or "after" => targetItem.ParentTagId,
-            _ => movedItem.ParentTagId
-        };
-
-        if (newParentTagId == movedItem.ParentTagId)
+        TagCardActionResult result = await ViewModel.MoveTagAsync(movedNodeId, targetNodeId, position);
+        if (result.Type == TagCardActionResultType.NoOp)
         {
             await ReloadTreeDataAsync();
             return;
         }
 
-        // ロックされているタグ、または移動先が制限されている場合は、管理者以外は移動不可
-        if (!_isAdmin)
-        {
-            if (await TagLockService.IsTagOrSiblingLockedAsync(movedItem.Id))
-            {
-                await RejectTreeMoveAsync($"タグ「{movedItem.Name}」またはその兄弟タグはロックされているため移動できません。", Severity.Warning);
-                return;
-            }
-
-            if (newParentTagId.HasValue && await TagLockService.IsChildCreationRestrictedAsync(newParentTagId.Value))
-            {
-                await RejectTreeMoveAsync("移動先の親タグ配下（または兄弟）はロックされているため移動できません。", Severity.Warning);
-                return;
-            }
-        }
-
-        // 他人が作成したタグの場合は、直接更新せず配置変更リクエストを送信する（管理者は直接移動可能）
-        if (!string.IsNullOrEmpty(movedItem.OwnerId) && movedItem.OwnerId != _currentUserId && !_isAdmin)
-        {
-            if (string.IsNullOrEmpty(_currentUserId))
-            {
-                await RejectTreeMoveAsync("ログインしていないため、移動リクエストを送信できません。", Severity.Warning);
-                return;
-            }
-
-            try
-            {
-                Result<TaggingRequestEntity> requestResult = await TagTreeData.RequestTagMoveAsync(
-                    _currentUserId, movedItem.Id, newParentTagId);
-
-                switch (requestResult)
-                {
-                    case Success<TaggingRequestEntity>:
-                        _ = Snackbar.Add($"タグ「{movedItem.Name}」の移動リクエストが通りました。", Severity.Success);
-                        await LoadDataAsync();
-                        break;
-                    case Failure f:
-                        _ = Snackbar.Add($"移動リクエストの送信に失敗しました: {f.ErrorMessage}", Severity.Error);
-                        break;
-                    default:
-                        break;
-                }
-            }
-            catch (Exception ex)
-            {
-                _ = Snackbar.Add($"移動リクエスト送信中にエラーが発生しました: {ex.Message}", Severity.Error);
-            }
-
-            StateHasChanged();
-            await ReloadTreeDataAsync();
-            return;
-        }
-
-        movedItem.ParentTagId = newParentTagId;
-
-        try
-        {
-            if (await TagTreeData.UpdateParentAsync(movedItem.Id, movedItem.ParentTagId))
-            {
-                _ = Snackbar.Add($"タグ「{movedItem.Name}」の移動リクエストが通りました。", Severity.Success);
-            }
-        }
-        catch (Exception ex)
-        {
-            _ = Snackbar.Add($"保存時にエラーが発生しました: {ex.Message}", Severity.Error);
-        }
-
-        StateHasChanged();
-
-        // jqTreeのデータを更新
-        await ReloadTreeDataAsync();
+        await ApplyResultAsync(result);
     }
 
     [JSInvokable]
@@ -383,36 +264,12 @@ public partial class TagTree : IAsyncDisposable
     }
 
     [JSInvokable]
-    [SuppressMessage("Design", "CA1031:Do not catch general exception types",
-        Justification = "UI 層で発生した例外の内容をユーザーへ通知するために広く捕捉する")]
     public async Task CancelMoveRequest(int requestId)
     {
-        if (string.IsNullOrEmpty(_currentUserId))
+        TagCardActionResult result = await ViewModel.CancelMoveRequestAsync(requestId);
+        if (result.Type != TagCardActionResultType.NoOp)
         {
-            return;
-        }
-
-        try
-        {
-            Result<string> result = await TagTreeData.CancelTagMoveAsync(requestId, _currentUserId);
-            switch (result)
-            {
-                case Success<string> s:
-                    _ = Snackbar.Add(s.Value, Severity.Info);
-                    await LoadDataAsync();
-                    StateHasChanged();
-                    await ReloadTreeDataAsync();
-                    break;
-                case Failure f:
-                    _ = Snackbar.Add($"キャンセルに失敗しました: {f.ErrorMessage}", Severity.Error);
-                    break;
-                default:
-                    break;
-            }
-        }
-        catch (Exception ex)
-        {
-            _ = Snackbar.Add($"キャンセル処理中にエラーが発生しました: {ex.Message}", Severity.Error);
+            await ApplyResultAsync(result);
         }
     }
 

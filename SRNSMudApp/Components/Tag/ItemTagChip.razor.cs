@@ -21,7 +21,6 @@ public partial class ItemTagChip
     [Inject] private IDialogLauncher DialogLauncher { get; set; } = null!;
     [Inject] private ISnackbar Snackbar { get; set; } = null!;
     [Inject] private NavigationManager NavigationManager { get; set; } = null!;
-    [Inject] private IItemTagService ItemTagService { get; set; } = null!;
     [Inject] private IJSRuntime JS { get; set; } = null!;
     [Inject] private ItemTagChipActionViewModel ActionViewModel { get; set; } = null!;
 
@@ -103,7 +102,7 @@ public partial class ItemTagChip
 
     private async Task ExecuteRemovalAsync()
     {
-        await (await ItemTagService.RemoveTagRelationAsync(TagRelation.Id, CurrentUserId) switch
+        await (await ActionViewModel.RemoveTagRelationAsync(TagRelation.Id, CurrentUserId) switch
         {
             null => HandleSuccessfulRemoval(),
             string err => HandleError(err)
@@ -180,7 +179,7 @@ public partial class ItemTagChip
 
     private async Task ExecuteSetWeightAsync(int newWeight)
     {
-        var error = await ItemTagService.SetTagWeightAsync(TagRelation.Id, newWeight, CurrentUserId);
+        var error = await ActionViewModel.SetTagWeightAsync(TagRelation.Id, newWeight, CurrentUserId);
         await (error switch
         {
             null => NotifyChangedAsync(),
@@ -190,20 +189,12 @@ public partial class ItemTagChip
 
     private async Task ChangeItemTagAsync(int newTagId)
     {
-        await ((TagRelation.TagId == newTagId) switch
+        if (TagRelation.TagId == newTagId)
         {
-            true => Task.CompletedTask,
-            false => (TagRelation.OwnerId == CurrentUserId) switch
-            {
-                false => HandleError("関連付けた本人ではないため、変更する権限がありません。"),
-                true => ExecuteChangeTagAsync(newTagId)
-            }
-        });
-    }
+            return;
+        }
 
-    private async Task ExecuteChangeTagAsync(int newTagId)
-    {
-        var error = await ItemTagService.ChangeItemTagAsync(TagRelation.Id, newTagId, Item.Id, CurrentUserId);
+        var error = await ActionViewModel.ChangeItemTagAsync(TagRelation.Id, newTagId, Item.Id, CurrentUserId, TagRelation.OwnerId);
         await (error switch
         {
             null => HandleSuccessfulChangeTag(),
@@ -250,7 +241,7 @@ public partial class ItemTagChip
 
     private async Task ExecuteAddTagToTagAsync(Data.Tag targetTag, Data.Tag selectedTag)
     {
-        var error = await ItemTagService.AddTagToTagAsync(targetTag.Id, selectedTag.Id, CurrentUserId);
+        var error = await ActionViewModel.AddTagToTagAsync(targetTag.Id, selectedTag.Id, CurrentUserId);
         await (error switch
         {
             null => HandleSuccessMessage("タグを追加しました。"),
@@ -260,16 +251,7 @@ public partial class ItemTagChip
 
     private async Task RemoveTagToTagRelationAsync(TagRelationToTag relation)
     {
-        await ((relation.OwnerId == CurrentUserId) switch
-        {
-            false => HandleError("関連付けた本人ではないため、解除する権限がありません。"),
-            true => ExecuteRemoveTagToTagAsync(relation.Id)
-        });
-    }
-
-    private async Task ExecuteRemoveTagToTagAsync(int relationId)
-    {
-        var error = await ItemTagService.RemoveTagToTagRelationAsync(relationId, CurrentUserId);
+        var error = await ActionViewModel.RemoveTagToTagRelationAsync(relation.Id, CurrentUserId, relation.OwnerId);
         await (error switch
         {
             null => HandleSuccessMessage("タグの関連付けを解除しました。"),

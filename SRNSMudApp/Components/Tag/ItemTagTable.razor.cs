@@ -2,6 +2,13 @@
 // 全ケース列挙済み・default 併記済みでも解消されない解析器の誤検知のため抑制する。
 #pragma warning disable IDE0010, CA1508
 
+namespace SRNSMudApp.Components.Tag;
+
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+
 using Microsoft.AspNetCore.Components;
 
 using MudBlazor;
@@ -10,8 +17,6 @@ using SRNSMudApp.Data;
 using SRNSMudApp.Models;
 using SRNSMudApp.Models.Unions;
 using SRNSMudApp.Services;
-
-namespace SRNSMudApp.Components.Tag;
 
 /// <summary>
 ///     ItemTagTable のコードビハインド。
@@ -28,8 +33,7 @@ public partial class ItemTagTable
     [Parameter] public string? SearchString { get; set; }
     [Parameter] public EventCallback<string?> SearchStringChanged { get; set; }
 
-    [Inject] private IUserDataProvider UserDataProvider { get; set; } = null!;
-    [Inject] private ITaggingContractService TaggingContractService { get; set; } = null!;
+    [Inject] private ItemTagTableViewModel ViewModel { get; set; } = null!;
     [Inject] private ISnackbar Snackbar { get; set; } = null!;
 
     private ApplicationUser? _selectedTargetUser;
@@ -93,69 +97,22 @@ public partial class ItemTagTable
 
     private async Task<IEnumerable<ApplicationUser>> SearchUsersAsync(string? value, CancellationToken token)
     {
-        return await UserDataProvider.SearchUsersByNormalizedNameAsync(value, token);
+        return await ViewModel.SearchUsersAsync(value, token);
     }
 
     private async Task RequestSelectedTagAddAsync()
     {
-        if (_selectedTargetUser == null)
+        var result = await ViewModel.RequestSelectedTagAddAsync(
+            _selectedTargetUser,
+            CurrentUserId,
+            _searchString,
+            AllTags,
+            Item.Id);
+
+        Snackbar.Add(result.Message, result.Severity);
+        if (result.ShouldNotifyChanged)
         {
-            Snackbar.Add("付与依頼先のユーザーを選択してください。", Severity.Warning);
-            return;
-        }
-
-        if (string.IsNullOrEmpty(CurrentUserId))
-        {
-            Snackbar.Add("ログインしていません。", Severity.Error);
-            return;
-        }
-
-        if (_selectedTargetUser.Id == CurrentUserId)
-        {
-            Snackbar.Add("自分自身には依頼できません。", Severity.Warning);
-            return;
-        }
-
-        string? targetTagName = TagSearchQuery.Parse(_searchString) switch
-        {
-            TagNameSearch s => s.TagName,
-            TagWithUserSearch s => s.TagName,
-            IncompleteSearch s => s.TagName,
-            _ => null
-        };
-
-        if (string.IsNullOrWhiteSpace(targetTagName))
-        {
-            Snackbar.Add("上の検索ボックスで付与を依頼するタグを選択・入力してください。", Severity.Warning);
-            return;
-        }
-
-        Data.Tag? targetUserTag = AllTags.FirstOrDefault(t =>
-            t.OwnerId == _selectedTargetUser.Id &&
-            string.Equals(t.Name, targetTagName, StringComparison.OrdinalIgnoreCase));
-
-        if (targetUserTag == null)
-        {
-            Snackbar.Add($"選択されたユーザー ({_selectedTargetUser.UserName}) はタグ「{targetTagName}」を発行していません。", Severity.Warning);
-            return;
-        }
-
-        var result = await TaggingContractService.ProposeGratisContractAsync(
-            requesterUserId: CurrentUserId,
-            tagOwnerUserId: _selectedTargetUser.Id,
-            targetItemId: Item.Id,
-            requestedTagId: targetUserTag.Id,
-            requestType: TaggingRequestType.Add);
-
-        switch (result)
-        {
-            case Success<TaggingRequestEntity>:
-                Snackbar.Add($"{_selectedTargetUser.UserName} さんにタグ「{targetTagName}」の付与リクエストを送信しました。", Severity.Success);
-                await OnDataChanged.InvokeAsync();
-                break;
-            case Failure f:
-                Snackbar.Add($"付与リクエストの送信に失敗しました: {f.ErrorMessage}", Severity.Error);
-                break;
+            await OnDataChanged.InvokeAsync();
         }
     }
 }

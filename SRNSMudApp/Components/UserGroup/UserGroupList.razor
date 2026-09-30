@@ -2,11 +2,12 @@
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Authorization
 @using SRNSMudApp.Data
+@using SRNSMudApp.Models.Unions
 @using SRNSMudApp.Services
 @using SRNSMudApp.Services.Dialogs
 @rendermode InteractiveServer
 @attribute [Authorize]
-@inject IUserGroupDataProvider UserGroupData
+@inject UserGroupListViewModel ViewModel
 @inject IDialogLauncher DialogLauncher
 @inject ISnackbar Snackbar
 
@@ -112,30 +113,19 @@
 @code {
     [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
 
-    private List<UserGroup> _groups = [];
-    private string? _currentUserId;
-    private bool _isLoading = true;
+    private IReadOnlyList<UserGroup> _groups => ViewModel.Groups;
+    private string _currentUserId => ViewModel.CurrentUserId;
+    private bool _isLoading => ViewModel.IsLoading;
 
     protected override async Task OnInitializedAsync()
     {
         if (AuthState is not null)
         {
             var auth = await AuthState;
-            _currentUserId = auth.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            ViewModel.CurrentUserId = auth.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
         }
 
-        await LoadGroupsAsync();
-    }
-
-    private async Task LoadGroupsAsync()
-    {
-        _isLoading = true;
-        if (!string.IsNullOrEmpty(_currentUserId))
-        {
-            var groups = await UserGroupData.GetUserGroupsForUserAsync(_currentUserId);
-            _groups = groups.ToList();
-        }
-        _isLoading = false;
+        await ViewModel.LoadGroupsAsync();
     }
 
     private async Task OpenCreateDialogAsync()
@@ -145,16 +135,11 @@
             return;
         }
 
-        var parameters = new DialogParameters
-        {
-            { nameof(UserGroupCreateEditDialog.CurrentUserId), _currentUserId }
-        };
-
-        var dialog = await DialogLauncher.ShowAsync<UserGroupCreateEditDialog>("新規グループ作成", parameters);
+        var dialog = await DialogLauncher.ShowAsync<UserGroupCreateEditDialog>("新規グループ作成", ViewModel.CreateDialogParameters());
         var result = await dialog.Result;
         if (result is { Canceled: false })
         {
-            await LoadGroupsAsync();
+            await ViewModel.LoadGroupsAsync();
         }
     }
 
@@ -165,17 +150,11 @@
             return;
         }
 
-        var parameters = new DialogParameters
-        {
-            { nameof(UserGroupCreateEditDialog.Group), group },
-            { nameof(UserGroupCreateEditDialog.CurrentUserId), _currentUserId }
-        };
-
-        var dialog = await DialogLauncher.ShowAsync<UserGroupCreateEditDialog>("グループを編集", parameters);
+        var dialog = await DialogLauncher.ShowAsync<UserGroupCreateEditDialog>("グループを編集", ViewModel.EditDialogParameters(group));
         var result = await dialog.Result;
         if (result is { Canceled: false })
         {
-            await LoadGroupsAsync();
+            await ViewModel.LoadGroupsAsync();
         }
     }
 
@@ -186,43 +165,25 @@
             return;
         }
 
-        var parameters = new DialogParameters
-        {
-            { nameof(UserGroupMembersDialog.Group), group },
-            { nameof(UserGroupMembersDialog.CurrentUserId), _currentUserId }
-        };
-
-        var dialog = await DialogLauncher.ShowAsync<UserGroupMembersDialog>("メンバー管理", parameters);
+        var dialog = await DialogLauncher.ShowAsync<UserGroupMembersDialog>("メンバー管理", ViewModel.MembersDialogParameters(group));
         var result = await dialog.Result;
         if (result is { Canceled: false })
         {
-            await LoadGroupsAsync();
+            await ViewModel.LoadGroupsAsync();
         }
     }
 
     private async Task DeleteGroupAsync(UserGroup group)
     {
-        if (string.IsNullOrEmpty(_currentUserId))
+        var result = await ViewModel.DeleteGroupAsync(group.Id);
+        switch (result)
         {
-            return;
-        }
-
-        try
-        {
-            bool deleted = await UserGroupData.DeleteUserGroupAsync(group.Id, _currentUserId);
-            if (deleted)
-            {
+            case Success<bool>:
                 Snackbar.Add($"グループ「{group.Name}」を削除しました。", Severity.Success);
-                await LoadGroupsAsync();
-            }
-            else
-            {
-                Snackbar.Add("グループの削除に失敗しました。", Severity.Error);
-            }
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"エラーが発生しました: {ex.Message}", Severity.Error);
+                break;
+            case Failure fail:
+                Snackbar.Add(fail.ErrorMessage, Severity.Error);
+                break;
         }
     }
 }

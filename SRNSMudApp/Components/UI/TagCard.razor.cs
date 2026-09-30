@@ -21,7 +21,7 @@ namespace SRNSMudApp.Components.UI;
 /// </summary>
 public partial class TagCard : IAsyncDisposable
 {
-    [Inject] private ITagCardDataProvider TagCardData { get; set; } = null!;
+    [Inject] private TagCardViewModel ViewModel { get; set; } = null!;
     [Inject] private IDialogLauncher DialogLauncher { get; set; } = null!;
     [Inject] private ISnackbar Snackbar { get; set; } = null!;
     [Inject] private IJSRuntime JS { get; set; } = null!;
@@ -151,30 +151,37 @@ public partial class TagCard : IAsyncDisposable
 
     private async Task DownvoteTagAsync() => await ToggleTagVoteAsync(false);
 
-    private async Task ToggleTagVoteAsync(bool isUpvote)
+    private async Task ApplyResultAsync(TagCardActionResult result)
     {
-        if (string.IsNullOrEmpty(CurrentUserId))
+        switch (result.Type)
         {
-            _ = Snackbar.Add("ログインが必要です。", Severity.Warning);
-            return;
+            case TagCardActionResultType.Warning when result.Message != null:
+                _ = Snackbar.Add(result.Message, Severity.Warning);
+                break;
+            case TagCardActionResultType.Error when result.Message != null:
+                _ = Snackbar.Add(result.Message, Severity.Error);
+                break;
+            case TagCardActionResultType.Success when result.Message != null:
+                _ = Snackbar.Add(result.Message, Severity.Success);
+                break;
         }
 
+        if (result.ShouldNotifyChanged)
+        {
+            await NotifyChangedAsync();
+        }
+    }
+
+    private async Task ToggleTagVoteAsync(bool isUpvote)
+    {
         if (OnEnsureSystemTags.HasDelegate)
         {
             await OnEnsureSystemTags.InvokeAsync();
         }
 
-        if (!CurrentUserGoodTagId.HasValue || !CurrentUserBadTagId.HasValue)
-        {
-            _ = Snackbar.Add("システムタグの取得に失敗しました。", Severity.Error);
-            return;
-        }
-
-        var targetSystemTagId = isUpvote ? CurrentUserGoodTagId.Value : CurrentUserBadTagId.Value;
-        var oppositeSystemTagId = isUpvote ? CurrentUserBadTagId.Value : CurrentUserGoodTagId.Value;
-
-        await TagCardData.ToggleTagVoteAsync(Tag.Id, CurrentUserId, targetSystemTagId, oppositeSystemTagId);
-        await NotifyChangedAsync();
+        TagCardActionResult result = await ViewModel.ToggleTagVoteAsync(
+            Tag.Id, CurrentUserId, CurrentUserGoodTagId, CurrentUserBadTagId, isUpvote);
+        await ApplyResultAsync(result);
     }
 
     // --- Tag Operations ---
@@ -210,63 +217,22 @@ public partial class TagCard : IAsyncDisposable
 
     private async Task AddTagToTagAsync(Data.Tag targetTag, Data.Tag selectedTag)
     {
-        TagCardOperationResult result =
-            await TagCardData.AddTagToTagAsync(targetTag.Id, selectedTag.Id, CurrentUserId);
-        switch (result)
-        {
-            case TagCardOperationResult.AlreadyExists:
-                _ = Snackbar.Add("このタグは既に追加されています。", Severity.Warning);
-                return;
-            case TagCardOperationResult.Success:
-                _ = Snackbar.Add("タグを追加しました。", Severity.Success);
-                await NotifyChangedAsync();
-                break;
-            case TagCardOperationResult.NotFound:
-            case TagCardOperationResult.NotOwner:
-                break;
-        }
+        TagCardActionResult result =
+            await ViewModel.AddTagToTagAsync(targetTag.Id, selectedTag.Id, CurrentUserId);
+        await ApplyResultAsync(result);
     }
 
     private async Task RemoveTagToTagRelationAsync(TagRelationToTag relation)
     {
-        if (!TagCardViewModel.IsRelationOwner(relation.OwnerId, CurrentUserId))
-        {
-            _ = Snackbar.Add("関連付けた本人ではないため、解除する権限がありません。", Severity.Error);
-            return;
-        }
-
-        TagCardOperationResult result = await TagCardData.RemoveRelationAsync(relation.Id, CurrentUserId);
-        switch (result)
-        {
-            case TagCardOperationResult.Success:
-                _ = Snackbar.Add("タグの関連付けを解除しました。", Severity.Success);
-                await NotifyChangedAsync();
-                break;
-            case TagCardOperationResult.NotFound:
-            case TagCardOperationResult.NotOwner:
-                break;
-        }
+        TagCardActionResult result = await ViewModel.RemoveRelationAsync(relation, CurrentUserId);
+        await ApplyResultAsync(result);
     }
 
     private async Task UpdateTagToTagWeightAsync(TagRelationToTag relation, int delta)
     {
-        if (!TagCardViewModel.IsRelationOwner(relation.OwnerId, CurrentUserId))
-        {
-            _ = Snackbar.Add("関連付けた本人ではないため、Weightを変更する権限がありません。", Severity.Error);
-            return;
-        }
-
-        TagCardOperationResult result =
-            await TagCardData.UpdateRelationWeightAsync(relation.Id, delta, CurrentUserId);
-        switch (result)
-        {
-            case TagCardOperationResult.Success:
-                await NotifyChangedAsync();
-                break;
-            case TagCardOperationResult.NotFound:
-            case TagCardOperationResult.NotOwner:
-                break;
-        }
+        TagCardActionResult result =
+            await ViewModel.UpdateRelationWeightAsync(relation, delta, CurrentUserId);
+        await ApplyResultAsync(result);
     }
 
     private async Task EditTagToTagWeightAsync(TagRelationToTag relation)
@@ -286,23 +252,9 @@ public partial class TagCard : IAsyncDisposable
         {
             case { Canceled: false, Data: int newWeight }:
                 {
-                    if (!TagCardViewModel.HasWeightChange(relation.Weight, newWeight))
-                    {
-                        return;
-                    }
-
-                    TagCardOperationResult opResult =
-                        await TagCardData.SetRelationWeightAsync(relation.Id, newWeight, CurrentUserId);
-                    switch (opResult)
-                    {
-                        case TagCardOperationResult.Success:
-                            await NotifyChangedAsync();
-                            break;
-                        case TagCardOperationResult.NotFound:
-                        case TagCardOperationResult.NotOwner:
-                            break;
-                    }
-
+                    TagCardActionResult opResult =
+                        await ViewModel.SetRelationWeightAsync(relation, newWeight, CurrentUserId);
+                    await ApplyResultAsync(opResult);
                     break;
                 }
         }
@@ -310,33 +262,14 @@ public partial class TagCard : IAsyncDisposable
 
     private async Task ChangeTagTagAsync(TagRelationToTag oldRelation, int newTagId)
     {
-        if (TagCardViewModel.IsSameTagChange(oldRelation.TagId, newTagId))
+        TagCardActionResult result =
+            await ViewModel.ChangeRelationTagAsync(oldRelation, Tag.Id, newTagId, CurrentUserId);
+        if (result.Type == TagCardActionResultType.Success)
         {
-            return;
+            ClosePopover();
         }
 
-        if (!TagCardViewModel.IsRelationOwner(oldRelation.OwnerId, CurrentUserId))
-        {
-            _ = Snackbar.Add("関連付けた本人ではないため、変更する権限がありません。", Severity.Error);
-            return;
-        }
-
-        TagCardOperationResult result =
-            await TagCardData.ChangeRelationTagAsync(oldRelation.Id, Tag.Id, newTagId, CurrentUserId);
-        switch (result)
-        {
-            case TagCardOperationResult.AlreadyExists:
-                _ = Snackbar.Add("変更先のタグは既に追加されています。", Severity.Warning);
-                return;
-            case TagCardOperationResult.Success:
-                _ = Snackbar.Add("タグを変更しました。", Severity.Success);
-                ClosePopover();
-                await NotifyChangedAsync();
-                break;
-            case TagCardOperationResult.NotFound:
-            case TagCardOperationResult.NotOwner:
-                break;
-        }
+        await ApplyResultAsync(result);
     }
 
     private async Task OnAddChildTagFromTree(Data.Tag? targetTag)

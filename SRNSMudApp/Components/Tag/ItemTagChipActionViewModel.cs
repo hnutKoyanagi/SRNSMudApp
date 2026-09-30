@@ -1,7 +1,9 @@
+namespace SRNSMudApp.Components.Tag;
+
+using System.Threading.Tasks;
+
 using SRNSMudApp.Data;
 using SRNSMudApp.Services;
-
-namespace SRNSMudApp.Components.Tag;
 
 /// <summary>
 ///     タグのウェイト変更操作の結果。
@@ -28,7 +30,7 @@ public sealed record TagWeightActionResult(
 }
 
 /// <summary>
-///     ItemTagChip におけるタグ操作（Weight変更、契約提案分岐）のロジックを集約する ViewModel。
+///     ItemTagChip におけるタグ操作（Weight変更、関連付け解除・変更、階層タグ操作、契約提案分岐）のロジックを集約する ViewModel。
 ///     bUnit を介さずに直接単体テスト可能。
 /// </summary>
 public class ItemTagChipActionViewModel
@@ -77,5 +79,55 @@ public class ItemTagChipActionViewModel
         }
 
         return new TagWeightActionResult(TagWeightOperationType.Ignored);
+    }
+
+    /// <summary>
+    ///     タグの関連付けを解除する。成功時は null、失敗時はエラーメッセージを返す。
+    /// </summary>
+    public async Task<string?> RemoveTagRelationAsync(int relationId, string currentUserId)
+    {
+        return await _itemTagService.RemoveTagRelationAsync(relationId, currentUserId);
+    }
+
+    /// <summary>
+    ///     タグのウェイトを絶対値で設定する。成功時は null、失敗時はエラーメッセージを返す。
+    /// </summary>
+    public async Task<string?> SetTagWeightAsync(int relationId, int newWeight, string currentUserId)
+    {
+        return await _itemTagService.SetTagWeightAsync(relationId, newWeight, currentUserId);
+    }
+
+    /// <summary>
+    ///     アイテムのタグ関連付けを変更する。本人権限チェック付き。成功時は null、失敗時はエラーメッセージを返す。
+    /// </summary>
+    public async Task<string?> ChangeItemTagAsync(int relationId, int newTagId, int itemId, string currentUserId, string relationOwnerId)
+    {
+        if (relationOwnerId != currentUserId)
+        {
+            return "関連付けた本人ではないため、変更する権限がありません。";
+        }
+
+        return await _itemTagService.ChangeItemTagAsync(relationId, newTagId, itemId, currentUserId);
+    }
+
+    /// <summary>
+    ///     タグ同士を関連付ける。成功時は null、失敗時はエラーメッセージを返す。
+    /// </summary>
+    public async Task<string?> AddTagToTagAsync(int targetTagId, int selectedTagId, string currentUserId)
+    {
+        return await _itemTagService.AddTagToTagAsync(targetTagId, selectedTagId, currentUserId);
+    }
+
+    /// <summary>
+    ///     タグ同士の関連付けを解除する。本人権限チェック付き。成功時は null、失敗時はエラーメッセージを返す。
+    /// </summary>
+    public async Task<string?> RemoveTagToTagRelationAsync(int relationId, string currentUserId, string relationOwnerId)
+    {
+        if (relationOwnerId != currentUserId)
+        {
+            return "関連付けた本人ではないため、解除する権限がありません。";
+        }
+
+        return await _itemTagService.RemoveTagToTagRelationAsync(relationId, currentUserId);
     }
 }

@@ -1,12 +1,11 @@
 @using System.Security.Claims
-@using SRNSMudApp.Services
 @implements IDisposable
-@inject INotificationService NotificationService
+@inject NotificationBadgeViewModel ViewModel
 @inject NavigationManager NavigationManager
 
-@if (_userId is not null)
+@if (ViewModel.CurrentUserId is not null)
 {
-    <MudBadge Content="_unreadCount" Color="Color.Error" Overlap="true" Visible="@(_unreadCount > 0)"
+    <MudBadge Content="ViewModel.UnreadCount" Color="Color.Error" Overlap="true" Visible="@ViewModel.IsVisible"
               data-testid="appbar-notifications-badge">
         <MudIconButton Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit" Href="notifications"
                        aria-label="notifications" />
@@ -16,76 +15,35 @@
 @code {
     [CascadingParameter] private Task<AuthenticationState> AuthenticationStateTask { get; set; } = default!;
 
-    private string? _userId;
-    private int _unreadCount;
-    private string? _lastBasePath;
-
     protected override async Task OnInitializedAsync()
     {
-        var initialUri = new Uri(NavigationManager.Uri, UriKind.RelativeOrAbsolute);
-        _lastBasePath = initialUri.IsAbsoluteUri ? initialUri.AbsolutePath : NavigationManager.Uri.Split('?')[0];
-
         NavigationManager.LocationChanged += OnLocationChanged;
-        NotificationService.NotificationsChanged += OnNotificationsChanged;
-        await RefreshUnreadCountAsync();
+        ViewModel.StateChanged += OnStateChanged;
+
+        var authState = await AuthenticationStateTask;
+        var userId = authState.User.Identity?.IsAuthenticated == true
+            ? authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            : null;
+
+        await ViewModel.InitializeAsync(userId, NavigationManager.Uri);
     }
 
     private async void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
-        var uri = new Uri(e.Location, UriKind.RelativeOrAbsolute);
-        var absolutePath = uri.IsAbsoluteUri ? uri.AbsolutePath : e.Location.Split('?')[0];
-
-        if (string.Equals(_lastBasePath, absolutePath, StringComparison.OrdinalIgnoreCase))
+        if (await ViewModel.OnLocationChangedAsync(e.Location))
         {
-            return;
+            await InvokeAsync(StateHasChanged);
         }
+    }
 
-        _lastBasePath = absolutePath;
-        await RefreshUnreadCountAsync();
+    private async void OnStateChanged(object? sender, EventArgs e)
+    {
         await InvokeAsync(StateHasChanged);
-    }
-
-    private async void OnNotificationsChanged(object? sender, EventArgs e)
-    {
-        await RefreshUnreadCountAsync();
-        await InvokeAsync(StateHasChanged);
-    }
-
-    private bool IsNotificationsPage()
-    {
-        var relative = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
-        return relative.Trim('/').Equals("notifications", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private async Task RefreshUnreadCountAsync()
-    {
-        var authState = await AuthenticationStateTask;
-        var user = authState.User;
-        if (user.Identity?.IsAuthenticated == true)
-        {
-            _userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (_userId is not null)
-            {
-                if (IsNotificationsPage())
-                {
-                    _unreadCount = 0;
-                }
-                else
-                {
-                    _unreadCount = await NotificationService.GetUnreadCountAsync(_userId);
-                }
-            }
-        }
-        else
-        {
-            _userId = null;
-            _unreadCount = 0;
-        }
     }
 
     public void Dispose()
     {
         NavigationManager.LocationChanged -= OnLocationChanged;
-        NotificationService.NotificationsChanged -= OnNotificationsChanged;
+        ViewModel.StateChanged -= OnStateChanged;
     }
 }

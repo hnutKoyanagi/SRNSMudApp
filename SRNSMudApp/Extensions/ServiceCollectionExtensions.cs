@@ -173,11 +173,16 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddScoped<ItemDetailViewModel>();
+        services.AddScoped<AddItemViewModel>();
         services.AddScoped<ItemImportViewModel>();
+        services.AddScoped<ContractManagementViewModel>();
         services.AddScoped<ItemEditViewModel>();
         services.AddScoped<ItemTagChipActionViewModel>();
         services.AddScoped<TaggingRequestActionViewModel>();
         services.AddScoped<ItemCardActionViewModel>();
+        services.AddScoped(sp => new UserDetailViewModel(
+            sp.GetRequiredService<IUserDataProvider>(),
+            sp.GetService<Microsoft.AspNetCore.Identity.UserManager<Data.ApplicationUser>>()));
         services.AddScoped(sp => new UserDetailActionViewModel(
             sp.GetRequiredService<IUserDataProvider>(),
             sp.GetService<Microsoft.AspNetCore.Identity.UserManager<Data.ApplicationUser>>()));
@@ -192,6 +197,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ReportManagerViewModel>();
         services.AddScoped<TriggerPublicOfferViewModel>();
         services.AddScoped<CreatePublicOfferViewModel>();
+        services.AddScoped<PublicOfferBoardViewModel>();
         services.AddScoped<QuoteItemViewModel>();
         services.AddScoped<QuotedItemListViewModel>();
         services.AddScoped<TagResolutionViewModel>();
@@ -205,6 +211,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<UserGroupMembersViewModel>();
         services.AddScoped<BountyCreateViewModel>();
         services.AddScoped<FulfillBountyViewModel>();
+        services.AddScoped<BountyBoardViewModel>();
         services.AddScoped<AttachTagToEdgeViewModel>();
         services.AddScoped<RightAssetOverviewViewModel>();
         services.AddScoped<NotificationBadgeViewModel>();
@@ -223,6 +230,15 @@ public static class ServiceCollectionExtensions
         services.AddTransient<InvitationManagerViewModel>();
         services.AddTransient<RequireConfirmedAccountViewModel>();
         services.AddTransient<HomeViewModel>();
+        services.AddTransient<QuotedItemPreviewViewModel>();
+        services.AddTransient<ResourceListViewModel>();
+        services.AddTransient<TagAutocompleteViewModel>();
+        services.AddTransient<ItemTagTableViewModel>();
+        services.AddTransient<TagCardViewModel>();
+        services.AddTransient<ItemListViewModel>();
+        services.AddTransient<TagTableViewModel>();
+        services.AddTransient<TagTreeViewModel>();
+        services.AddTransient<NotificationsViewModel>();
 
         return services;
     }

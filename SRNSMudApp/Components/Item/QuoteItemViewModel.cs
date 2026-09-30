@@ -1,21 +1,26 @@
 using System.Diagnostics.CodeAnalysis;
 
+using SRNSMudApp.Models;
 using SRNSMudApp.Models.Unions;
 using SRNSMudApp.Services;
 
 namespace SRNSMudApp.Components.Item;
 
 /// <summary>
-///     QuoteItemDialog の状態管理、バリデーション、および引用投稿ロジックを担当する ViewModel。
+///     QuoteItemDialog の状態管理、バリデーション、プレビュー取得、および引用投稿ロジックを担当する ViewModel。
 ///     UI（Blazor / bUnit）から切り離し、純粋な xUnit + Moq 単体テストを可能にする。
 /// </summary>
 public class QuoteItemViewModel
 {
     private readonly IItemQuoteService _itemQuoteService;
+    private readonly ILinkPreviewService _linkPreviewService;
 
-    public QuoteItemViewModel(IItemQuoteService itemQuoteService)
+    public QuoteItemViewModel(
+        IItemQuoteService itemQuoteService,
+        ILinkPreviewService linkPreviewService)
     {
-        _itemQuoteService = itemQuoteService;
+        _itemQuoteService = itemQuoteService ?? throw new ArgumentNullException(nameof(itemQuoteService));
+        _linkPreviewService = linkPreviewService ?? throw new ArgumentNullException(nameof(linkPreviewService));
     }
 
     public Data.Item? QuotedItem { get; set; }
@@ -24,6 +29,13 @@ public class QuoteItemViewModel
     public bool IsSubmitting { get; private set; }
 
     public bool CanSubmit => !string.IsNullOrWhiteSpace(Content) && !IsSubmitting;
+
+    /// <summary>
+    ///     指定された URL のリンクプレビューを取得する。
+    /// </summary>
+    [SuppressMessage("Design", "CA1054:URI-like parameters should not be strings",
+        Justification = "Blazor コンポーネントおよび ILinkPreviewService の仕様に合わせて string を受け取るため")]
+    public Task<LinkPreviewData> GetPreviewAsync(string url) => _linkPreviewService.GetPreviewAsync(url);
 
     /// <summary>
     ///     引用投稿を作成する。

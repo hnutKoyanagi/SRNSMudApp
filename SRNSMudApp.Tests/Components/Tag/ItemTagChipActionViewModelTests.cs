@@ -92,4 +92,82 @@ public sealed class ItemTagChipActionViewModelTests
         Assert.False(result.IsSuccess);
         Assert.Equal("タグの関連付けが見つかりません。", result.ErrorMessage);
     }
+
+    [Fact]
+    public async Task RemoveTagRelationAsync_DelegatesToService()
+    {
+        _itemTagServiceMock.Setup(s => s.RemoveTagRelationAsync(10, CurrentUserId))
+            .ReturnsAsync((string?)null);
+
+        var result = await _sut.RemoveTagRelationAsync(10, CurrentUserId);
+
+        Assert.Null(result);
+        _itemTagServiceMock.Verify(s => s.RemoveTagRelationAsync(10, CurrentUserId), Times.Once);
+    }
+
+    [Fact]
+    public async Task SetTagWeightAsync_DelegatesToService()
+    {
+        _itemTagServiceMock.Setup(s => s.SetTagWeightAsync(10, 5, CurrentUserId))
+            .ReturnsAsync((string?)null);
+
+        var result = await _sut.SetTagWeightAsync(10, 5, CurrentUserId);
+
+        Assert.Null(result);
+        _itemTagServiceMock.Verify(s => s.SetTagWeightAsync(10, 5, CurrentUserId), Times.Once);
+    }
+
+    [Fact]
+    public async Task ChangeItemTagAsync_WhenNotOwner_ReturnsPermissionErrorWithoutCallingService()
+    {
+        var result = await _sut.ChangeItemTagAsync(10, 20, 30, CurrentUserId, "other-user");
+
+        Assert.Equal("関連付けた本人ではないため、変更する権限がありません。", result);
+        _itemTagServiceMock.Verify(s => s.ChangeItemTagAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ChangeItemTagAsync_WhenOwner_DelegatesToService()
+    {
+        _itemTagServiceMock.Setup(s => s.ChangeItemTagAsync(10, 20, 30, CurrentUserId))
+            .ReturnsAsync((string?)null);
+
+        var result = await _sut.ChangeItemTagAsync(10, 20, 30, CurrentUserId, CurrentUserId);
+
+        Assert.Null(result);
+        _itemTagServiceMock.Verify(s => s.ChangeItemTagAsync(10, 20, 30, CurrentUserId), Times.Once);
+    }
+
+    [Fact]
+    public async Task AddTagToTagAsync_DelegatesToService()
+    {
+        _itemTagServiceMock.Setup(s => s.AddTagToTagAsync(1, 2, CurrentUserId))
+            .ReturnsAsync((string?)null);
+
+        var result = await _sut.AddTagToTagAsync(1, 2, CurrentUserId);
+
+        Assert.Null(result);
+        _itemTagServiceMock.Verify(s => s.AddTagToTagAsync(1, 2, CurrentUserId), Times.Once);
+    }
+
+    [Fact]
+    public async Task RemoveTagToTagRelationAsync_WhenNotOwner_ReturnsPermissionError()
+    {
+        var result = await _sut.RemoveTagToTagRelationAsync(10, CurrentUserId, "other-user");
+
+        Assert.Equal("関連付けた本人ではないため、解除する権限がありません。", result);
+        _itemTagServiceMock.Verify(s => s.RemoveTagToTagRelationAsync(It.IsAny<int>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RemoveTagToTagRelationAsync_WhenOwner_DelegatesToService()
+    {
+        _itemTagServiceMock.Setup(s => s.RemoveTagToTagRelationAsync(10, CurrentUserId))
+            .ReturnsAsync((string?)null);
+
+        var result = await _sut.RemoveTagToTagRelationAsync(10, CurrentUserId, CurrentUserId);
+
+        Assert.Null(result);
+        _itemTagServiceMock.Verify(s => s.RemoveTagToTagRelationAsync(10, CurrentUserId), Times.Once);
+    }
 }

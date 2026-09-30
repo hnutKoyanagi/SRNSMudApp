@@ -16,17 +16,26 @@ public class ItemCardActionViewModel
     private readonly IItemReplyService _itemReplyService;
     private readonly IItemCardDataProvider _itemCardDataProvider;
     private readonly ITaggingContractService _taggingContractService;
+    private readonly IItemTagService _itemTagService;
+    private readonly IItemSplitService _itemSplitService;
+    private readonly IItemQuoteService _itemQuoteService;
     private readonly ISnackbar _snackbar;
 
     public ItemCardActionViewModel(
         IItemReplyService itemReplyService,
         IItemCardDataProvider itemCardDataProvider,
         ITaggingContractService taggingContractService,
+        IItemTagService itemTagService,
+        IItemSplitService itemSplitService,
+        IItemQuoteService itemQuoteService,
         ISnackbar snackbar)
     {
         _itemReplyService = itemReplyService;
         _itemCardDataProvider = itemCardDataProvider;
         _taggingContractService = taggingContractService;
+        _itemTagService = itemTagService;
+        _itemSplitService = itemSplitService;
+        _itemQuoteService = itemQuoteService;
         _snackbar = snackbar;
     }
 
@@ -161,5 +170,123 @@ public class ItemCardActionViewModel
             default:
                 return false;
         }
+    }
+
+    /// <summary>
+    ///     指定アイテムに紐づくタグ付けリクエスト一覧を取得する。
+    /// </summary>
+    public async Task<IReadOnlyList<TaggingRequestEntity>> GetTaggingRequestsAsync(int itemId)
+    {
+        if (itemId <= 0)
+        {
+            return [];
+        }
+
+        return await _itemTagService.GetTaggingRequestsForItemAsync(itemId) ?? [];
+    }
+
+    /// <summary>
+    ///     指定アイテムに対する保留中の分割リクエスト一覧を取得する。
+    /// </summary>
+    public async Task<IReadOnlyList<ItemSplitRequest>> GetPendingSplitRequestsAsync(int itemId)
+    {
+        if (itemId <= 0)
+        {
+            return [];
+        }
+
+        return await _itemSplitService.GetPendingSplitRequestsForOriginalItemAsync(itemId) ?? [];
+    }
+
+    /// <summary>
+    ///     指定アイテムの引用数を取得する。
+    /// </summary>
+    public async Task<int> GetQuoteCountAsync(int itemId)
+    {
+        if (itemId <= 0)
+        {
+            return 0;
+        }
+
+        return await _itemQuoteService.GetQuoteCountAsync(itemId);
+    }
+
+    /// <summary>
+    ///     指定アイテムに対するリプライ一覧を取得する。
+    /// </summary>
+    public async Task<IReadOnlyList<Data.Item>> GetItemRepliesAsync(int itemId)
+    {
+        if (itemId <= 0)
+        {
+            return [];
+        }
+
+        return await _itemReplyService.GetItemRepliesAsync(itemId) ?? [];
+    }
+
+    /// <summary>
+    ///     指定アイテムに対するリプライ数を取得する。取得できない場合は fallbackCount を返す。
+    /// </summary>
+    public async Task<int> GetItemReplyCountAsync(int itemId, int fallbackCount)
+    {
+        if (itemId <= 0)
+        {
+            return fallbackCount;
+        }
+
+        int count = await _itemReplyService.GetItemReplyCountAsync(itemId);
+        return count > 0 ? count : fallbackCount;
+    }
+
+    /// <summary>
+    ///     スレッドからオプトアウトしたユーザー一覧を取得する。
+    /// </summary>
+    public async Task<HashSet<string>> GetOptedOutUsersAsync(int rootItemId)
+    {
+        if (rootItemId <= 0)
+        {
+            return [];
+        }
+
+        return await _itemReplyService.GetOptedOutUsersAsync(rootItemId) ?? [];
+    }
+
+    /// <summary>
+    ///     会話スレッドの通知オプトアウトを切り替える。
+    /// </summary>
+    public async Task<bool> ToggleConversationOptOutAsync(int rootItemId, string currentUserId)
+    {
+        if (string.IsNullOrEmpty(currentUserId) || rootItemId <= 0)
+        {
+            return false;
+        }
+
+        bool optedOut = await _itemReplyService.ToggleConversationOptOutAsync(rootItemId, currentUserId);
+        if (optedOut)
+        {
+            _snackbar.Add("この会話から抜けました。以後のリプライでメンション対象から外れます。", Severity.Info);
+        }
+        else
+        {
+            _snackbar.Add("この会話に戻りました。", Severity.Success);
+        }
+
+        return optedOut;
+    }
+
+    /// <summary>
+    ///     アイテムの所有者であることを検証し、アイテムを削除する。
+    /// </summary>
+    public async Task<bool> DeleteItemAsync(int itemId, string currentUserId, string ownerId)
+    {
+        if (string.IsNullOrEmpty(currentUserId) || ownerId != currentUserId)
+        {
+            _snackbar.Add(ErrorMessages.NotAuthorizedToDelete, Severity.Error);
+            return false;
+        }
+
+        await _itemCardDataProvider.DeleteItemAsync(itemId);
+        _snackbar.Add("アイテムを削除しました。", Severity.Success);
+        return true;
     }
 }

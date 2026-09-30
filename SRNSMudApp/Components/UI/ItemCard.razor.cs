@@ -34,14 +34,9 @@ public partial class ItemCard : IAsyncDisposable
     [Inject] private IItemCardVoteCoordinator VoteCoordinator { get; set; } = null!;
     [Inject] private IItemCardSplitCoordinator SplitCoordinator { get; set; } = null!;
     [Inject] private IItemCardTagCoordinator TagCoordinator { get; set; } = null!;
-    [Inject] private IItemTagService ItemTagService { get; set; } = null!;
-    [Inject] private IItemReplyService ItemReplyService { get; set; } = null!;
-    [Inject] private IItemQuoteService ItemQuoteService { get; set; } = null!;
-    [Inject] private IItemSplitService ItemSplitService { get; set; } = null!;
     [Inject] private IDialogLauncher DialogLauncher { get; set; } = null!;
     [Inject] private ISnackbar Snackbar { get; set; } = null!;
     [Inject] private IJSRuntime JS { get; set; } = null!;
-    [Inject] private IItemCardDataProvider ItemCardData { get; set; } = null!;
     [Inject] private ItemCardActionViewModel ActionViewModel { get; set; } = null!;
     [Inject] private ILinkPreviewService PreviewService { get; set; } = null!;
     [Inject] private NavigationManager NavigationManager { get; set; } = null!;
@@ -126,17 +121,16 @@ public partial class ItemCard : IAsyncDisposable
 
         _loadedItemId = Item.Id;
         _isReplyPrivate = Item.IsPrivate;
-        _taggingRequests = await ItemTagService.GetTaggingRequestsForItemAsync(Item.Id) ?? [];
-        _pendingSplitRequests = await ItemSplitService.GetPendingSplitRequestsForOriginalItemAsync(Item.Id) ?? [];
-        _quoteCount = await ItemQuoteService.GetQuoteCountAsync(Item.Id);
+        _taggingRequests = await ActionViewModel.GetTaggingRequestsAsync(Item.Id);
+        _pendingSplitRequests = await ActionViewModel.GetPendingSplitRequestsAsync(Item.Id);
+        _quoteCount = await ActionViewModel.GetQuoteCountAsync(Item.Id);
         if (_isRepliesExpanded)
         {
             await LoadRepliesAsync();
         }
         else
         {
-            var count = await ItemReplyService.GetItemReplyCountAsync(Item.Id);
-            _replyCount = count > 0 ? count : (Item.Replies?.Count ?? 0);
+            _replyCount = await ActionViewModel.GetItemReplyCountAsync(Item.Id, Item.Replies?.Count ?? 0);
         }
     }
 
@@ -231,10 +225,10 @@ public partial class ItemCard : IAsyncDisposable
 
     private async Task LoadRepliesAsync()
     {
-        _replies = await ItemReplyService.GetItemRepliesAsync(Item.Id) ?? [];
+        _replies = await ActionViewModel.GetItemRepliesAsync(Item.Id);
         _replyCount = _replies.Count;
         var rootId = Item.RootItemId ?? Item.Id;
-        _optedOutUserIds = await ItemReplyService.GetOptedOutUsersAsync(rootId) ?? [];
+        _optedOutUserIds = await ActionViewModel.GetOptedOutUsersAsync(rootId);
         SyncSelectedTargets(GetReplyTargetCandidates());
     }
 
@@ -533,15 +527,10 @@ public partial class ItemCard : IAsyncDisposable
 
     private async Task DeleteItemAsync()
     {
-        if (Item.OwnerId != CurrentUserId)
+        if (await ActionViewModel.DeleteItemAsync(Item.Id, CurrentUserId, Item.OwnerId))
         {
-            _ = Snackbar.Add(ErrorMessages.NotAuthorizedToDelete, Severity.Error);
-            return;
+            await NotifyDataChangedAsync();
         }
-
-        await ItemCardData.DeleteItemAsync(Item.Id);
-        await NotifyDataChangedAsync();
-        _ = Snackbar.Add("アイテムを削除しました。", Severity.Success);
     }
 
     private async Task AdminForceDeleteItemAsync()
@@ -612,15 +601,7 @@ public partial class ItemCard : IAsyncDisposable
         if (string.IsNullOrEmpty(CurrentUserId)) return;
 
         var rootId = Item.RootItemId ?? Item.Id;
-        var optedOut = await ItemReplyService.ToggleConversationOptOutAsync(rootId, CurrentUserId);
-        if (optedOut)
-        {
-            Snackbar.Add("この会話から抜けました。以後のリプライでメンション対象から外れます。", Severity.Info);
-        }
-        else
-        {
-            Snackbar.Add("この会話に戻りました。", Severity.Success);
-        }
+        await ActionViewModel.ToggleConversationOptOutAsync(rootId, CurrentUserId);
     }
 
     // --- Text Split Logic (Delegated to SplitCoordinator) ---
@@ -675,7 +656,7 @@ public partial class ItemCard : IAsyncDisposable
 
     private async Task ReloadSplitRequestsAsync()
     {
-        _pendingSplitRequests = await ItemSplitService.GetPendingSplitRequestsForOriginalItemAsync(Item.Id) ?? [];
+        _pendingSplitRequests = await ActionViewModel.GetPendingSplitRequestsAsync(Item.Id);
     }
 
     // --- Tag Operations (Delegated to TagCoordinator) ---
@@ -688,7 +669,7 @@ public partial class ItemCard : IAsyncDisposable
                 await NotifyDataChangedAsync();
                 break;
             case TagAddOutcome.ContractProposed:
-                _taggingRequests = await ItemTagService.GetTaggingRequestsForItemAsync(Item.Id) ?? [];
+                _taggingRequests = await ActionViewModel.GetTaggingRequestsAsync(Item.Id);
                 StateHasChanged();
                 await NotifyDataChangedAsync();
                 break;

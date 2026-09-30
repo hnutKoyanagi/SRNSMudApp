@@ -1,4 +1,3 @@
-
 using SRNSMudApp.Data;
 
 namespace SRNSMudApp.Components.Pages;
@@ -13,4 +12,21 @@ public class TimelineFeedGroup
     public Data.Tag? Tag { get; set; }
 
     public IReadOnlyList<TimelineEvent> Events { get; set; } = [];
+}
+
+/// <summary>
+///     タイムラインの Virtualize 用 EqualityComparer。
+/// </summary>
+public sealed class TimelineFeedGroupComparer : IEqualityComparer<TimelineFeedGroup>
+{
+    public bool Equals(TimelineFeedGroup? x, TimelineFeedGroup? y)
+    {
+        return x?.TimelineTargetJson == y?.TimelineTargetJson;
+    }
+
+    public int GetHashCode(TimelineFeedGroup obj)
+    {
+        ArgumentNullException.ThrowIfNull(obj);
+        return HashCode.Combine(obj.TimelineTargetJson);
+    }
 }

@@ -1,11 +1,13 @@
 #region
 
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Net;
 using System.Text;
 
 using SRNSMudApp.Components.UI;
 using SRNSMudApp.Data;
+using SRNSMudApp.Models;
 using SRNSMudApp.Services;
 
 #endregion
@@ -14,7 +16,7 @@ namespace SRNSMudApp.Components.Item;
 
 /// <summary>
 ///     アイテム編集ダイアログ用 ViewModel。
-///     編集テキストの状態管理、文字数制約、内部リンク Pill HTML 生成、メンション検索、更新処理を担当する。
+///     編集テキストの状態管理、文字数制約、内部リンク Pill HTML 生成、メンション検索、リンクプレビュー取得、更新処理を担当する。
 /// </summary>
 public sealed class ItemEditViewModel
 {
@@ -23,15 +25,18 @@ public sealed class ItemEditViewModel
     private readonly ItemCardActionViewModel _actionViewModel;
     private readonly ITagSearchQueryService _tagSearchQueryService;
     private readonly IUserDataProvider _userDataProvider;
+    private readonly ILinkPreviewService _linkPreviewService;
 
     public ItemEditViewModel(
         ItemCardActionViewModel actionViewModel,
         ITagSearchQueryService tagSearchQueryService,
-        IUserDataProvider userDataProvider)
+        IUserDataProvider userDataProvider,
+        ILinkPreviewService linkPreviewService)
     {
         _actionViewModel = actionViewModel ?? throw new ArgumentNullException(nameof(actionViewModel));
         _tagSearchQueryService = tagSearchQueryService ?? throw new ArgumentNullException(nameof(tagSearchQueryService));
         _userDataProvider = userDataProvider ?? throw new ArgumentNullException(nameof(userDataProvider));
+        _linkPreviewService = linkPreviewService ?? throw new ArgumentNullException(nameof(linkPreviewService));
     }
 
     public Data.Item? Item { get; private set; }
@@ -51,6 +56,13 @@ public sealed class ItemEditViewModel
         Item = item;
         EditContent = item.Content ?? string.Empty;
     }
+
+    /// <summary>
+    ///     指定された URL のリンクプレビューを取得する。
+    /// </summary>
+    [SuppressMessage("Design", "CA1054:URI-like parameters should not be strings",
+        Justification = "Blazor コンポーネントおよび ILinkPreviewService の仕様に合わせて string を受け取るため")]
+    public Task<LinkPreviewData> GetPreviewAsync(string url) => _linkPreviewService.GetPreviewAsync(url);
 
     /// <summary>
     ///     アイテムの更新を保存する。

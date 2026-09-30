@@ -20,6 +20,9 @@ public sealed class ItemCardActionViewModelTests
     private readonly Mock<IItemReplyService> _replyServiceMock = new();
     private readonly Mock<IItemCardDataProvider> _cardDataMock = new();
     private readonly Mock<ITaggingContractService> _contractServiceMock = new();
+    private readonly Mock<IItemTagService> _tagServiceMock = new();
+    private readonly Mock<IItemSplitService> _splitServiceMock = new();
+    private readonly Mock<IItemQuoteService> _quoteServiceMock = new();
     private readonly Mock<ISnackbar> _snackbarMock = new();
     private readonly ItemCardActionViewModel _sut;
 
@@ -29,6 +32,9 @@ public sealed class ItemCardActionViewModelTests
             _replyServiceMock.Object,
             _cardDataMock.Object,
             _contractServiceMock.Object,
+            _tagServiceMock.Object,
+            _splitServiceMock.Object,
+            _quoteServiceMock.Object,
             _snackbarMock.Object);
     }
 
@@ -329,5 +335,189 @@ public sealed class ItemCardActionViewModelTests
         Assert.False(result);
         Assert.NotEqual(TradeStatus.Executed, request.Status);
         _snackbarMock.Verify(s => s.Add("エラー: 契約の有効期限が切れています。", Severity.Error, null, null), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetTaggingRequestsAsync_WhenItemIdValid_ReturnsList()
+    {
+        List<TaggingRequestEntity> requests = [new() { Id = 1, OwnerId = CurrentUserId }];
+        _tagServiceMock.Setup(s => s.GetTaggingRequestsForItemAsync(10)).ReturnsAsync(requests);
+
+        var result = await _sut.GetTaggingRequestsAsync(10);
+
+        Assert.Equal(requests, result);
+    }
+
+    [Fact]
+    public async Task GetTaggingRequestsAsync_WhenItemIdInvalid_ReturnsEmpty()
+    {
+        var result = await _sut.GetTaggingRequestsAsync(0);
+
+        Assert.Empty(result);
+        _tagServiceMock.Verify(s => s.GetTaggingRequestsForItemAsync(It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetPendingSplitRequestsAsync_WhenItemIdValid_ReturnsList()
+    {
+        List<ItemSplitRequest> requests = [new() { Id = 1, OriginalItemId = 10, RequesterUserId = CurrentUserId, SelectedText = "text", OwnerId = CurrentUserId }];
+        _splitServiceMock.Setup(s => s.GetPendingSplitRequestsForOriginalItemAsync(10)).ReturnsAsync(requests);
+
+        var result = await _sut.GetPendingSplitRequestsAsync(10);
+
+        Assert.Equal(requests, result);
+    }
+
+    [Fact]
+    public async Task GetPendingSplitRequestsAsync_WhenItemIdInvalid_ReturnsEmpty()
+    {
+        var result = await _sut.GetPendingSplitRequestsAsync(-1);
+
+        Assert.Empty(result);
+        _splitServiceMock.Verify(s => s.GetPendingSplitRequestsForOriginalItemAsync(It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetQuoteCountAsync_WhenItemIdValid_ReturnsCount()
+    {
+        _quoteServiceMock.Setup(s => s.GetQuoteCountAsync(10)).ReturnsAsync(5);
+
+        int count = await _sut.GetQuoteCountAsync(10);
+
+        Assert.Equal(5, count);
+    }
+
+    [Fact]
+    public async Task GetQuoteCountAsync_WhenItemIdInvalid_ReturnsZero()
+    {
+        int count = await _sut.GetQuoteCountAsync(0);
+
+        Assert.Equal(0, count);
+        _quoteServiceMock.Verify(s => s.GetQuoteCountAsync(It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetItemRepliesAsync_WhenItemIdValid_ReturnsList()
+    {
+        List<SRNSMudApp.Data.Item> replies = [new() { Id = 20, OwnerId = CurrentUserId }];
+        _replyServiceMock.Setup(s => s.GetItemRepliesAsync(10)).ReturnsAsync(replies);
+
+        var result = await _sut.GetItemRepliesAsync(10);
+
+        Assert.Equal(replies, result);
+    }
+
+    [Fact]
+    public async Task GetItemRepliesAsync_WhenItemIdInvalid_ReturnsEmpty()
+    {
+        var result = await _sut.GetItemRepliesAsync(0);
+
+        Assert.Empty(result);
+        _replyServiceMock.Verify(s => s.GetItemRepliesAsync(It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetItemReplyCountAsync_WhenServiceReturnsPositive_ReturnsServiceCount()
+    {
+        _replyServiceMock.Setup(s => s.GetItemReplyCountAsync(10)).ReturnsAsync(3);
+
+        int count = await _sut.GetItemReplyCountAsync(10, fallbackCount: 1);
+
+        Assert.Equal(3, count);
+    }
+
+    [Fact]
+    public async Task GetItemReplyCountAsync_WhenServiceReturnsZero_ReturnsFallbackCount()
+    {
+        _replyServiceMock.Setup(s => s.GetItemReplyCountAsync(10)).ReturnsAsync(0);
+
+        int count = await _sut.GetItemReplyCountAsync(10, fallbackCount: 4);
+
+        Assert.Equal(4, count);
+    }
+
+    [Fact]
+    public async Task GetItemReplyCountAsync_WhenItemIdInvalid_ReturnsFallbackCount()
+    {
+        int count = await _sut.GetItemReplyCountAsync(0, fallbackCount: 2);
+
+        Assert.Equal(2, count);
+        _replyServiceMock.Verify(s => s.GetItemReplyCountAsync(It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetOptedOutUsersAsync_WhenRootItemIdValid_ReturnsSet()
+    {
+        HashSet<string> users = ["user-1", "user-2"];
+        _replyServiceMock.Setup(s => s.GetOptedOutUsersAsync(10)).ReturnsAsync(users);
+
+        var result = await _sut.GetOptedOutUsersAsync(10);
+
+        Assert.Equal(users, result);
+    }
+
+    [Fact]
+    public async Task GetOptedOutUsersAsync_WhenRootItemIdInvalid_ReturnsEmpty()
+    {
+        var result = await _sut.GetOptedOutUsersAsync(0);
+
+        Assert.Empty(result);
+        _replyServiceMock.Verify(s => s.GetOptedOutUsersAsync(It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ToggleConversationOptOutAsync_WhenUserEmptyOrRootIdInvalid_ReturnsFalse()
+    {
+        Assert.False(await _sut.ToggleConversationOptOutAsync(10, ""));
+        Assert.False(await _sut.ToggleConversationOptOutAsync(0, CurrentUserId));
+        _replyServiceMock.Verify(s => s.ToggleConversationOptOutAsync(It.IsAny<int>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ToggleConversationOptOutAsync_WhenOptedOut_ShowsInfoSnackbar()
+    {
+        _replyServiceMock.Setup(s => s.ToggleConversationOptOutAsync(10, CurrentUserId)).ReturnsAsync(true);
+
+        bool result = await _sut.ToggleConversationOptOutAsync(10, CurrentUserId);
+
+        Assert.True(result);
+        _snackbarMock.Verify(s => s.Add(It.Is<string>(m => m.Contains("抜けました")), Severity.Info, null, null), Times.Once);
+    }
+
+    [Fact]
+    public async Task ToggleConversationOptOutAsync_WhenOptedIn_ShowsSuccessSnackbar()
+    {
+        _replyServiceMock.Setup(s => s.ToggleConversationOptOutAsync(10, CurrentUserId)).ReturnsAsync(false);
+
+        bool result = await _sut.ToggleConversationOptOutAsync(10, CurrentUserId);
+
+        Assert.False(result);
+        _snackbarMock.Verify(s => s.Add(It.Is<string>(m => m.Contains("戻りました")), Severity.Success, null, null), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteItemAsync_WhenUserEmpty_ReturnsFalseAndShowsError()
+    {
+        Assert.False(await _sut.DeleteItemAsync(10, "", "owner"));
+        _cardDataMock.Verify(d => d.DeleteItemAsync(It.IsAny<int>()), Times.Never);
+        _snackbarMock.Verify(s => s.Add(ErrorMessages.NotAuthorizedToDelete, Severity.Error, null, null), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteItemAsync_WhenNotOwner_ReturnsFalseAndShowsError()
+    {
+        Assert.False(await _sut.DeleteItemAsync(10, CurrentUserId, "other-user"));
+        _cardDataMock.Verify(d => d.DeleteItemAsync(It.IsAny<int>()), Times.Never);
+        _snackbarMock.Verify(s => s.Add(ErrorMessages.NotAuthorizedToDelete, Severity.Error, null, null), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteItemAsync_WhenOwner_CallsServiceAndShowsSuccess()
+    {
+        bool result = await _sut.DeleteItemAsync(10, CurrentUserId, CurrentUserId);
+
+        Assert.True(result);
+        _cardDataMock.Verify(d => d.DeleteItemAsync(10), Times.Once);
+        _snackbarMock.Verify(s => s.Add("アイテムを削除しました。", Severity.Success, null, null), Times.Once);
     }
 }

@@ -9,163 +9,98 @@ using MudBlazor;
 using SRNSMudApp.Components.UI;
 using SRNSMudApp.Data;
 using SRNSMudApp.Models;
-using SRNSMudApp.Models.Unions;
-using SRNSMudApp.Services;
 using SRNSMudApp.Services.Dialogs;
-
-// 兄弟名前空間 SRNSMudApp.Components.Tag / .Item が同名型と解決されるため、
-// エイリアスを名前空間の内側に置く
-
-// CA1508: union 型パターンマッチにおける解析器の誤検知のため抑制する。
-// IDE0051: ITaggingService は元の .razor の @inject を機械的に移したものであり、DI 登録を維持するため残す。
-#pragma warning disable CA1508, IDE0010, IDE0051
 
 namespace SRNSMudApp.Components.Pages;
 
 /// <summary>
 ///     NotificationsPage のコードビハインド。
-///     マークアップ (.razor) 側は表示のみを担い、通知取得・既読処理・リクエスト承認/却下などの
+///     マークアップ (.razor) 側は表示のみを担い、ダイアログ起動や通知クリックなどの
 ///     UI オーケストレーションはこちらに集約する。
+///     データアクセスおよびビジネスロジックは <see cref="NotificationsViewModel" /> へ委譲する。
 /// </summary>
 public partial class NotificationsPage
 {
     [CascadingParameter] private Task<AuthenticationState> AuthenticationStateTask { get; set; } = default!;
 
-    [Inject] private INotificationService NotificationService { get; set; } = null!;
+    [Inject] private NotificationsViewModel ViewModel { get; set; } = null!;
     [Inject] private NavigationManager NavigationManager { get; set; } = null!;
-    [Inject] private IHomeDataProvider HomeData { get; set; } = null!;
-    [Inject] private INotificationsDataProvider NotificationsData { get; set; } = null!;
-    [Inject] private ITaggingRequestActions RequestActions { get; set; } = null!;
-    [Inject] private ISystemTagEnsurer SystemTagEnsurer { get; set; } = null!;
-    [Inject] private ITaggingContractService TaggingContractService { get; set; } = null!;
-    [Inject] private ITaggingService TaggingService { get; set; } = null!;
     [Inject] private ISnackbar Snackbar { get; set; } = null!;
     [Inject] private IDialogLauncher DialogLauncher { get; set; } = null!;
-    [Inject] private IItemSplitService ItemSplitService { get; set; } = null!;
-    [Inject] private ITagContentProposalService TagContentProposalService { get; set; } = null!;
-    [Inject] private ITagNameProposalService TagNameProposalService { get; set; } = null!;
 
-    private string? _userId;
-    private IReadOnlyList<NotificationDto> _notifications = [];
-    private bool _isLoading = true;
-
-    private List<Data.Tag> _allTags = [];
-    private List<TagRelationToTag> _allTagRelationsToTags = [];
-    private int? _currentUserGoodTagId;
-    private int? _currentUserBadTagId;
-    private int? _currentUserShinjiTagId;
-    private int? _currentUserZenTagId;
-    private int? _currentUserBiTagId;
+#pragma warning disable IDE1006 // Naming Styles for Blazor markup bindings
+    private bool _isLoading => ViewModel.IsLoading;
+    private IReadOnlyList<NotificationDto> _notifications => ViewModel.Notifications;
+    private string? _userId => ViewModel.CurrentUserId;
+    private List<Data.Tag> _allTags => ViewModel.AllTags;
+    private List<TagRelationToTag> _allTagRelationsToTags => ViewModel.AllTagRelationsToTags;
+    private int? _currentUserGoodTagId => ViewModel.CurrentUserGoodTagId;
+    private int? _currentUserBadTagId => ViewModel.CurrentUserBadTagId;
+    private int? _currentUserShinjiTagId => ViewModel.CurrentUserShinjiTagId;
+    private int? _currentUserZenTagId => ViewModel.CurrentUserZenTagId;
+    private int? _currentUserBiTagId => ViewModel.CurrentUserBiTagId;
+#pragma warning restore IDE1006
 
     protected override async Task OnInitializedAsync()
     {
         AuthenticationState authState = await AuthenticationStateTask;
         ClaimsPrincipal user = authState.User;
-        if (user.Identity?.IsAuthenticated == true)
-        {
-            _userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (_userId != null)
-            {
-                _notifications = await NotificationService.GetUserNotificationsAsync(_userId);
+        string? userId = user.Identity?.IsAuthenticated == true
+            ? user.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            : null;
 
-                await FetchTagsAsync();
-                await FetchAssociatedItemsAsync();
-
-                // 通知ページ閲覧時にバッジをリセットし、未読通知を既読化する
-                await NotificationService.MarkAllAsReadAsync(_userId);
-            }
-        }
-        _isLoading = false;
+        await ViewModel.InitializeAsync(userId);
     }
 
-    private async Task FetchTagsAsync()
-    {
-        (List<Data.Tag> tags, List<TagRelationToTag> relations) = await HomeData.GetTagsAndRelationsAsync();
-        _allTags = tags;
-        _allTagRelationsToTags = relations;
-
-        if (!string.IsNullOrEmpty(_userId))
-        {
-            SystemTagIds systemTags = ResourceListViewModel.FindSystemTags(_allTags, _userId);
-            _currentUserGoodTagId = systemTags.GoodTagId;
-            _currentUserBadTagId = systemTags.BadTagId;
-
-            ReactionTagIds reactionTags = ResourceListViewModel.FindReactionTags(_allTags, _userId);
-            _currentUserShinjiTagId = reactionTags.ShinjiTagId;
-            _currentUserZenTagId = reactionTags.ZenTagId;
-            _currentUserBiTagId = reactionTags.BiTagId;
-        }
-    }
-
-    private async Task FetchAssociatedItemsAsync()
-    {
-        IReadOnlyList<int> itemIds = NotificationsViewModel.GetAssociatedItemIds(_notifications);
-        if (itemIds.Count == 0)
-        {
-            return;
-        }
-
-        List<Data.Item> items = await NotificationsData.GetAssociatedItemsAsync(itemIds);
-        NotificationsViewModel.MapAssociatedItems(_notifications, items);
-    }
-
-    public async Task EnsureSystemTagsExistAsync()
-    {
-        (SystemTagIds voteIds, ReactionTagIds reactionIds, var refetch) = await SystemTagEnsurer.EnsureAllAsync(
-            _userId,
-            new SystemTagIds(_currentUserGoodTagId, _currentUserBadTagId),
-            new ReactionTagIds(_currentUserShinjiTagId, _currentUserZenTagId, _currentUserBiTagId));
-
-        _currentUserGoodTagId = voteIds.GoodTagId;
-        _currentUserBadTagId = voteIds.BadTagId;
-        _currentUserShinjiTagId = reactionIds.ShinjiTagId;
-        _currentUserZenTagId = reactionIds.ZenTagId;
-        _currentUserBiTagId = reactionIds.BiTagId;
-
-        if (refetch)
-        {
-            await FetchTagsAsync();
-        }
-    }
+    public Task EnsureSystemTagsExistAsync() => ViewModel.EnsureSystemTagsExistAsync();
 
     private async Task HandleNotificationClick(NotificationDto notification)
     {
-        if (!notification.IsRead && _userId != null)
-        {
-            await NotificationService.MarkAsReadAsync(_userId, notification.SourceId, notification.Kind.SourceType);
-        }
+        await ViewModel.MarkAsReadAsync(notification);
         NavigationManager.NavigateTo(notification.TargetUrl.ToHref());
     }
 
     private static string GetRelativeTime(DateTimeOffset dateTime) => NotificationsViewModel.GetRelativeTime(dateTime);
 
-    private async Task ApproveRequestAsync(NotificationDto notification)
+    private void ApplyResult(TagCardActionResult result)
     {
-        if (_userId == null)
+        switch (result.Type)
         {
-            return;
+            case TagCardActionResultType.Warning:
+                if (result.Message != null)
+                {
+                    _ = Snackbar.Add(result.Message, Severity.Warning);
+                }
+                break;
+            case TagCardActionResultType.Error:
+                if (result.Message != null)
+                {
+                    _ = Snackbar.Add(result.Message, Severity.Error);
+                }
+                break;
+            case TagCardActionResultType.Success:
+                if (result.Message != null)
+                {
+                    _ = Snackbar.Add(result.Message, Severity.Success);
+                }
+                break;
+            case TagCardActionResultType.NoOp:
+            default:
+                break;
         }
 
-        if (!await RequestActions.ApproveAsync(notification.SourceId, _userId))
+        if (result.ShouldNotifyChanged)
         {
-            return;
+            StateHasChanged();
         }
-
-        // UIを更新 (IReadOnlyList のため関数型に置換)
-        if (notification.Kind is TagRequestNotification reqNote)
-        {
-            NotificationDto updated = notification with
-            {
-                Kind = reqNote with { Status = TradeStatus.Executed },
-                IsRead = true
-            };
-            _notifications = [.. _notifications.Select(n => ReferenceEquals(n, notification) ? updated : n)];
-        }
-        StateHasChanged();
     }
 
-    [SuppressMessage("Design", "CA1031:Do not catch general exception types",
-        Justification = "UI 層で発生した例外の内容をユーザーへ通知するために広く捕捉する")]
+    private async Task ApproveRequestAsync(NotificationDto notification)
+    {
+        TagCardActionResult result = await ViewModel.ApproveRequestAsync(notification);
+        ApplyResult(result);
+    }
+
     private async Task RejectRequestAsync(NotificationDto notification)
     {
         if (_userId == null)
@@ -175,67 +110,22 @@ public partial class NotificationsPage
 
         var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
         IDialogReference dialog = await DialogLauncher.ShowAsync<RejectRequestDialog>("リクエストを却下", options);
-        DialogResult? result = await dialog.Result;
+        DialogResult? dialogResult = await dialog.Result;
 
-        if (result is { Canceled: false })
+        if (dialogResult is { Canceled: false })
         {
-            try
-            {
-                var comment = result.Data as string;
-                _ = await TaggingContractService.CancelContractAsync(notification.SourceId, _userId);
-                _ = Snackbar.Add("リクエストを却下しました。", Severity.Success);
-
-                // UIを更新 (IReadOnlyList のため関数型に置換)
-                if (notification.Kind is TagRequestNotification reqNote)
-                {
-                    NotificationDto updated = notification with
-                    {
-                        Kind = reqNote with { Status = TradeStatus.Rejected },
-                        IsRead = true
-                    };
-                    _notifications = [.. _notifications.Select(n => ReferenceEquals(n, notification) ? updated : n)];
-                }
-                StateHasChanged();
-            }
-            catch (Exception ex)
-            {
-                _ = Snackbar.Add($"エラー: {ex.Message}", Severity.Error);
-            }
+            var comment = dialogResult.Data as string;
+            TagCardActionResult result = await ViewModel.RejectRequestAsync(notification, comment);
+            ApplyResult(result);
         }
     }
 
     private async Task ApproveSplitRequestAsync(NotificationDto notification)
     {
-        if (_userId == null)
-        {
-            return;
-        }
-
-        Result<Data.Item> result = await ItemSplitService.ApproveSplitAsync(notification.SourceId, _userId);
-        switch (result)
-        {
-            case Success<Data.Item>:
-                _ = Snackbar.Add("分割リクエストを承認しました。", Severity.Success);
-                if (notification.Kind is ItemSplitRequestNotification splitNote)
-                {
-                    NotificationDto updated = notification with
-                    {
-                        Kind = splitNote with { Status = TradeStatus.Executed },
-                        IsRead = true
-                    };
-                    _notifications = [.. _notifications.Select(n => ReferenceEquals(n, notification) ? updated : n)];
-                }
-                await FetchAssociatedItemsAsync();
-                StateHasChanged();
-                break;
-            case Failure fail:
-                _ = Snackbar.Add(fail.ErrorMessage, Severity.Error);
-                break;
-        }
+        TagCardActionResult result = await ViewModel.ApproveSplitRequestAsync(notification);
+        ApplyResult(result);
     }
 
-    [SuppressMessage("Design", "CA1031:Do not catch general exception types",
-        Justification = "UI 層で発生した例外の内容をユーザーへ通知するために広く捕捉する")]
     private async Task RejectSplitRequestAsync(NotificationDto notification)
     {
         if (_userId == null)
@@ -245,73 +135,22 @@ public partial class NotificationsPage
 
         var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
         IDialogReference dialog = await DialogLauncher.ShowAsync<RejectRequestDialog>("分割リクエストを却下", options);
-        DialogResult? result = await dialog.Result;
+        DialogResult? dialogResult = await dialog.Result;
 
-        if (result is { Canceled: false })
+        if (dialogResult is { Canceled: false })
         {
-            try
-            {
-                var comment = result.Data as string;
-                Result<bool> rejectResult = await ItemSplitService.RejectSplitAsync(notification.SourceId, _userId, comment);
-                switch (rejectResult)
-                {
-                    case Success<bool>:
-                        _ = Snackbar.Add("分割リクエストを却下しました。", Severity.Success);
-                        if (notification.Kind is ItemSplitRequestNotification splitNote)
-                        {
-                            NotificationDto updated = notification with
-                            {
-                                Kind = splitNote with { Status = TradeStatus.Rejected },
-                                IsRead = true
-                            };
-                            _notifications = [.. _notifications.Select(n => ReferenceEquals(n, notification) ? updated : n)];
-                        }
-                        StateHasChanged();
-                        break;
-                    case Failure fail:
-                        _ = Snackbar.Add(fail.ErrorMessage, Severity.Error);
-                        break;
-                }
-            }
-            catch (Exception ex)
-            {
-                _ = Snackbar.Add($"エラー: {ex.Message}", Severity.Error);
-            }
+            var comment = dialogResult.Data as string;
+            TagCardActionResult result = await ViewModel.RejectSplitRequestAsync(notification, comment);
+            ApplyResult(result);
         }
     }
 
     private async Task ApproveTagProposalAsync(NotificationDto notification)
     {
-        if (_userId == null)
-        {
-            return;
-        }
-
-        Result<Data.Tag> result = await TagContentProposalService.ApproveProposalAsync(notification.SourceId, _userId);
-        switch (result)
-        {
-            case Success<Data.Tag>:
-                _ = Snackbar.Add("編集提案を承認しました。", Severity.Success);
-                if (notification.Kind is TagContentProposalNotification proposalNote)
-                {
-                    NotificationDto updated = notification with
-                    {
-                        Kind = proposalNote with { Status = TradeStatus.Executed },
-                        IsRead = true
-                    };
-                    _notifications = [.. _notifications.Select(n => ReferenceEquals(n, notification) ? updated : n)];
-                }
-                await FetchTagsAsync();
-                StateHasChanged();
-                break;
-            case Failure fail:
-                _ = Snackbar.Add(fail.ErrorMessage, Severity.Error);
-                break;
-        }
+        TagCardActionResult result = await ViewModel.ApproveTagProposalAsync(notification);
+        ApplyResult(result);
     }
 
-    [SuppressMessage("Design", "CA1031:Do not catch general exception types",
-        Justification = "UI 層で発生した例外の内容をユーザーへ通知するために広く捕捉する")]
     private async Task RejectTagProposalAsync(NotificationDto notification)
     {
         if (_userId == null)
@@ -321,73 +160,22 @@ public partial class NotificationsPage
 
         var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
         IDialogReference dialog = await DialogLauncher.ShowAsync<RejectRequestDialog>("編集提案を却下", options);
-        DialogResult? result = await dialog.Result;
+        DialogResult? dialogResult = await dialog.Result;
 
-        if (result is { Canceled: false })
+        if (dialogResult is { Canceled: false })
         {
-            try
-            {
-                var comment = result.Data as string;
-                Result<bool> rejectResult = await TagContentProposalService.RejectProposalAsync(notification.SourceId, _userId, comment);
-                switch (rejectResult)
-                {
-                    case Success<bool>:
-                        _ = Snackbar.Add("編集提案を却下しました。", Severity.Success);
-                        if (notification.Kind is TagContentProposalNotification proposalNote)
-                        {
-                            NotificationDto updated = notification with
-                            {
-                                Kind = proposalNote with { Status = TradeStatus.Rejected },
-                                IsRead = true
-                            };
-                            _notifications = [.. _notifications.Select(n => ReferenceEquals(n, notification) ? updated : n)];
-                        }
-                        StateHasChanged();
-                        break;
-                    case Failure fail:
-                        _ = Snackbar.Add(fail.ErrorMessage, Severity.Error);
-                        break;
-                }
-            }
-            catch (Exception ex)
-            {
-                _ = Snackbar.Add($"エラー: {ex.Message}", Severity.Error);
-            }
+            var comment = dialogResult.Data as string;
+            TagCardActionResult result = await ViewModel.RejectTagProposalAsync(notification, comment);
+            ApplyResult(result);
         }
     }
 
     private async Task ApproveTagNameProposalAsync(NotificationDto notification)
     {
-        if (_userId == null)
-        {
-            return;
-        }
-
-        Result<Data.Tag> result = await TagNameProposalService.ApproveProposalAsync(notification.SourceId, _userId);
-        switch (result)
-        {
-            case Success<Data.Tag>:
-                _ = Snackbar.Add("名前変更提案を承認しました。", Severity.Success);
-                if (notification.Kind is TagNameProposalNotification proposalNote)
-                {
-                    NotificationDto updated = notification with
-                    {
-                        Kind = proposalNote with { Status = TradeStatus.Executed },
-                        IsRead = true
-                    };
-                    _notifications = [.. _notifications.Select(n => ReferenceEquals(n, notification) ? updated : n)];
-                }
-                await FetchTagsAsync();
-                StateHasChanged();
-                break;
-            case Failure fail:
-                _ = Snackbar.Add(fail.ErrorMessage, Severity.Error);
-                break;
-        }
+        TagCardActionResult result = await ViewModel.ApproveTagNameProposalAsync(notification);
+        ApplyResult(result);
     }
 
-    [SuppressMessage("Design", "CA1031:Do not catch general exception types",
-        Justification = "UI 層で発生した例外の内容をユーザーへ通知するために広く捕捉する")]
     private async Task RejectTagNameProposalAsync(NotificationDto notification)
     {
         if (_userId == null)
@@ -397,38 +185,13 @@ public partial class NotificationsPage
 
         var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
         IDialogReference dialog = await DialogLauncher.ShowAsync<RejectRequestDialog>("名前変更提案を却下", options);
-        DialogResult? result = await dialog.Result;
+        DialogResult? dialogResult = await dialog.Result;
 
-        if (result is { Canceled: false })
+        if (dialogResult is { Canceled: false })
         {
-            try
-            {
-                var comment = result.Data as string;
-                Result<bool> rejectResult = await TagNameProposalService.RejectProposalAsync(notification.SourceId, _userId, comment);
-                switch (rejectResult)
-                {
-                    case Success<bool>:
-                        _ = Snackbar.Add("名前変更提案を却下しました。", Severity.Success);
-                        if (notification.Kind is TagNameProposalNotification proposalNote)
-                        {
-                            NotificationDto updated = notification with
-                            {
-                                Kind = proposalNote with { Status = TradeStatus.Rejected },
-                                IsRead = true
-                            };
-                            _notifications = [.. _notifications.Select(n => ReferenceEquals(n, notification) ? updated : n)];
-                        }
-                        StateHasChanged();
-                        break;
-                    case Failure fail:
-                        _ = Snackbar.Add(fail.ErrorMessage, Severity.Error);
-                        break;
-                }
-            }
-            catch (Exception ex)
-            {
-                _ = Snackbar.Add($"エラー: {ex.Message}", Severity.Error);
-            }
+            var comment = dialogResult.Data as string;
+            TagCardActionResult result = await ViewModel.RejectTagNameProposalAsync(notification, comment);
+            ApplyResult(result);
         }
     }
 }

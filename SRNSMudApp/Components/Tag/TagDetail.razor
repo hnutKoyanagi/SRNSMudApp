@@ -7,14 +7,10 @@
 @using SRNSMudApp.Models.Unions
 @using SRNSMudApp.Components.UI
 @using SRNSMudApp.Components.Contract
-@inject ITagDetailDataProvider TagDetailData
-@inject ITagCommandService TagCommandService
-@inject ITagContentProposalService TagContentProposalService
-@inject ITagNameProposalService TagNameProposalService
+@inject TagDetailViewModel ViewModel
 @inject IDialogLauncher DialogLauncher
 @inject NavigationManager NavigationManager
 @inject ISnackbar Snackbar
-@inject ITagLockService TagLockService
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-5">
     @if (_tag is null)
@@ -469,34 +465,33 @@
 
     [Parameter] public int TagId { get; set; }
 
-    private Tag? _tag;
-    private IEnumerable<Item> _relatedItems = [];
-    private IEnumerable<Tag> _relatedTags = [];
-    private IEnumerable<TagWeightLedger> _weightLedgers = [];
-    private IEnumerable<PublicTradeOffer> _publicOffers = [];
-    private IEnumerable<TaggingRequestEntity> _pendingRequests = [];
-    private IReadOnlyList<TagContentProposal> _pendingProposals = [];
-    private IReadOnlyList<TagNameProposal> _pendingNameProposals = [];
-    private RightAssetOverviewData? _rightAssetOverview;
-    private bool _isFollowing;
-    private string? _currentUserId;
-    private bool _isAdmin;
-    private bool _areAncestorsLocked;
-    private bool _isTagOrSiblingLocked;
-    private bool _isTogglingAncestorsLock;
-    private bool _isTogglingTagLock;
+    private Tag? _tag => ViewModel.Tag;
+    private IEnumerable<Item> _relatedItems => ViewModel.RelatedItems;
+    private IEnumerable<Tag> _relatedTags => ViewModel.RelatedTags;
+    private IEnumerable<TagWeightLedger> _weightLedgers => ViewModel.WeightLedgers;
+    private IEnumerable<PublicTradeOffer> _publicOffers => ViewModel.PublicOffers;
+    private IEnumerable<TaggingRequestEntity> _pendingRequests => ViewModel.PendingRequests;
+    private IReadOnlyList<TagContentProposal> _pendingProposals => ViewModel.PendingProposals;
+    private IReadOnlyList<TagNameProposal> _pendingNameProposals => ViewModel.PendingNameProposals;
+    private RightAssetOverviewData? _rightAssetOverview => ViewModel.RightAssetOverview;
+    private bool _isFollowing => ViewModel.IsFollowing;
+    private string? _currentUserId => ViewModel.CurrentUserId;
+    private bool _isAdmin => ViewModel.IsAdmin;
+    private bool _areAncestorsLocked => ViewModel.AreAncestorsLocked;
+    private bool _isTagOrSiblingLocked => ViewModel.IsTagOrSiblingLocked;
+    private bool _isTogglingAncestorsLock => ViewModel.IsTogglingAncestorsLock;
+    private bool _isTogglingTagLock => ViewModel.IsTogglingTagLock;
 
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthState!;
-        _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        _isAdmin = authState.User.IsInRole("Admin");
+        ViewModel.SetUserContext(authState.User);
         await LoadDataAsync();
     }
 
     protected override async Task OnParametersSetAsync()
     {
-        if (_tag is { Id: var id } && id != TagId)
+        if (ViewModel.Tag is { Id: var id } && id != TagId)
         {
             await LoadDataAsync();
         }
@@ -504,106 +499,19 @@
 
     private async Task LoadDataAsync()
     {
-        TagDetailPageData data = await TagDetailData.GetTagDetailAsync(TagId, _currentUserId);
-        _tag = data.Tag;
-        _isFollowing = data.IsFollowing;
-        _relatedItems = data.RelatedItems;
-        _relatedTags = data.RelatedTags;
-        _weightLedgers = data.WeightLedgers;
-        _publicOffers = data.PublicOffers;
-        _pendingRequests = data.PendingRequests;
-        _rightAssetOverview = data.RightAssetOverview;
-        _pendingProposals = await TagContentProposalService.GetPendingProposalsForTagAsync(TagId);
-        _pendingNameProposals = await TagNameProposalService.GetPendingProposalsForTagAsync(TagId);
-        _areAncestorsLocked = await TagLockService.AreAncestorsLockedAsync(TagId);
-        _isTagOrSiblingLocked = await TagLockService.IsTagOrSiblingLockedAsync(TagId);
+        await ViewModel.LoadDataAsync(TagId);
     }
 
     private async Task OnToggleThisTagLockAsync(bool shouldLock)
     {
-        if (!_isAdmin || _isTogglingTagLock || _tag is null)
-        {
-            return;
-        }
-
-        _isTogglingTagLock = true;
-        try
-        {
-            bool isLocked = await TagLockService.ToggleTagLockAsync(TagId);
-            Snackbar.Add(isLocked ? "このタグを個別ロックしました。" : "このタグの個別ロックを解除しました。", Severity.Success);
-            await LoadDataAsync();
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"タグのロック操作に失敗しました: {ex.Message}", Severity.Error);
-        }
-        finally
-        {
-            _isTogglingTagLock = false;
-        }
+        var (success, message, _) = await ViewModel.ToggleThisTagLockAsync();
+        Snackbar.Add(message, success ? Severity.Success : Severity.Error);
     }
 
     private async Task OnToggleAncestorsLockAsync(bool shouldLock)
     {
-        if (!_isAdmin || _isTogglingAncestorsLock)
-        {
-            return;
-        }
-
-        _isTogglingAncestorsLock = true;
-        try
-        {
-            if (shouldLock)
-            {
-                await LockAncestorsAsync();
-            }
-            else
-            {
-                await UnlockAncestorsAsync();
-            }
-        }
-        finally
-        {
-            _isTogglingAncestorsLock = false;
-        }
-    }
-
-    private async Task LockAncestorsAsync()
-    {
-        if (!_isAdmin)
-        {
-            return;
-        }
-
-        try
-        {
-            await TagLockService.LockAncestorsAsync(TagId);
-            Snackbar.Add("このタグの祖先をロックしました。", Severity.Success);
-            await LoadDataAsync();
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"祖先のロックに失敗しました: {ex.Message}", Severity.Error);
-        }
-    }
-
-    private async Task UnlockAncestorsAsync()
-    {
-        if (!_isAdmin)
-        {
-            return;
-        }
-
-        try
-        {
-            await TagLockService.UnlockAncestorsAsync(TagId);
-            Snackbar.Add("このタグの祖先のロックを解除しました。", Severity.Success);
-            await LoadDataAsync();
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"祖先のロック解除に失敗しました: {ex.Message}", Severity.Error);
-        }
+        var (success, message) = await ViewModel.ToggleAncestorsLockAsync(shouldLock);
+        Snackbar.Add(message, success ? Severity.Success : Severity.Error);
     }
 
     private async Task OpenEditDialog()
@@ -664,7 +572,7 @@
         {
             try
             {
-                var deleteResult = await TagDetailData.DeleteTagWithResultAsync(_tag.Id, _currentUserId, _isAdmin);
+                var deleteResult = await ViewModel.DeleteTagAsync();
                 switch (deleteResult)
                 {
                     case TagDeleteOperationResult.Success:
@@ -695,30 +603,12 @@
 
     private async Task ToggleFollowAsync()
     {
-        if (_currentUserId is null || _tag is null)
-        {
-            return;
-        }
-
-        _isFollowing = await TagDetailData.ToggleFollowAsync(TagId, _currentUserId);
+        await ViewModel.ToggleFollowAsync();
     }
 
     private async Task OnAutoAcceptChangedAsync(bool enabled)
     {
-        if (_tag is null)
-        {
-            return;
-        }
-
-        var groupIds = _tag.AutoApproveUserGroups.Select(g => g.UserGroupId).ToList();
-
-        bool updated = await TagCommandService.UpdateTagAsync(_tag.Id, _tag.Name, _tag.Content, enabled, groupIds);
-        if (!updated)
-        {
-            return;
-        }
-
-        _tag.AutoAcceptIncomingTaggingRequests = enabled;
+        await ViewModel.UpdateAutoAcceptAsync(enabled);
     }
 
     private async Task OpenReportDialogAsync()
@@ -785,17 +675,11 @@
 
     private async Task ApproveProposalAsync(int proposalId)
     {
-        if (_currentUserId is null)
-        {
-            return;
-        }
-
-        Result<Tag> result = await TagContentProposalService.ApproveProposalAsync(proposalId, _currentUserId);
+        Result<Tag> result = await ViewModel.ApproveContentProposalAsync(proposalId);
         switch (result)
         {
             case Success<Tag>:
                 Snackbar.Add("編集提案を承認しました。", Severity.Success);
-                await LoadDataAsync();
                 break;
             case Failure fail:
                 Snackbar.Add(fail.ErrorMessage, Severity.Error);
@@ -805,11 +689,6 @@
 
     private async Task RejectProposalAsync(int proposalId)
     {
-        if (_currentUserId is null)
-        {
-            return;
-        }
-
         var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
         IDialogReference dialog = await DialogLauncher.ShowAsync<RejectRequestDialog>("編集提案を却下", options);
         DialogResult? result = await dialog.Result;
@@ -817,12 +696,11 @@
         if (result is { Canceled: false })
         {
             var comment = result.Data as string;
-            Result<bool> rejectResult = await TagContentProposalService.RejectProposalAsync(proposalId, _currentUserId, comment);
+            Result<bool> rejectResult = await ViewModel.RejectContentProposalAsync(proposalId, comment);
             switch (rejectResult)
             {
                 case Success<bool>:
                     Snackbar.Add("編集提案を却下しました。", Severity.Success);
-                    await LoadDataAsync();
                     break;
                 case Failure fail:
                     Snackbar.Add(fail.ErrorMessage, Severity.Error);
@@ -833,17 +711,11 @@
 
     private async Task CancelProposalAsync(int proposalId)
     {
-        if (_currentUserId is null)
-        {
-            return;
-        }
-
-        Result<bool> result = await TagContentProposalService.CancelProposalAsync(proposalId, _currentUserId);
+        Result<bool> result = await ViewModel.CancelContentProposalAsync(proposalId);
         switch (result)
         {
             case Success<bool>:
                 Snackbar.Add("編集提案を取り下げました。", Severity.Success);
-                await LoadDataAsync();
                 break;
             case Failure fail:
                 Snackbar.Add(fail.ErrorMessage, Severity.Error);
@@ -853,17 +725,11 @@
 
     private async Task ApproveNameProposalAsync(int proposalId)
     {
-        if (_currentUserId is null)
-        {
-            return;
-        }
-
-        Result<Tag> result = await TagNameProposalService.ApproveProposalAsync(proposalId, _currentUserId);
+        Result<Tag> result = await ViewModel.ApproveNameProposalAsync(proposalId);
         switch (result)
         {
             case Success<Tag>:
                 Snackbar.Add("名前変更提案を承認しました。", Severity.Success);
-                await LoadDataAsync();
                 break;
             case Failure fail:
                 Snackbar.Add(fail.ErrorMessage, Severity.Error);
@@ -873,11 +739,6 @@
 
     private async Task RejectNameProposalAsync(int proposalId)
     {
-        if (_currentUserId is null)
-        {
-            return;
-        }
-
         var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
         IDialogReference dialog = await DialogLauncher.ShowAsync<RejectRequestDialog>("名前変更提案を却下", options);
         DialogResult? result = await dialog.Result;
@@ -885,12 +746,11 @@
         if (result is { Canceled: false })
         {
             var comment = result.Data as string;
-            Result<bool> rejectResult = await TagNameProposalService.RejectProposalAsync(proposalId, _currentUserId, comment);
+            Result<bool> rejectResult = await ViewModel.RejectNameProposalAsync(proposalId, comment);
             switch (rejectResult)
             {
                 case Success<bool>:
                     Snackbar.Add("名前変更提案を却下しました。", Severity.Success);
-                    await LoadDataAsync();
                     break;
                 case Failure fail:
                     Snackbar.Add(fail.ErrorMessage, Severity.Error);
@@ -901,17 +761,11 @@
 
     private async Task CancelNameProposalAsync(int proposalId)
     {
-        if (_currentUserId is null)
-        {
-            return;
-        }
-
-        Result<bool> result = await TagNameProposalService.CancelProposalAsync(proposalId, _currentUserId);
+        Result<bool> result = await ViewModel.CancelNameProposalAsync(proposalId);
         switch (result)
         {
             case Success<bool>:
                 Snackbar.Add("名前変更提案を取り下げました。", Severity.Success);
-                await LoadDataAsync();
                 break;
             case Failure fail:
                 Snackbar.Add(fail.ErrorMessage, Severity.Error);

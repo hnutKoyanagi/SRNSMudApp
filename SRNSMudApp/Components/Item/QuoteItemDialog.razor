@@ -4,7 +4,6 @@
 @using SRNSMudApp.Components.UI
 @inject QuoteItemViewModel ViewModel
 @inject ISnackbar Snackbar
-@inject ILinkPreviewService PreviewService
 
 <MudDialog>
     <TitleContent>
@@ -29,7 +28,7 @@
                 <MudStack Spacing="2">
                     @foreach (var url in urls.Take(3))
                     {
-                        <UrlPreviewCard Url="@url" LoadPreview="@PreviewService.GetPreviewAsync" />
+                        <UrlPreviewCard Url="@url" LoadPreview="@ViewModel.GetPreviewAsync" />
                     }
                 </MudStack>
             }

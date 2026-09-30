@@ -1,6 +1,8 @@
 namespace SRNSMudApp.Components.UI;
 
+using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Threading.Tasks;
 
 using SRNSMudApp.Services;
 
@@ -8,13 +10,17 @@ using SRNSMudApp.Services;
 ///     NotificationBadge コンポーネントの状態管理および未読通知数カウントロジックを担う ViewModel。
 /// </summary>
 [SuppressMessage("Design", "CA1054:UriParametersShouldNotBeStrings", Justification = "NavigationManager URI strings")]
-public sealed class NotificationBadgeViewModel
+public sealed class NotificationBadgeViewModel : IDisposable
 {
     private readonly INotificationService _notificationService;
+    private string _currentUri = string.Empty;
+
+    public event EventHandler? StateChanged;
 
     public NotificationBadgeViewModel(INotificationService notificationService)
     {
         _notificationService = notificationService;
+        _notificationService.NotificationsChanged += OnNotificationsChanged;
     }
 
     public string? CurrentUserId { get; private set; }
@@ -29,6 +35,7 @@ public sealed class NotificationBadgeViewModel
     public async Task InitializeAsync(string? userId, string initialUri)
     {
         CurrentUserId = userId;
+        _currentUri = initialUri;
         LastBasePath = ExtractBasePath(initialUri);
         await RefreshUnreadCountAsync(initialUri);
     }
@@ -38,6 +45,7 @@ public sealed class NotificationBadgeViewModel
     /// </summary>
     public async Task<bool> OnLocationChangedAsync(string currentUri)
     {
+        _currentUri = currentUri;
         var currentBasePath = ExtractBasePath(currentUri);
         if (currentBasePath == LastBasePath)
         {
@@ -54,7 +62,27 @@ public sealed class NotificationBadgeViewModel
     /// </summary>
     public async Task RefreshAsync(string currentUri)
     {
+        _currentUri = currentUri;
         await RefreshUnreadCountAsync(currentUri);
+    }
+
+    [SuppressMessage("Design", "CA1031:Do not catch generic exception types", Justification = "UI event handler background notification refresh")]
+    private async void OnNotificationsChanged(object? sender, EventArgs e)
+    {
+        try
+        {
+            await RefreshAsync(_currentUri);
+            StateChanged?.Invoke(this, EventArgs.Empty);
+        }
+        catch
+        {
+            // イベントハンドラ内のバックグラウンド更新失敗でクラッシュさせない
+        }
+    }
+
+    public void Dispose()
+    {
+        _notificationService.NotificationsChanged -= OnNotificationsChanged;
     }
 
     /// <summary>
