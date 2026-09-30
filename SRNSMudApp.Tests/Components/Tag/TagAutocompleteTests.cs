@@ -25,6 +25,7 @@ public class TagAutocompleteTests : IAsyncDisposable
         _ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         _ = _ctx.Services.AddMudServices();
         _ctx.Services.AddSingleton(_queryServiceMock.Object);
+        _ctx.Services.AddTransient<TagAutocompleteViewModel>();
         _ = _ctx.Render<MudPopoverProvider>();
     }
 

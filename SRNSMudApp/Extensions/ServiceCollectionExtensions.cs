@@ -6,6 +6,7 @@ using SRNSMudApp.Components.Bounty;
 using SRNSMudApp.Components.Contract;
 using SRNSMudApp.Components.Diagram;
 using SRNSMudApp.Components.Item;
+using SRNSMudApp.Components.Layout;
 using SRNSMudApp.Components.Pages;
 using SRNSMudApp.Components.PublicOffer;
 using SRNSMudApp.Components.Tag;
@@ -239,6 +240,8 @@ public static class ServiceCollectionExtensions
         services.AddTransient<TagTableViewModel>();
         services.AddTransient<TagTreeViewModel>();
         services.AddTransient<NotificationsViewModel>();
+        services.AddTransient<TagDiagramPageViewModel>();
+        services.AddTransient<NavMenuViewModel>();
 
         return services;
     }

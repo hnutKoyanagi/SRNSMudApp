@@ -36,7 +36,7 @@ public sealed class ProposeContractDialogTests : IAsyncLifetime
         _ = _ctx.Services.AddMudServices();
         _ = _ctx.Services.AddScoped(_ => _contractDataMock.Object);
         _ = _ctx.Services.AddScoped(_ => _contractServiceMock.Object);
-        _ = _ctx.Services.AddScoped(_ => new ProposeContractViewModel(_contractServiceMock.Object));
+        _ = _ctx.Services.AddScoped(_ => new ProposeContractViewModel(_contractServiceMock.Object, _contractDataMock.Object));
         _ = _ctx.Services.AddScoped(_ => _snackbarMock.Object);
         _ = _ctx.Services.AddAuthorizationCore();
         _ = _ctx.Services.AddAuth("user-1");

@@ -1,35 +1,25 @@
-@using System.Security.Claims
-@using Microsoft.AspNetCore.Identity
-@rendermode InteractiveServer
-
 @namespace SRNSMudApp.Components.Item
-
+@rendermode InteractiveServer
 @using SRNSMudApp.Components.UI
-@using SRNSMudApp.Services
 @using SRNSMudApp.Models
-@implements IAsyncDisposable
-@inject AddItemViewModel ViewModel
-@inject NavigationManager NavigationManager
-@inject ISnackbar Snackbar
-@inject IJSRuntime JS
-@inject ILogger<AddItem> Logger
+@using SRNSMudApp.Services
 
 <MudStack Class="w-100 pb-2">
-    @if (_newItem == null)
+    @if (NewItem == null)
     {
         <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
         <MudText>読み込み中...</MudText>
     }
     else
     {
-        <EditForm Model="@_newItem" OnValidSubmit="HandleValidSubmit" OnInvalidSubmit="HandleInvalidSubmit"
+        <EditForm Model="@NewItem" OnValidSubmit="HandleValidSubmit" OnInvalidSubmit="HandleInvalidSubmit"
                   FormName="AddItem" class="w-100">
             <DataAnnotationsValidator />
 
             <MudStack Row="true" Spacing="4" AlignItems="AlignItems.Start">
                 <MudStack Class="flex-grow-1" Style="min-width: 0;">
                     @{
-                        var allUrls = ItemCardViewModel.ExtractUrls(_newItem.Content);
+                        var allUrls = ItemCardViewModel.ExtractUrls(NewItem.Content);
                         var externalUrls = allUrls.Where(u => !u.StartsWith("/")).ToList();
                     }
                     <div class="add-item-editor-container" onclick="document.getElementById('add-item-textarea')?.focus()">
@@ -39,29 +29,29 @@
 
                         @* bUnit テストおよびフォーム同期用の textarea（テスト・バリデーション互換性を維持） *@
                         <textarea id="add-item-textarea-hidden" name="_newItem.Content" class="add-item-hidden-textarea"
-                                  value="@_newItem.Content"
+                                  value="@NewItem.Content"
                                   @oninput="@(async (ChangeEventArgs e) => await HandleContentChanged(e.Value?.ToString() ?? string.Empty))"
                                   @onkeydown="@HandleKeyDown"></textarea>
                     </div>
                     <div class="d-flex justify-space-between align-center px-1 mt-1">
-                        <ValidationMessage For="@(() => _newItem.Content)" />
+                        <ValidationMessage For="@(() => NewItem.Content)" />
                         <MudText Typo="Typo.caption"
-                                 Color="@(_newItem.Content?.Length > 1000 ? Color.Error : Color.Default)">
-                            @($"{_newItem?.Content?.Length ?? 0} / 1000")
+                                 Color="@(NewItem.Content?.Length > 1000 ? Color.Error : Color.Default)">
+                            @($"{NewItem?.Content?.Length ?? 0} / 1000")
                         </MudText>
                     </div>
 
                     <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="4" Class="mt-1">
-                        <MudSwitch @bind-Value="_isPrivate" Color="Color.Primary" Label="プライベートモード" Size="Size.Small" />
-                        <MudSwitch @bind-Value="_isLinkConversionEnabled" Color="Color.Info" Label="テキスト→内部リンク変換"
+                        <MudSwitch @bind-Value="IsPrivate" Color="Color.Primary" Label="プライベートモード" Size="Size.Small" />
+                        <MudSwitch @bind-Value="IsLinkConversionEnabled" Color="Color.Info" Label="テキスト→内部リンク変換"
                                    Size="Size.Small" data-testid="link-conversion-toggle" />
 
-                        @if (_isPrivate)
+                        @if (IsPrivate)
                         {
-                            <MudSelect T="int?" @bind-Value="_selectedGroupId" Label="公開範囲" Dense="true" Margin="Margin.Dense"
+                            <MudSelect T="int?" @bind-Value="SelectedGroupId" Label="公開範囲" Dense="true" Margin="Margin.Dense"
                                        Variant="Variant.Outlined" Style="max-width: 250px;">
                                 <MudSelectItem T="int?" Value="@((int?)null)">フォロワーのみ（デフォルト）</MudSelectItem>
-                                @foreach (var group in _userGroups ?? [])
+                                @foreach (var group in UserGroups ?? [])
                                 {
                                     <MudSelectItem T="int?" Value="@((int?)group.Id)">@group.Name</MudSelectItem>
                                 }
@@ -69,14 +59,14 @@
                         }
                     </MudStack>
 
-                    @if (_targetCandidates.Count > 0)
+                    @if (TargetCandidates.Count > 0)
                     {
                         <MudExpansionPanels Class="mt-2" Elevation="0" Outlined="true">
-                            <MudExpansionPanel Text="@($"通知先 ({_selectedTargetUserIds.Count})")" Dense="true">
+                            <MudExpansionPanel Text="@($"通知先 ({SelectedTargetUserIds.Count})")" Dense="true">
                                 <div class="d-flex flex-wrap align-center gap-2 px-1">
-                                    @foreach (var candidate in _targetCandidates)
+                                    @foreach (var candidate in TargetCandidates)
                                     {
-                                        var isChecked = _selectedTargetUserIds.Contains(candidate.Id);
+                                        var isChecked = SelectedTargetUserIds.Contains(candidate.Id);
                                         <div class="d-inline-flex align-center">
                                             <MudCheckBox T="bool" Value="@isChecked"
                                                          ValueChanged="@((bool val) => HandleTargetToggled(candidate.Id, val))" Dense="true"
@@ -91,18 +81,18 @@
                     }
 
                     @* コンテンツに基づく関連タグ提案パネル *@
-                    <TagSuggestionPanel Suggestions="@_suggestedTags" IsLoading="@_isLoadingSuggestions"
+                    <TagSuggestionPanel Suggestions="@SuggestedTags" IsLoading="@IsLoadingSuggestions"
                                         ExcludedTagIds="@(InitialTags?.Select(t => t.Id).ToList() ?? [])"
-                                        InitialStrongThreshold="@_userStrongThreshold" InitialCandidateThreshold="@_userCandidateThreshold"
+                                        InitialStrongThreshold="@UserStrongThreshold" InitialCandidateThreshold="@UserCandidateThreshold"
                                         OnConfirmedTagIdsChanged="HandleConfirmedSuggestedTagIdsChanged"
                                         OnThresholdsChanged="HandleThresholdsChanged" />
 
                     @* テキスト→内部リンク変換候補パネル *@
-                    @if (_isLinkConversionEnabled)
+                    @if (IsLinkConversionEnabled)
                     {
-                        <LinkConversionPanel AutoReplaceCandidates="@_linkAutoReplaceCandidates"
-                                             ManualCandidates="@_linkManualCandidates" IsLoading="@_isLoadingLinkCandidates"
-                                             AutoReplaceThreshold="@_linkConversionThreshold"
+                        <LinkConversionPanel AutoReplaceCandidates="@LinkAutoReplaceCandidates"
+                                             ManualCandidates="@LinkManualCandidates" IsLoading="@IsLoadingLinkCandidates"
+                                             AutoReplaceThreshold="@LinkConversionThreshold"
                                              OnThresholdChanged="HandleLinkConversionThresholdChanged" />
                     }
 
@@ -128,368 +118,3 @@
         </EditForm>
     }
 </MudStack>
-
-@code {
-    [CascadingParameter] private Task<AuthenticationState> AuthenticationStateTask { get; set; } = null!;
-
-    /// <summary>
-    /// 初期状態で設定されるタグのリスト（任意）
-    /// </summary>
-    [Parameter] public IEnumerable<Data.Tag> InitialTags { get; set; } = [];
-
-    /// <summary>
-    /// アイテムが追加された後に呼び出されるコールバック
-    /// </summary>
-    [Parameter] public EventCallback OnItemAdded { get; set; }
-
-    /// <summary>
-    /// リプライ先となる親アイテム（任意）
-    /// </summary>
-    [Parameter] public Data.Item? ParentItem { get; set; }
-
-    /// <summary>
-    /// リプライ先となる親アイテムID（任意。ParentItem が指定されていない場合に使用）
-    /// </summary>
-    [Parameter] public int? ParentItemId { get; set; }
-
-    [SupplyParameterFromForm] private Data.Item? _newItem { get => ViewModel.NewItem; set => ViewModel.NewItem = value; }
-
-    private bool _isPrivate { get => ViewModel.IsPrivate; set => ViewModel.IsPrivate = value; }
-    private int? _selectedGroupId { get => ViewModel.SelectedGroupId; set => ViewModel.SelectedGroupId = value; }
-    private IReadOnlyList<Data.UserGroup> _userGroups => ViewModel.UserGroups;
-
-    private IReadOnlyList<ReplyTargetCandidate> _targetCandidates => ViewModel.TargetCandidates;
-    private HashSet<string> _selectedTargetUserIds => ViewModel.SelectedTargetUserIds;
-
-    private IReadOnlyList<SuggestedTag> _suggestedTags
-    {
-        get => ViewModel.SuggestedTags;
-        set => ViewModel.SuggestedTags = value;
-    }
-    private HashSet<int> _confirmedSuggestedTagIds => ViewModel.ConfirmedSuggestedTagIds;
-    private bool _isLoadingSuggestions
-    {
-        get => ViewModel.IsLoadingSuggestions;
-        set => ViewModel.IsLoadingSuggestions = value;
-    }
-    private CancellationTokenSource? _suggestionCts;
-    private float? _userStrongThreshold => ViewModel.UserStrongThreshold;
-    private float? _userCandidateThreshold => ViewModel.UserCandidateThreshold;
-
-    private bool _isLinkConversionEnabled
-    {
-        get => ViewModel.IsLinkConversionEnabled;
-        set => ViewModel.IsLinkConversionEnabled = value;
-    }
-    private float _linkConversionThreshold
-    {
-        get => ViewModel.LinkConversionThreshold;
-        set => ViewModel.LinkConversionThreshold = value;
-    }
-    private IReadOnlyList<LinkConversionCandidate> _linkAutoReplaceCandidates
-    {
-        get => ViewModel.LinkAutoReplaceCandidates;
-        set => ViewModel.LinkAutoReplaceCandidates = value;
-    }
-    private IReadOnlyList<LinkConversionCandidate> _linkManualCandidates
-    {
-        get => ViewModel.LinkManualCandidates;
-        set => ViewModel.LinkManualCandidates = value;
-    }
-    private bool _isLoadingLinkCandidates
-    {
-        get => ViewModel.IsLoadingLinkCandidates;
-        set => ViewModel.IsLoadingLinkCandidates = value;
-    }
-    private CancellationTokenSource? _linkConversionCts;
-
-    private int? _lastParentItemId;
-
-    protected override async Task OnInitializedAsync()
-    {
-        if (ViewModel.NewItem == null)
-        {
-            var authState = await AuthenticationStateTask;
-            await ViewModel.InitializeAsync(authState.User, ParentItem, ParentItemId);
-        }
-    }
-
-    protected override async Task OnParametersSetAsync()
-    {
-        await base.OnParametersSetAsync();
-
-        ViewModel.ParentItem = ParentItem;
-        ViewModel.ParentItemId = ParentItemId;
-
-        var effectiveId = ViewModel.EffectiveParentItem?.Id ?? ParentItemId;
-        if (effectiveId != _lastParentItemId)
-        {
-            _lastParentItemId = effectiveId;
-            await ViewModel.LoadParentItemIfNeededAsync();
-        }
-
-        if (ViewModel.EffectiveParentItem != null && ViewModel.SuggestedTags.Count == 0 && !ViewModel.IsLoadingSuggestions && string.IsNullOrWhiteSpace(ViewModel.NewItem?.Content))
-        {
-            _ = TriggerTagSuggestionsAsync(ViewModel.NewItem?.Content ?? string.Empty);
-        }
-    }
-
-    private async Task HandleValidSubmit()
-    {
-        if (!ViewModel.CanSubmitCurrent)
-        {
-            return;
-        }
-
-        var (success, errorMessage) = await ViewModel.SaveItemAsync(InitialTags);
-        if (success)
-        {
-            try
-            {
-                await JS.InvokeVoidAsync("tributeInterop.clear", "add-item-textarea");
-            }
-            catch (Exception)
-            {
-                // ignored
-            }
-
-            Snackbar.Add("アイテムが正常に保存されました。", Severity.Success);
-
-            if (OnItemAdded.HasDelegate)
-            {
-                await OnItemAdded.InvokeAsync();
-            }
-            else
-            {
-                NavigationManager.NavigateTo(NavigationManager.Uri, true);
-            }
-        }
-        else
-        {
-            Snackbar.Add($"エラー: {errorMessage}", Severity.Error);
-        }
-    }
-
-    private async Task HandleKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter" && e.MetaKey)
-        {
-            await HandleValidSubmit();
-        }
-    }
-
-    private void HandleInvalidSubmit(EditContext context)
-    {
-        Snackbar.Add("入力内容を確認してください。", Severity.Warning);
-    }
-
-    private async Task HandleContentChanged(string value)
-    {
-        if (ViewModel.NewItem != null)
-        {
-            ViewModel.NewItem.Content = value;
-        }
-        await ViewModel.UpdateTargetCandidatesAsync();
-        _ = TriggerTagSuggestionsAsync(value);
-
-        if (ViewModel.IsLinkConversionEnabled)
-        {
-            _ = TriggerLinkCandidateDetectionAsync(value);
-        }
-    }
-
-    private void HandleConfirmedSuggestedTagIdsChanged(IReadOnlyCollection<int> tagIds)
-    {
-        ViewModel.ConfirmedSuggestedTagIds.Clear();
-        foreach (var id in tagIds)
-        {
-            ViewModel.ConfirmedSuggestedTagIds.Add(id);
-        }
-    }
-
-    private async Task HandleThresholdsChanged((float Strong, float Candidate) thresholds)
-    {
-        await ViewModel.UpdateTagSuggestionThresholdsAsync(thresholds.Strong, thresholds.Candidate);
-
-        if (!string.IsNullOrWhiteSpace(ViewModel.NewItem?.Content) || ViewModel.EffectiveParentItem != null)
-        {
-            await TriggerTagSuggestionsAsync(ViewModel.NewItem?.Content ?? string.Empty);
-        }
-    }
-
-    private async Task TriggerTagSuggestionsAsync(string content)
-    {
-        if (_suggestionCts != null)
-        {
-            await _suggestionCts.CancelAsync();
-            _suggestionCts.Dispose();
-            _suggestionCts = null;
-        }
-
-        var queryText = AddItemViewModel.BuildTagSuggestionQueryText(content, ViewModel.EffectiveParentItem?.Content);
-
-        if (string.IsNullOrWhiteSpace(queryText))
-        {
-            ViewModel.SuggestedTags = [];
-            ViewModel.ConfirmedSuggestedTagIds.Clear();
-            ViewModel.IsLoadingSuggestions = false;
-            await InvokeAsync(StateHasChanged);
-            return;
-        }
-
-        _suggestionCts = new CancellationTokenSource();
-        var token = _suggestionCts.Token;
-
-        try
-        {
-            ViewModel.IsLoadingSuggestions = true;
-            await InvokeAsync(StateHasChanged);
-
-            await Task.Delay(350, token);
-
-            var suggestions = await ViewModel.SuggestTagsAsync(queryText, ViewModel.CurrentCandidateThreshold, token);
-            if (!token.IsCancellationRequested)
-            {
-                ViewModel.SuggestedTags = suggestions;
-            }
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        finally
-        {
-            if (!token.IsCancellationRequested)
-            {
-                ViewModel.IsLoadingSuggestions = false;
-                await InvokeAsync(StateHasChanged);
-            }
-        }
-    }
-
-    private async Task TriggerLinkCandidateDetectionAsync(string content)
-    {
-        if (_linkConversionCts != null)
-        {
-            await _linkConversionCts.CancelAsync();
-            _linkConversionCts.Dispose();
-            _linkConversionCts = null;
-        }
-
-        if (string.IsNullOrWhiteSpace(content))
-        {
-            ViewModel.LinkAutoReplaceCandidates = [];
-            ViewModel.LinkManualCandidates = [];
-            ViewModel.ConfirmedLinkCandidates = [];
-            ViewModel.IsLoadingLinkCandidates = false;
-            await InvokeAsync(StateHasChanged);
-            return;
-        }
-
-        _linkConversionCts = new CancellationTokenSource();
-        var token = _linkConversionCts.Token;
-
-        try
-        {
-            ViewModel.IsLoadingLinkCandidates = true;
-            await InvokeAsync(StateHasChanged);
-
-            await Task.Delay(500, token);
-
-            var result = await ViewModel.DetectLinkCandidatesAsync(content, ViewModel.LinkConversionThreshold, token);
-
-            if (!token.IsCancellationRequested)
-            {
-                var allCandidates = result.AutoReplaceCandidates.Concat(result.ManualCandidates).ToList();
-                await JS.InvokeVoidAsync("tributeInterop.applyLinkCandidates", "add-item-textarea", allCandidates);
-
-                ViewModel.LinkAutoReplaceCandidates = result.AutoReplaceCandidates;
-                ViewModel.LinkManualCandidates = result.ManualCandidates;
-            }
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        finally
-        {
-            if (!token.IsCancellationRequested)
-            {
-                ViewModel.IsLoadingLinkCandidates = false;
-                await InvokeAsync(StateHasChanged);
-            }
-        }
-    }
-
-    private async Task HandleLinkConversionThresholdChanged(float threshold)
-    {
-        await ViewModel.UpdateLinkConversionSettingsAsync(threshold);
-
-        if (!string.IsNullOrWhiteSpace(ViewModel.NewItem?.Content))
-        {
-            await TriggerLinkCandidateDetectionAsync(ViewModel.NewItem.Content);
-        }
-    }
-
-    private void HandleTargetToggled(string userId, bool isSelected)
-    {
-        ViewModel.ApplyTargetToggle(userId, isSelected);
-    }
-
-    // --- JS Interop Mentions Logic ---
-
-    private DotNetObjectReference<AddItem>? _objRef;
-    private bool _tributeInitialized = false;
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!_tributeInitialized && ViewModel.NewItem != null)
-        {
-            _tributeInitialized = true;
-            _objRef = DotNetObjectReference.Create(this);
-            try
-            {
-                await JS.InvokeVoidAsync("tributeInterop.init", "add-item-textarea", _objRef);
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex, "JS Interop Error while initializing Tribute: {Message}", ex.Message);
-            }
-        }
-    }
-
-    [JSInvokable]
-    public async Task<IEnumerable<MentionItem>> SearchTags(string query)
-    {
-        return await ViewModel.SearchTagsAsync(query);
-    }
-
-    [JSInvokable]
-    public async Task<IEnumerable<MentionItem>> SearchUsers(string query)
-    {
-        return await ViewModel.SearchUsersAsync(query);
-    }
-
-    [JSInvokable]
-    public async Task SubmitForm()
-    {
-        await HandleValidSubmit();
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_suggestionCts != null)
-        {
-            try { await _suggestionCts.CancelAsync(); _suggestionCts.Dispose(); } catch { }
-        }
-
-        if (_linkConversionCts != null)
-        {
-            try { await _linkConversionCts.CancelAsync(); _linkConversionCts.Dispose(); } catch { }
-        }
-
-        if (_objRef != null)
-        {
-            try { await JS.InvokeVoidAsync("tributeInterop.destroy", "add-item-textarea"); } catch { }
-            _objRef.Dispose();
-        }
-    }
-}

@@ -2,6 +2,9 @@ using SRNSMudApp.Data;
 using SRNSMudApp.Models.Unions;
 using SRNSMudApp.Services;
 
+using ItemEntity = SRNSMudApp.Data.Item;
+using TagEntity = SRNSMudApp.Data.Tag;
+
 namespace SRNSMudApp.Components.Contract;
 
 /// <summary>
@@ -11,10 +14,54 @@ namespace SRNSMudApp.Components.Contract;
 public class ProposeContractViewModel
 {
     private readonly ITaggingContractService _contractService;
+    private readonly IContractLookupDataProvider? _contractData;
 
-    public ProposeContractViewModel(ITaggingContractService contractService)
+    public ProposeContractViewModel(
+        ITaggingContractService contractService,
+        IContractLookupDataProvider? contractData = null)
     {
         _contractService = contractService;
+        _contractData = contractData;
+    }
+
+    /// <summary>
+    ///     利用可能なライトアセット一覧を取得する。
+    /// </summary>
+    public async Task<IReadOnlyList<RightAsset>> GetAvailableRightAssetsAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        if (_contractData is null)
+        {
+            return [];
+        }
+
+        List<RightAsset> assets = await _contractData.GetAvailableRightAssetsAsync(userId);
+        return assets;
+    }
+
+    /// <summary>
+    ///     アイテムを検索する。
+    /// </summary>
+    public async Task<IEnumerable<ItemEntity>> SearchItemsAsync(string? value, CancellationToken cancellationToken = default)
+    {
+        if (_contractData is null)
+        {
+            return [];
+        }
+
+        return await _contractData.SearchItemsAsync(value, cancellationToken);
+    }
+
+    /// <summary>
+    ///     タグを名前で検索する。
+    /// </summary>
+    public async Task<IEnumerable<TagEntity>> SearchTagsByNameAsync(string? value, CancellationToken cancellationToken = default)
+    {
+        if (_contractData is null)
+        {
+            return [];
+        }
+
+        return await _contractData.SearchTagsByNameAsync(value, cancellationToken);
     }
 
     /// <summary>
