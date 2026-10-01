@@ -336,12 +336,21 @@
                                                 @ledger.CreatedDate.ToLocalTime().ToString("g")
                                             </MudText>
                                         </div>
-                                        @if (!string.IsNullOrWhiteSpace(ledger.TagRelation?.Comment))
+                                        @if (ledger.TagRelation?.CommentItem is not null && !string.IsNullOrWhiteSpace(ledger.TagRelation.CommentItem.Content))
                                         {
-                                            <div class="pl-4 mt-1">
-                                                <MudText Typo="Typo.body2" Color="Color.Secondary" Style="font-style: italic;">
-                                                    コメント: @ledger.TagRelation.Comment
-                                                </MudText>
+                                            <div class="pl-4 mt-2">
+                                                <SRNSMudApp.Components.UI.ItemCard Item="@ledger.TagRelation.CommentItem"
+                                                                                   AllTags="@_allTags"
+                                                                                   AllTagRelationsToTags="@_allTagRelationsToTags"
+                                                                                   CurrentUserId="@_currentUserId"
+                                                                                   CurrentUserGoodTagId="@_currentUserGoodTagId"
+                                                                                   CurrentUserBadTagId="@_currentUserBadTagId"
+                                                                                   CurrentUserShinjiTagId="@_currentUserShinjiTagId"
+                                                                                   CurrentUserZenTagId="@_currentUserZenTagId"
+                                                                                   CurrentUserBiTagId="@_currentUserBiTagId"
+                                                                                   OnEnsureSystemTags="EnsureSystemTagsExistAsync"
+                                                                                   OnDataChanged="LoadDataAsync"
+                                                                                   EnableNavigation="true" />
                                             </div>
                                         }
                                     </MudListItem>
