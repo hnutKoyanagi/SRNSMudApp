@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 
 using SRNSMudApp.Data;
+using SRNSMudApp.Models;
 using SRNSMudApp.Services;
 
 namespace SRNSMudApp.Components.User;
@@ -30,6 +31,7 @@ public class UserDetailViewModel
     public ApplicationUser? User { get; private set; }
     public IReadOnlyList<Data.Tag> UserTags { get; private set; } = [];
     public IReadOnlyList<Data.Item> UserItems { get; private set; } = [];
+    public IReadOnlyList<Data.Tag> ReactionTags { get; private set; } = [];
     public bool IsFollowing { get; private set; }
     public int FollowingCount { get; private set; }
     public int FollowersCount { get; private set; }
@@ -78,6 +80,10 @@ public class UserDetailViewModel
             if (page is not null)
             {
                 UserTags = page.UserTags;
+                ReactionTags = page.ReactionTags ?? UserTags
+                    .Where(t => ReactionTagNames.IsReactionTagName(t.Name))
+                    .OrderBy(t => GetReactionOrder(t.Name))
+                    .ToList();
                 UserItems = page.UserItems;
                 IsFollowing = page.IsFollowing;
                 FollowingCount = page.FollowingCount;
@@ -88,6 +94,7 @@ public class UserDetailViewModel
             else
             {
                 UserTags = [];
+                ReactionTags = [];
                 UserItems = [];
                 IsFollowing = false;
                 FollowingCount = 0;
@@ -163,4 +170,12 @@ public class UserDetailViewModel
 
         return await _userManager.AddToRoleAsync(user, "Admin");
     }
+
+    private static int GetReactionOrder(string name) => name switch
+    {
+        ReactionTagNames.Shinji => 0,
+        ReactionTagNames.Zen => 1,
+        ReactionTagNames.Bi => 2,
+        _ => int.MaxValue
+    };
 }

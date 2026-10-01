@@ -7,7 +7,10 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.JSInterop;
 
+using MudBlazor;
+
 using SRNSMudApp.Components.Tag;
+using SRNSMudApp.Models;
 using SRNSMudApp.Services;
 
 /// <summary>
@@ -23,7 +26,7 @@ public partial class UserDetail : ComponentBase, IAsyncDisposable
 
     [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
 
-    [Parameter] public string UserId { get; set; } = string.Empty;
+    [Parameter] public string? UserId { get; set; } = string.Empty;
 
     private string? _lastLoadedUserId;
     private int _activeTabIndex;
@@ -42,7 +45,11 @@ public partial class UserDetail : ComponentBase, IAsyncDisposable
 
     protected override async Task OnParametersSetAsync()
     {
-        if (_lastLoadedUserId != UserId)
+        var authState = await AuthStateTask;
+        var currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var effectiveUserId = string.IsNullOrEmpty(UserId) ? currentUserId ?? string.Empty : UserId;
+
+        if (_lastLoadedUserId != effectiveUserId)
         {
             _isTreeInitialized = false;
             await InitializeViewModelAsync();
@@ -51,11 +58,12 @@ public partial class UserDetail : ComponentBase, IAsyncDisposable
 
     private async Task InitializeViewModelAsync()
     {
-        _lastLoadedUserId = UserId;
         var authState = await AuthStateTask;
         var isLoggedIn = authState.User.Identity?.IsAuthenticated ?? false;
         var currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        await ViewModel.InitializeAsync(UserId, currentUserId, isLoggedIn);
+        var effectiveUserId = string.IsNullOrEmpty(UserId) ? currentUserId ?? string.Empty : UserId;
+        _lastLoadedUserId = effectiveUserId;
+        await ViewModel.InitializeAsync(effectiveUserId, currentUserId, isLoggedIn);
     }
 
     private async Task ToggleFollowAsync()
@@ -102,6 +110,22 @@ public partial class UserDetail : ComponentBase, IAsyncDisposable
     {
         return Task.CompletedTask;
     }
+
+    private static Color GetReactionColor(string tagName) => tagName switch
+    {
+        ReactionTagNames.Shinji => Color.Info,
+        ReactionTagNames.Zen => Color.Success,
+        ReactionTagNames.Bi => Color.Secondary,
+        _ => Color.Primary
+    };
+
+    private static string GetReactionIcon(string tagName) => tagName switch
+    {
+        ReactionTagNames.Shinji => Icons.Material.Filled.FactCheck,
+        ReactionTagNames.Zen => Icons.Material.Filled.Favorite,
+        ReactionTagNames.Bi => Icons.Material.Filled.AutoAwesome,
+        _ => Icons.Material.Filled.LocalOffer
+    };
 
     [SuppressMessage("Design", "CA1031:Do not catch general exception types",
         Justification = "非同期破棄時の jqTree 破棄エラーは握りつぶす")]

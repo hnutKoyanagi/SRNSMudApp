@@ -249,4 +249,70 @@ public sealed class UserDetailViewModelTests
 
         Assert.False(result.Succeeded);
     }
+
+    [Fact]
+    public async Task LoadDataAsync_PopulatesReactionTags_SortedInCanonicalOrder()
+    {
+        var targetUser = new ApplicationUser { Id = TargetUserId, UserName = "TargetUser" };
+        var zenTag = new Tag { Id = 1, Name = "善", OwnerId = TargetUserId, CachedWeight = 5 };
+        var biTag = new Tag { Id = 2, Name = "美", OwnerId = TargetUserId, CachedWeight = 2 };
+        var shinjiTag = new Tag { Id = 3, Name = "真実", OwnerId = TargetUserId, CachedWeight = 10 };
+        var customTag = new Tag { Id = 4, Name = "CustomTag", OwnerId = TargetUserId, CachedWeight = 1 };
+
+        // 順不同で渡す
+        var tags = new List<Tag> { zenTag, customTag, biTag, shinjiTag };
+        var pageData = new UserDetailPageData(targetUser, tags, []);
+
+        _userDataMock
+            .Setup(u => u.GetUserDetailAsync(TargetUserId, CurrentUserId))
+            .ReturnsAsync(pageData);
+
+        await _sut.InitializeAsync(TargetUserId, CurrentUserId, isLoggedIn: true);
+
+        Assert.Equal(3, _sut.ReactionTags.Count);
+        // 真実 (Shinji), 善 (Zen), 美 (Bi) の順でソートされていること
+        Assert.Equal("真実", _sut.ReactionTags[0].Name);
+        Assert.Equal("善", _sut.ReactionTags[1].Name);
+        Assert.Equal("美", _sut.ReactionTags[2].Name);
+        Assert.DoesNotContain(customTag, _sut.ReactionTags);
+    }
+
+    [Fact]
+    public async Task LoadDataAsync_WhenExplicitReactionTagsProvided_UsesThem()
+    {
+        var targetUser = new ApplicationUser { Id = TargetUserId, UserName = "TargetUser" };
+        var explicitReaction = new List<Tag>
+        {
+            new() { Id = 10, Name = "真実", OwnerId = TargetUserId }
+        };
+        var pageData = new UserDetailPageData(
+            targetUser,
+            [],
+            [],
+            ReactionTags: explicitReaction);
+
+        _userDataMock
+            .Setup(u => u.GetUserDetailAsync(TargetUserId, CurrentUserId))
+            .ReturnsAsync(pageData);
+
+        await _sut.InitializeAsync(TargetUserId, CurrentUserId, isLoggedIn: true);
+
+        Assert.Equal(explicitReaction, _sut.ReactionTags);
+    }
+
+    [Fact]
+    public async Task LoadDataAsync_WhenNoReactionTags_ReactionTagsIsEmpty()
+    {
+        var targetUser = new ApplicationUser { Id = TargetUserId, UserName = "TargetUser" };
+        var customTag = new Tag { Id = 1, Name = "OnlyCustom", OwnerId = TargetUserId };
+        var pageData = new UserDetailPageData(targetUser, [customTag], []);
+
+        _userDataMock
+            .Setup(u => u.GetUserDetailAsync(TargetUserId, CurrentUserId))
+            .ReturnsAsync(pageData);
+
+        await _sut.InitializeAsync(TargetUserId, CurrentUserId, isLoggedIn: true);
+
+        Assert.Empty(_sut.ReactionTags);
+    }
 }

@@ -1,7 +1,9 @@
+@page "/User/UserDetail"
 @page "/User/UserDetail/{UserId}"
 @rendermode InteractiveServer
 @namespace SRNSMudApp.Components.User
 @using SRNSMudApp.Components.Tag
+@using SRNSMudApp.Models
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-10">
     @if (ViewModel.IsLoading)
@@ -22,7 +24,6 @@
                 <div>
                     <MudText Typo="Typo.h5">@ViewModel.User.UserName</MudText>
                     <div class="d-flex align-center gap-2">
-                        <MudText Typo="Typo.h5">@ViewModel.User.UserName</MudText>
                         @if (ViewModel.User.IsBanned)
                         {
                             <MudChip T="string" Color="Color.Error" Size="Size.Small">利用停止中</MudChip>
@@ -70,6 +71,54 @@
                     </MudCardContent>
                 </MudCard>
             </MudTabPanel>
+            <MudTabPanel Text="Reactionタグ">
+                @if (ViewModel.ReactionTags.Count > 0)
+                {
+                    <MudGrid Class="mt-2">
+                        @foreach (var tag in ViewModel.ReactionTags)
+                        {
+                            <MudItem xs="12" sm="6" md="4">
+                                <MudCard Outlined="true" Class="rounded-xl h-100 pa-2" Elevation="0">
+                                    <MudCardHeader>
+                                        <CardHeaderAvatar>
+                                            <MudAvatar Color="@GetReactionColor(tag.Name)" Variant="Variant.Filled">
+                                                <MudIcon Icon="@GetReactionIcon(tag.Name)" />
+                                            </MudAvatar>
+                                        </CardHeaderAvatar>
+                                        <CardHeaderContent>
+                                            <MudText Typo="Typo.h6">@tag.Name</MudText>
+                                            <MudText Typo="Typo.caption" Color="Color.Secondary">リアクションタグ</MudText>
+                                        </CardHeaderContent>
+                                    </MudCardHeader>
+                                    <MudCardContent>
+                                        <div class="d-flex align-center justify-space-between mb-2">
+                                            <MudText Typo="Typo.body2" Color="Color.Secondary">累積ウェイト (スコア):</MudText>
+                                            <MudChip T="string" Color="@GetReactionColor(tag.Name)" Size="Size.Small" Variant="Variant.Filled">
+                                                @tag.CachedWeight
+                                            </MudChip>
+                                        </div>
+                                        @if (!string.IsNullOrEmpty(tag.Content))
+                                        {
+                                            <MudText Typo="Typo.body2" Class="mt-2 text-muted">@tag.Content</MudText>
+                                        }
+                                    </MudCardContent>
+                                    <MudCardActions>
+                                        <MudButton Variant="Variant.Text" Color="@GetReactionColor(tag.Name)"
+                                                   EndIcon="@Icons.Material.Filled.ArrowForward"
+                                                   Href="@($"/TagDetail/{tag.Id}")">
+                                            タグ詳細を見る
+                                        </MudButton>
+                                    </MudCardActions>
+                                </MudCard>
+                            </MudItem>
+                        }
+                    </MudGrid>
+                }
+                else
+                {
+                    <MudText Color="Color.Secondary" Class="pa-4">Reactionタグはありません。</MudText>
+                }
+            </MudTabPanel>
             <MudTabPanel Text="@($"フォロー中 ({ViewModel.FollowingCount})")">
                 @if (ViewModel.FollowingUsers.Count > 0)
                 {
@@ -81,7 +130,7 @@
                                     <div class="d-flex align-center gap-3">
                                         <MudAvatar Color="Color.Secondary" Size="Size.Medium">
                                             @(string.IsNullOrEmpty(followedUser.UserName) ? "?" :
-                                followedUser.UserName[0].ToString().ToUpperInvariant())
+                                                followedUser.UserName[0].ToString().ToUpperInvariant())
                                         </MudAvatar>
                                         <div>
                                             <MudLink Href="@($"/User/UserDetail/{followedUser.Id}")" Typo="Typo.subtitle1"
@@ -115,7 +164,7 @@
                                     <div class="d-flex align-center gap-3">
                                         <MudAvatar Color="Color.Secondary" Size="Size.Medium">
                                             @(string.IsNullOrEmpty(follower.UserName) ? "?" :
-                                follower.UserName[0].ToString().ToUpperInvariant())
+                                                follower.UserName[0].ToString().ToUpperInvariant())
                                         </MudAvatar>
                                         <div>
                                             <MudLink Href="@($"/User/UserDetail/{follower.Id}")" Typo="Typo.subtitle1"
@@ -141,4 +190,3 @@
         </MudTabs>
     }
 </MudContainer>
-
