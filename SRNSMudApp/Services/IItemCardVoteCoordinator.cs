@@ -34,8 +34,8 @@ public interface IItemCardVoteCoordinator
     /// <param name="allTags">キャッシュまたは取得済みのタグ一覧。</param>
     /// <param name="ensureSystemTagsAsync">システムタグの初期化が必要な場合のコールバック（省略可能）。</param>
     /// <param name="comment">タグ関連付けに付与するコメント（省略可能）。</param>
-    /// <returns>リアクション操作が正常に完了した場合は true、未ログイン等により中止された場合は false。</returns>
-    Task<bool> ToggleReactionAsync(
+    /// <returns>リアクション操作の結果（未ログイン等により中止された場合は null）。</returns>
+    Task<ItemVoteResult?> ToggleReactionAsync(
         int itemId,
         string currentUserId,
         string reactionTagName,
@@ -44,4 +44,16 @@ public interface IItemCardVoteCoordinator
         IReadOnlyList<Tag> allTags,
         Func<Task>? ensureSystemTagsAsync = null,
         string? comment = null);
+
+    /// <summary>
+    ///     リアクション（TagRelation）のコメント（CommentItem）を更新する。
+    /// </summary>
+    /// <param name="relationId">対象の TagRelation ID。</param>
+    /// <param name="currentUserId">現在ログインしているユーザーの ID。</param>
+    /// <param name="comment">更新するコメント文字列。</param>
+    /// <returns>更新に成功した場合は true、対象が見つからないか未ログイン等の場合は false。</returns>
+    Task<bool> UpdateReactionCommentAsync(
+        int relationId,
+        string currentUserId,
+        string? comment);
 }

@@ -108,7 +108,9 @@ public class ItemCardVoteCoordinatorTests
         var result = await _coordinator.ToggleReactionAsync(
             2, UserId, ReactionTagNames.Shinji, targetWeight: 1, reactionTagId: null, allTags: []);
 
-        Assert.True(result);
+        Assert.NotNull(result);
+        Assert.Equal(ItemVoteAction.Added, result.Action);
+        Assert.Equal(101, result.RelationId);
         _itemReactionServiceMock.Verify(s => s.EnsureReactionTagAsync(UserId, ReactionTagNames.Shinji), Times.Once);
         _itemReactionServiceMock.Verify(s => s.ToggleItemReactionAsync(2, UserId, 20, 1, null), Times.Once);
     }
@@ -129,7 +131,8 @@ public class ItemCardVoteCoordinatorTests
         var result = await _coordinator.ToggleReactionAsync(
             2, UserId, ReactionTagNames.Shinji, targetWeight: 1, reactionTagId: null, allTags: [], comment: "リアクションへの熱いコメント");
 
-        Assert.True(result);
+        Assert.NotNull(result);
+        Assert.Equal(ItemVoteAction.Added, result.Action);
         _itemReactionServiceMock.Verify(s => s.ToggleItemReactionAsync(2, UserId, 20, 1, "リアクションへの熱いコメント"), Times.Once);
     }
 
@@ -139,7 +142,7 @@ public class ItemCardVoteCoordinatorTests
         var result = await _coordinator.ToggleReactionAsync(
             2, "", ReactionTagNames.Shinji, targetWeight: 1, reactionTagId: 20, allTags: []);
 
-        Assert.False(result);
+        Assert.Null(result);
         _snackbarMock.Verify(s => s.Add(ErrorMessages.LoginRequired, Severity.Warning, It.IsAny<Action<SnackbarOptions>>(), It.IsAny<string?>()), Times.Once);
     }
 
@@ -155,7 +158,8 @@ public class ItemCardVoteCoordinatorTests
         var result = await _coordinator.ToggleReactionAsync(
             3, UserId, ReactionTagNames.Zen, targetWeight: 1, reactionTagId: 35, allTags: [existingTag]);
 
-        Assert.True(result);
+        Assert.NotNull(result);
+        Assert.Equal(102, result.RelationId);
         _itemReactionServiceMock.Verify(s => s.ToggleItemReactionAsync(3, UserId, 35, 1, null), Times.Once);
         _itemReactionServiceMock.Verify(s => s.EnsureReactionTagAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
     }
@@ -175,5 +179,28 @@ public class ItemCardVoteCoordinatorTests
     {
         await Assert.ThrowsAsync<ArgumentNullException>(() => _coordinator.ToggleReactionAsync(
             1, UserId, ReactionTagNames.Shinji, targetWeight: 1, reactionTagId: null, allTags: null!));
+    }
+
+    [Fact]
+    public async Task UpdateReactionCommentAsync_WhenUserIdIsNullOrEmpty_ShowsLoginRequiredAndReturnsFalse()
+    {
+        var result = await _coordinator.UpdateReactionCommentAsync(101, "", "コメント");
+
+        Assert.False(result);
+        _snackbarMock.Verify(s => s.Add(ErrorMessages.LoginRequired, Severity.Warning, It.IsAny<Action<SnackbarOptions>>(), It.IsAny<string?>()), Times.Once);
+        _itemReactionServiceMock.Verify(s => s.UpdateTagRelationCommentAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateReactionCommentAsync_WhenValid_CallsItemReactionService()
+    {
+        _ = _itemReactionServiceMock
+            .Setup(s => s.UpdateTagRelationCommentAsync(101, UserId, "テストコメント"))
+            .ReturnsAsync(true);
+
+        var result = await _coordinator.UpdateReactionCommentAsync(101, UserId, "テストコメント");
+
+        Assert.True(result);
+        _itemReactionServiceMock.Verify(s => s.UpdateTagRelationCommentAsync(101, UserId, "テストコメント"), Times.Once);
     }
 }

@@ -416,8 +416,18 @@ public partial class ItemCard : IAsyncDisposable
         bool isCurrentlyDownvoted = IsItemReactionDownvoted(reactionTagName);
         bool isNewAddition = !isCurrentlyUpvoted && !isCurrentlyDownvoted;
 
-        string? comment = null;
-        if (isNewAddition)
+        Func<Task>? ensureAsync = OnEnsureSystemTags.HasDelegate ? OnEnsureSystemTags.InvokeAsync : null;
+        ItemVoteResult? voteResult = await VoteCoordinator.ToggleReactionAsync(
+            Item.Id, CurrentUserId, reactionTagName, targetWeight, reactionTagId, AllTags, ensureAsync);
+
+        if (voteResult is null)
+        {
+            return;
+        }
+
+        await NotifyDataChangedAsync();
+
+        if (isNewAddition && voteResult.Action == ItemVoteAction.Added)
         {
             var parameters = new DialogParameters
             {
@@ -431,29 +441,17 @@ public partial class ItemCard : IAsyncDisposable
             };
             IDialogReference dialog = await DialogLauncher.ShowAsync<ReactionCommentDialog>("リアクションを追加", parameters, options);
             DialogResult? result = await dialog.Result;
-            if (result is null || result.Canceled)
+            if (result is not null && !result.Canceled && result.Data is ReactionCommentDialogResult { Saved: true } dialogResult)
             {
-                return;
-            }
-
-            if (result.Data is ReactionCommentDialogResult dialogResult)
-            {
-                if (!dialogResult.Saved)
+                if (!string.IsNullOrWhiteSpace(dialogResult.Comment))
                 {
-                    return;
+                    bool updated = await VoteCoordinator.UpdateReactionCommentAsync(voteResult.RelationId, CurrentUserId, dialogResult.Comment);
+                    if (updated)
+                    {
+                        await NotifyDataChangedAsync();
+                    }
                 }
-
-                comment = dialogResult.Comment;
             }
-        }
-
-        Func<Task>? ensureAsync = OnEnsureSystemTags.HasDelegate ? OnEnsureSystemTags.InvokeAsync : null;
-        var success = await VoteCoordinator.ToggleReactionAsync(
-            Item.Id, CurrentUserId, reactionTagName, targetWeight, reactionTagId, AllTags, ensureAsync, comment);
-
-        if (success)
-        {
-            await NotifyDataChangedAsync();
         }
     }
 
