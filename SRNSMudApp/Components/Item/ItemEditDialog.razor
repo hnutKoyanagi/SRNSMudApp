@@ -1,11 +1,6 @@
-@using SRNSMudApp.Services
+@namespace SRNSMudApp.Components.Item
 @using SRNSMudApp.Components.UI
 @using SRNSMudApp.Models
-@implements IAsyncDisposable
-@inject ItemEditViewModel ViewModel
-@inject ISnackbar Snackbar
-@inject IJSRuntime JS
-@inject ILogger<ItemEditDialog> Logger
 
 <MudDialog>
     <DialogContent>
@@ -39,88 +34,3 @@
         <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="@SaveAsync">保存</MudButton>
     </DialogActions>
 </MudDialog>
-
-@code {
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
-
-    [Parameter] public Item Item { get; set; } = null!;
-
-    private DotNetObjectReference<ItemEditDialog>? _objRef;
-    private bool _tributeInitialized = false;
-
-    protected override void OnInitialized()
-    {
-        ViewModel.Initialize(Item);
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!_tributeInitialized)
-        {
-            _tributeInitialized = true;
-            _objRef = DotNetObjectReference.Create(this);
-            try
-            {
-                // Init HTML content of the editor with parsed pills
-                var initialHtml = ItemEditViewModel.ParsePillsToHtml(ViewModel.EditContent);
-                await JS.InvokeVoidAsync("eval", $"document.getElementById('edit-item-textarea').innerHTML = {System.Text.Json.JsonSerializer.Serialize(initialHtml)}");
-                
-                await JS.InvokeVoidAsync("tributeInterop.init", "edit-item-textarea", _objRef);
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex, "JS Interop Error while initializing Tribute: {Message}", ex.Message);
-            }
-        }
-    }
-
-    /// <summary>
-    /// テキスト内の内部リンク（/TagDetail/ や /User/UserDetail/）を contenteditable 用の pill HTML に変換する
-    /// </summary>
-    internal static string ParsePillsToHtml(string text) => ItemEditViewModel.ParsePillsToHtml(text);
-
-    private void Cancel()
-    {
-        MudDialog.Cancel();
-    }
-
-    private async Task SaveAsync()
-    {
-        var (success, errorMessage) = await ViewModel.SaveAsync();
-        if (success)
-        {
-            MudDialog.Close(DialogResult.Ok(true));
-        }
-        else if (!string.IsNullOrEmpty(errorMessage))
-        {
-            Snackbar.Add(errorMessage, Severity.Warning);
-        }
-    }
-
-    [JSInvokable]
-    public async Task<IEnumerable<MentionItem>> SearchTags(string query)
-    {
-        return await ViewModel.SearchTagsAsync(query);
-    }
-
-    [JSInvokable]
-    public async Task<IEnumerable<MentionItem>> SearchUsers(string query)
-    {
-        return await ViewModel.SearchUsersAsync(query);
-    }
-
-    [JSInvokable]
-    public async Task SubmitForm()
-    {
-        await SaveAsync();
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_objRef != null)
-        {
-            try { await JS.InvokeVoidAsync("tributeInterop.destroy", "edit-item-textarea"); } catch { }
-            _objRef.Dispose();
-        }
-    }
-}

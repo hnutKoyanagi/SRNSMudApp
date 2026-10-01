@@ -1,14 +1,7 @@
 @page "/Contract/ContractManagement"
-@using System.Security.Claims
-@using SRNSMudApp.Services
-@using SRNSMudApp.Components.UI
-@using SRNSMudApp.Models.Unions
-@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@namespace SRNSMudApp.Components.Contract
 
-@attribute [Authorize]
-
-@inject ContractManagementViewModel ViewModel
-@inject ISnackbar Snackbar
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
     <MudText Typo="Typo.h4" GutterBottom="true">コントラクト管理</MudText>
@@ -115,56 +108,3 @@
         </LoadedContent>
     </SRNSMudApp.Components.UI.AsyncPageView>
 </MudContainer>
-
-@code {
-    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
-
-    private string _currentUserId = string.Empty;
-
-    protected override async Task OnInitializedAsync()
-    {
-        var authState = await AuthStateTask;
-        _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
-
-        await ViewModel.LoadDataAsync(_currentUserId);
-    }
-
-    private async Task AcceptContract(TaggingRequestEntity contract)
-    {
-        var result = await ViewModel.AcceptContractAsync(contract.Id, _currentUserId);
-        if (result is Success<string>)
-        {
-            Snackbar.Add("コントラクトを承認しました。", Severity.Success);
-        }
-        else if (result is Failure f)
-        {
-            Snackbar.Add($"エラーが発生しました: {f.ErrorMessage}", Severity.Error);
-        }
-    }
-
-    private async Task RejectContract(TaggingRequestEntity contract)
-    {
-        var result = await ViewModel.RejectContractAsync(contract.Id, _currentUserId);
-        if (result is Success<string>)
-        {
-            Snackbar.Add("コントラクトを拒否しました。", Severity.Success);
-        }
-        else if (result is Failure f)
-        {
-            Snackbar.Add($"エラーが発生しました: {f.ErrorMessage}", Severity.Error);
-        }
-    }
-
-    private async Task CancelContract(TaggingRequestEntity contract)
-    {
-        var result = await ViewModel.CancelContractAsync(contract.Id, _currentUserId);
-        if (result is Success<string>)
-        {
-            Snackbar.Add("コントラクトを取り下げました。", Severity.Success);
-        }
-        else if (result is Failure f)
-        {
-            Snackbar.Add($"エラーが発生しました: {f.ErrorMessage}", Severity.Error);
-        }
-    }
-}

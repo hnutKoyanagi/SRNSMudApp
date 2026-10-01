@@ -1,8 +1,6 @@
 @using SRNSMudApp.Data
 @using SRNSMudApp.Models.Unions
 @using UserGroupEntity = SRNSMudApp.Data.UserGroup
-@inject UserGroupMembersViewModel ViewModel
-@inject ISnackbar Snackbar
 
 <MudDialog>
     <DialogContent>
@@ -80,56 +78,3 @@
     </DialogActions>
 </MudDialog>
 
-@code {
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
-
-    [Parameter] public UserGroupEntity Group { get; set; } = null!;
-
-    [Parameter] public string CurrentUserId { get; set; } = null!;
-
-    protected override async Task OnInitializedAsync()
-    {
-        await ViewModel.InitializeAsync(Group, CurrentUserId);
-    }
-
-    private Task<IEnumerable<ApplicationUser>> SearchUsersAsync(string? value, CancellationToken ct)
-    {
-        return ViewModel.SearchUsersAsync(value, ct);
-    }
-
-    private async Task AddMemberAsync()
-    {
-        string? addedUserName = ViewModel.SelectedUser?.UserName;
-        Result<bool> result = await ViewModel.AddMemberAsync();
-
-        switch (result)
-        {
-            case Success<bool>:
-                Snackbar.Add($"ユーザー「{addedUserName}」を追加しました。", Severity.Success);
-                break;
-            case Failure fail:
-                Snackbar.Add(fail.ErrorMessage, Severity.Error);
-                break;
-        }
-    }
-
-    private async Task RemoveMemberAsync(string userId)
-    {
-        Result<bool> result = await ViewModel.RemoveMemberAsync(userId);
-
-        switch (result)
-        {
-            case Success<bool>:
-                Snackbar.Add("メンバーを削除しました。", Severity.Success);
-                break;
-            case Failure fail:
-                Snackbar.Add(fail.ErrorMessage, Severity.Error);
-                break;
-        }
-    }
-
-    private void Close()
-    {
-        MudDialog.Close(DialogResult.Ok(true));
-    }
-}

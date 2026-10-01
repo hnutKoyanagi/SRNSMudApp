@@ -1,9 +1,6 @@
 @page "/User/MakeMeAdmin"
 @attribute [Authorize]
 @rendermode InteractiveServer
-@inject IWebHostEnvironment Env
-@inject IJSRuntime JS
-@inject MakeMeAdminViewModel ViewModel
 
 <MudContainer MaxWidth="MaxWidth.Small" Class="mt-10">
     <MudText Typo="Typo.h5" GutterBottom="true">デバッグ: Admin権限の切り替え</MudText>
@@ -52,19 +49,3 @@
         </MudCard>
     }
 </MudContainer>
-
-@code {
-    [CascadingParameter]
-    private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
-
-    protected override async Task OnInitializedAsync()
-    {
-        var auth = await AuthStateTask;
-        ViewModel.Initialize(auth.User);
-    }
-
-    private async Task OnToggleAdminChanged(bool newValue)
-    {
-        await ViewModel.ToggleAdminAsync(newValue, JS);
-    }
-}

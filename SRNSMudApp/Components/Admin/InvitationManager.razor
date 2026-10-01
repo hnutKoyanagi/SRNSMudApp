@@ -1,9 +1,5 @@
 @page "/Admin/Invitations"
-@using System.Security.Claims
 @attribute [Authorize(Roles = "Admin")]
-@using SRNSMudApp.Models.Unions
-@inject InvitationManagerViewModel ViewModel
-@inject ISnackbar Snackbar
 
 <PageTitle>Invitation Management</PageTitle>
 
@@ -56,49 +52,3 @@
         </MudTd>
     </RowTemplate>
 </MudTable>
-
-@code {
-    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
-
-    protected override async Task OnInitializedAsync()
-    {
-        if (AuthStateTask is not null)
-        {
-            var authState = await AuthStateTask;
-            ViewModel.Initialize(authState.User);
-        }
-
-        await ViewModel.LoadInvitationsAsync();
-    }
-
-    private async Task CreateInvitationAsync()
-    {
-        var result = await ViewModel.CreateInvitationAsync();
-        if (result is Success<Invitation>)
-        {
-            Snackbar.Add("Invitation created successfully.", Severity.Success);
-        }
-        else if (result is Failure failure)
-        {
-            Snackbar.Add(failure.ErrorMessage, Severity.Error);
-        }
-    }
-
-    private async Task DeleteInvitationAsync(Invitation invitation)
-    {
-        var result = await ViewModel.DeleteInvitationAsync(invitation);
-        if (result is Success<bool>)
-        {
-            Snackbar.Add("Invitation deleted.", Severity.Info);
-        }
-        else if (result is Failure failure)
-        {
-            Snackbar.Add(failure.ErrorMessage, Severity.Error);
-        }
-    }
-
-    private void CopyLink(string code)
-    {
-        Snackbar.Add($"Link to copy: {InvitationManagerViewModel.BuildInviteLink(code)}", Severity.Info);
-    }
-}

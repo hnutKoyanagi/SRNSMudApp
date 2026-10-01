@@ -1,8 +1,5 @@
-@using SRNSMudApp.Data
+@namespace SRNSMudApp.Components.Tag
 @using SRNSMudApp.Models
-@using SRNSMudApp.Services
-
-@inject TagResolutionViewModel ViewModel
 
 <MudDialog>
     <TitleContent>
@@ -134,57 +131,3 @@
     </DialogActions>
 </MudDialog>
 
-@code {
-    [CascadingParameter]
-    private IMudDialogInstance MudDialog { get; set; } = null!;
-
-    [Parameter]
-    public string TagName { get; set; } = string.Empty;
-
-    [Parameter]
-    public string TagKind { get; set; } = "UserCustomTag";
-
-    [Parameter]
-    public Tag? SuggestedParentTag { get; set; }
-
-    protected override async Task OnInitializedAsync()
-    {
-        ViewModel.TagKind = TagKind;
-        await ViewModel.InitializeAsync(TagName, SuggestedParentTag);
-    }
-
-    private void OnSuggestionSelected(Tag? tag)
-    {
-        ViewModel.SelectedExistingTag = tag;
-    }
-
-    private void OnParentSuggestionSelected(Tag? tag)
-    {
-        ViewModel.SelectedCustomParentTag = tag;
-    }
-
-    private void OnUseSuggestedParentChanged(bool useSuggested)
-    {
-        ViewModel.SetUseSuggestedParent(useSuggested);
-    }
-
-    private async Task<IEnumerable<Tag>> SearchParentCandidateTagsAsync(string? value, CancellationToken token)
-    {
-        return await ViewModel.SearchParentCandidateTagsAsync(value, token);
-    }
-
-    private async Task<IEnumerable<Tag>> SearchExistingTagsAsync(string? value, CancellationToken token)
-    {
-        return await ViewModel.SearchExistingTagsAsync(value, token);
-    }
-
-    private void Submit()
-    {
-        MudDialog.Close(DialogResult.Ok(ViewModel.CreateDecision()));
-    }
-
-    private void Skip()
-    {
-        MudDialog.Close(DialogResult.Ok(ViewModel.CreateSkipDecision()));
-    }
-}

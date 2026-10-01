@@ -1,10 +1,4 @@
-@using System.Security.Claims
 @rendermode InteractiveServer
-
-@using SRNSMudApp.Models.Unions
-@using SRNSMudApp.Services
-@inject ItemImportViewModel ViewModel
-@inject ISnackbar Snackbar
 
 <MudPaper Outlined="true" Class="pa-4 rounded-xl mb-4">
     <MudStack>
@@ -25,49 +19,3 @@
         </MudButton>
     </MudStack>
 </MudPaper>
-
-@code {
-    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
-
-    [Parameter] public EventCallback OnImportCompleted { get; set; }
-
-    protected override async Task OnInitializedAsync()
-    {
-        if (AuthState is not null)
-        {
-            var authState = await AuthState;
-            ViewModel.CurrentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
-        }
-    }
-
-    private async Task OnCsvUpload(InputFileChangeEventArgs e)
-    {
-        var file = e.File;
-        if (file.Size > ItemImportViewModel.MaxFileSizeBytes)
-        {
-            Snackbar.Add("ファイルサイズが大きすぎます。5MB以下のファイルを選択してください。", Severity.Error);
-            return;
-        }
-
-        try
-        {
-            await using var stream = file.OpenReadStream(ItemImportViewModel.MaxFileSizeBytes);
-            var result = await ViewModel.ImportCsvAsync(stream, file.Size);
-
-            if (result is Success<int> s)
-            {
-                Snackbar.Add($"{s.Value}件のアイテムをインポートしました。", Severity.Success);
-                await OnImportCompleted.InvokeAsync();
-            }
-            else if (result is Failure f)
-            {
-                var severity = f.ErrorMessage.Contains("ありませんでした") ? Severity.Info : Severity.Error;
-                Snackbar.Add(f.ErrorMessage, severity);
-            }
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"エラーが発生しました: {ex.Message}", Severity.Error);
-        }
-    }
-}

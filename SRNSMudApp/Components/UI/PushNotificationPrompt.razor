@@ -1,8 +1,5 @@
-@using System.Security.Claims
-@using Microsoft.JSInterop
 @using MudBlazor
 @rendermode InteractiveServer
-@inject PushNotificationPromptViewModel ViewModel
 
 @if (ViewModel.IsSupported)
 {
@@ -77,43 +74,5 @@
                 </div>
             </div>
         </MudAlert>
-    }
-}
-
-@code {
-    [CascadingParameter] private Task<AuthenticationState> AuthenticationStateTask { get; set; } = default!;
-
-    /// <summary>
-    /// 購読済みの場合にもステータスやテスト通知ボタンを表示するかどうか。
-    /// </summary>
-    [Parameter] public bool ShowWhenSubscribed { get; set; } = true;
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            var authState = await AuthenticationStateTask;
-            ViewModel.ShowWhenSubscribed = ShowWhenSubscribed;
-            await ViewModel.LoadSubscriptionStatusAsync(authState?.User);
-            StateHasChanged();
-        }
-    }
-
-    /// <summary>
-    /// ブラウザの通知許可ダイアログを表示し、VAPID鍵を用いてWeb Pushを購読します。
-    /// </summary>
-    public async Task RequestPushPermissionAsync()
-    {
-        await ViewModel.RequestPushPermissionAsync();
-    }
-
-    private async Task UnsubscribeAsync()
-    {
-        await ViewModel.UnsubscribeAsync();
-    }
-
-    private async Task SendTestNotificationAsync()
-    {
-        await ViewModel.SendTestNotificationAsync();
     }
 }

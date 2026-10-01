@@ -1,14 +1,6 @@
 @page "/Tag/TagList"
 @rendermode InteractiveServer
-@inject TagListViewModel ViewModel
 
 <MudText Typo="Typo.h4" GutterBottom="true">Tag List</MudText>
 
 <SRNSMudApp.Components.Tag.TagTable Tags="@ViewModel.Tags" OnDataChanged="ViewModel.LoadDataAsync" />
-
-@code {
-    protected override async Task OnInitializedAsync()
-    {
-        await ViewModel.LoadDataAsync();
-    }
-}

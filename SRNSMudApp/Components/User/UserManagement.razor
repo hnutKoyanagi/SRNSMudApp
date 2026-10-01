@@ -1,11 +1,6 @@
 @page "/User/Management"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = "Admin")]
-@using System.Security.Claims
-@using Microsoft.AspNetCore.Components.Authorization
-@using SRNSMudApp.Data
-@using SRNSMudApp.Services
-@inject UserManagementViewModel ViewModel
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-10">
     <MudText Typo="Typo.h4" GutterBottom="true">ユーザー管理</MudText>
@@ -48,20 +43,3 @@
         </MudTable>
     }
 </MudContainer>
-
-@code {
-    [CascadingParameter]
-    private Task<AuthenticationState>? AuthStateTask { get; set; }
-
-    protected override async Task OnInitializedAsync()
-    {
-        string? currentUserId = null;
-        if (AuthStateTask is not null)
-        {
-            AuthenticationState authState = await AuthStateTask;
-            currentUserId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        }
-
-        await ViewModel.InitializeAsync(currentUserId);
-    }
-}

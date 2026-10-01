@@ -2,8 +2,6 @@
 @using SRNSMudApp.Models
 @using SRNSMudApp.Services
 
-@inject TagLinkReplaceViewModel ViewModel
-
 <MudDialog>
     <TitleContent>
         <MudText Typo="Typo.h6">
@@ -70,39 +68,4 @@
     </DialogActions>
 </MudDialog>
 
-@code {
-    [CascadingParameter]
-    private IMudDialogInstance MudDialog { get; set; } = null!;
-
-    [Parameter]
-    public string OriginalMatchText { get; set; } = string.Empty;
-
-    [Parameter]
-    public string TagName { get; set; } = string.Empty;
-
-    [Parameter]
-    public Tag? FirstCandidateTag { get; set; }
-
-    protected override void OnParametersSet()
-    {
-        ViewModel.OriginalMatchText = OriginalMatchText;
-        ViewModel.TagName = TagName;
-        ViewModel.SetCandidate(FirstCandidateTag);
-    }
-
-    private async Task<IEnumerable<Tag>> SearchTagsAsync(string? value, CancellationToken token)
-    {
-        return await ViewModel.SearchTagsAsync(value, token);
-    }
-
-    private void Skip()
-    {
-        MudDialog.Close(DialogResult.Ok(ViewModel.CreateSkipDecision()));
-    }
-
-    private void Submit()
-    {
-        MudDialog.Close(DialogResult.Ok(ViewModel.CreateDecision()));
-    }
-}
 

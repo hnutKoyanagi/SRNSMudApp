@@ -1,9 +1,4 @@
-@using SRNSMudApp.Data
-@using SRNSMudApp.Models.Unions
-@using SRNSMudApp.Services
 @using SRNSMudApp.Components.UI
-@inject QuoteItemViewModel ViewModel
-@inject ISnackbar Snackbar
 
 <MudDialog>
     <TitleContent>
@@ -20,13 +15,10 @@
                           AutoFocus="true" Required="true" RequiredError="本文を入力してください。" data-testid="quote-item-content-input" />
 
             @* 抽出したURLのプレビュー *@
-            @{
-                var urls = ItemCardViewModel.ExtractUrls(ViewModel.Content);
-            }
-            @if (urls.Any())
+            @if (ViewModel.ExtractedUrls.Count > 0)
             {
                 <MudStack Spacing="2">
-                    @foreach (var url in urls.Take(3))
+                    @foreach (var url in ViewModel.ExtractedUrls.Take(3))
                     {
                         <UrlPreviewCard Url="@url" LoadPreview="@ViewModel.GetPreviewAsync" />
                     }
@@ -56,39 +48,3 @@
         </MudButton>
     </DialogActions>
 </MudDialog>
-
-@code {
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
-
-    [Parameter] public Item QuotedItem { get; set; } = null!;
-    [Parameter] public string CurrentUserId { get; set; } = "";
-
-    protected override void OnParametersSet()
-    {
-        ViewModel.QuotedItem = QuotedItem;
-        ViewModel.CurrentUserId = CurrentUserId;
-    }
-
-    private void Cancel()
-    {
-        MudDialog.Cancel();
-    }
-
-    private async Task SaveAsync()
-    {
-        var result = await ViewModel.SubmitAsync();
-        if (result is Success<Item> success)
-        {
-            Snackbar.Add("引用を投稿しました。", Severity.Success);
-            MudDialog.Close(DialogResult.Ok(success.Value));
-        }
-        else if (result is Failure failure)
-        {
-            Snackbar.Add(failure.ErrorMessage, Severity.Error);
-            if (failure.ErrorMessage.Contains("見つかりませんでした", StringComparison.Ordinal))
-            {
-                MudDialog.Cancel();
-            }
-        }
-    }
-}

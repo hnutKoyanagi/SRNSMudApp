@@ -1,13 +1,6 @@
 @page "/Admin/TagManagement"
-@rendermode InteractiveServer
-@attribute [Authorize(Roles = "Admin")]
-@using Microsoft.AspNetCore.Authorization
-@using SRNSMudApp.Data
-@using SRNSMudApp.Models.Unions
-@using SRNSMudApp.Services
-@inject TagManagementViewModel ViewModel
-@inject ISnackbar Snackbar
-@inject NavigationManager NavigationManager
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+@namespace SRNSMudApp.Components.Admin
 
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-5">
     <div class="d-flex align-center mb-4">
@@ -183,38 +176,6 @@
                 }
             </MudCardContent>
         </MudCard>
-    </MudContainer>
+</MudContainer>
 
-@code {
-    protected override async Task OnInitializedAsync()
-    {
-        await ViewModel.LoadDataAsync();
-    }
-
-    private async Task SaveHierarchyLockSettingAsync()
-    {
-        var result = await ViewModel.SaveHierarchyLockSettingAsync();
-        if (result is Success<int> success)
-        {
-            Snackbar.Add($"階層ロック設定を {success.Value} 階層目までに更新しました。", Severity.Success);
-        }
-        else if (result is Failure failure)
-        {
-            Snackbar.Add(failure.ErrorMessage, Severity.Error);
-        }
-    }
-
-    private async Task ToggleTagLockAsync(int tagId)
-    {
-        var result = await ViewModel.ToggleTagLockAsync(tagId);
-        if (result is Success<bool> success)
-        {
-            Snackbar.Add(success.Value ? "タグを個別ロックしました。" : "タグの個別ロックを解除しました。", Severity.Success);
-        }
-        else if (result is Failure failure)
-        {
-            Snackbar.Add(failure.ErrorMessage, Severity.Error);
-        }
-    }
-}
 

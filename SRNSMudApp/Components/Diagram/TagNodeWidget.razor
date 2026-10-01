@@ -1,7 +1,5 @@
-@inject IJSRuntime JS
-@inject NavigationManager NavigationManager
+@namespace SRNSMudApp.Components.Diagram
 @using Blazor.Diagrams.Components.Renderers
-@using Blazor.Diagrams.Core.Models
 @using SRNSMudApp.Components.Tag
 
 <div
@@ -72,61 +70,3 @@
     </MudPopover>
 </div>
 
-@code {
-    [Parameter] public TagNode Node { get; set; } = null!;
-
-    private bool _isTreeOpen;
-
-    private async Task ToggleTree()
-    {
-        _isTreeOpen = !_isTreeOpen;
-        if (_isTreeOpen)
-        {
-            await Task.Yield();
-            try
-            {
-                await JS.InvokeVoidAsync("contentOverflowHelper.scrollToElement", ".tag-tree-popover-content #tag-tree-current-line");
-            }
-            catch (JSException)
-            {
-            }
-            catch (InvalidOperationException)
-            {
-            }
-        }
-    }
-
-    private void HandleTagClick(int tagId)
-    {
-        _isTreeOpen = false;
-        Node.RequestFocusTag?.Invoke(tagId);
-    }
-
-    private void HandleShowChildNodes()
-    {
-        Node.RequestShowChildNodes?.Invoke(Node.Tag);
-    }
-
-    private async Task HandleAddChildTag(Tag targetTag)
-    {
-        _isTreeOpen = false;
-        if (Node.RequestAddChildTag != null)
-        {
-            await Node.RequestAddChildTag(targetTag);
-        }
-    }
-
-    private void NavigateToTagDetail()
-    {
-        NavigationManager.NavigateTo($"/TagDetail/{Node.Tag.Id}");
-    }
-
-    private static string GetPortClass(PortAlignment alignment) => alignment switch
-    {
-        PortAlignment.Left => "port-left",
-        PortAlignment.Right => "port-right",
-        PortAlignment.Top => "port-top",
-        PortAlignment.Bottom => "port-bottom",
-        _ => ""
-    };
-}

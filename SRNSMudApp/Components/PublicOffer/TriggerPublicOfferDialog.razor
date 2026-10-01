@@ -1,10 +1,3 @@
-@using System.Security.Claims
-@using SRNSMudApp.Models.Unions
-@using SRNSMudApp.Services
-@using SRNSMudApp.Services.Commands
-@inject TriggerPublicOfferViewModel ViewModel
-@inject ISnackbar Snackbar
-
 <MudDialog>
     <DialogContent>
         <MudForm @ref="_form" @bind-IsValid="@_isValid">
@@ -17,21 +10,21 @@
                 要求されるアセット量: @(Offer.RequiredAssetAmount > 0 ? Offer.RequiredAssetAmount.ToString() : "無償")
             </MudAlert>
 
-            <MudAutocomplete T="Item" Label="タグを付与する対象のアイテム" @bind-Value="_selectedItem" SearchFunc="@SearchItems"
+            <MudAutocomplete T="Item" Label="タグを付与する対象のアイテム" @bind-Value="SelectedItem" SearchFunc="@SearchItems"
                              ToStringFunc="@(i => i?.Content ?? "")" Required="true" RequiredError="アイテムを選択してください"
                              ResetValueOnEmptyText="true" CoerceText="true" CoerceValue="true" />
 
             @if (Offer.RequiredAssetAmount > 0)
             {
-                <MudSelect T="RightAsset" Label="消費するアセット（必須）" @bind-Value="_selectedAsset" Clearable="true" Required="true"
+                <MudSelect T="RightAsset" Label="消費するアセット（必須）" @bind-Value="SelectedAsset" Clearable="true" Required="true"
                            RequiredError="要求量以上のアセットを選択してください"
                            ToStringFunc="@(a => a?.TargetTag?.Name != null ? $"[ID: {a.Id}] {a.TargetTag.Name} の権利 (量: {a.Amount})" : "")">
-                    @foreach (var asset in _validAssets)
+                    @foreach (var asset in ValidAssets)
                     {
                         <MudSelectItem Value="@asset" />
                     }
                 </MudSelect>
-                @if (!_validAssets.Any())
+                @if (ValidAssets.Count == 0)
                 {
                     <MudText Color="Color.Error" Typo="Typo.caption">条件を満たすアセットを所有していません。</MudText>
                 }
@@ -41,74 +34,8 @@
     <DialogActions>
         <MudButton OnClick="Cancel">キャンセル</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit"
-                   Disabled="@(!_isValid || (Offer.RequiredAssetAmount > 0 && !_validAssets.Any()))">
+                   Disabled="@(!_isValid || (Offer.RequiredAssetAmount > 0 && ValidAssets.Count == 0))">
             実行する
         </MudButton>
     </DialogActions>
 </MudDialog>
-
-@code {
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
-    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
-
-    [Parameter] public PublicTradeOffer Offer { get; set; } = null!;
-
-    private MudForm? _form;
-    private bool _isValid;
-
-    private Item? _selectedItem
-    {
-        get => ViewModel.SelectedItem;
-        set => ViewModel.SelectedItem = value;
-    }
-
-    private RightAsset? _selectedAsset
-    {
-        get => ViewModel.SelectedAsset;
-        set => ViewModel.SelectedAsset = value;
-    }
-
-    private IReadOnlyList<RightAsset> _validAssets => ViewModel.ValidAssets;
-
-    protected override async Task OnInitializedAsync()
-    {
-        var authState = await AuthStateTask;
-        ViewModel.CurrentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
-        ViewModel.Offer = Offer;
-
-        if (Offer.RequiredAssetAmount > 0)
-        {
-            await ViewModel.LoadMyAssetsAsync();
-        }
-    }
-
-    private async Task<IEnumerable<Item>> SearchItems(string? value, CancellationToken token)
-    {
-        return await ViewModel.SearchItemsAsync(value, token);
-    }
-
-    private async Task Submit()
-    {
-        await _form!.ValidateAsync();
-        if (!_isValid)
-        {
-            return;
-        }
-
-        Result<int> result = await ViewModel.SubmitAsync();
-        switch (result)
-        {
-            case Success<int> success:
-                MudDialog.Close(DialogResult.Ok(success.Value));
-                break;
-            case Failure failure:
-                Snackbar.Add(failure.ErrorMessage, Severity.Error);
-                break;
-        }
-    }
-
-    private void Cancel()
-    {
-        MudDialog.Cancel();
-    }
-}

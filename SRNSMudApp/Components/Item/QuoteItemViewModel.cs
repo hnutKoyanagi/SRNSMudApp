@@ -30,6 +30,8 @@ public class QuoteItemViewModel
 
     public bool CanSubmit => !string.IsNullOrWhiteSpace(Content) && !IsSubmitting;
 
+    public IReadOnlyList<string> ExtractedUrls => UI.ItemCardViewModel.ExtractUrls(Content);
+
     /// <summary>
     ///     指定された URL のリンクプレビューを取得する。
     /// </summary>

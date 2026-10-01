@@ -1,10 +1,3 @@
-@using System.Security.Claims
-@using SRNSMudApp.Models.Unions
-@using SRNSMudApp.Services
-@using SRNSMudApp.Services.Commands
-@inject BountyCreateViewModel ViewModel
-@inject ISnackbar Snackbar
-
 <MudDialog>
     <DialogContent>
         <MudForm @ref="_form" @bind-IsValid="@_isValid">
@@ -39,57 +32,3 @@
         </MudButton>
     </DialogActions>
 </MudDialog>
-
-@code {
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
-    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
-
-    [Parameter] public Item? TargetItem { get; set; }
-
-    private MudForm? _form;
-    private bool _isValid;
-
-    protected override async Task OnInitializedAsync()
-    {
-        var authState = await AuthStateTask;
-        var currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
-
-        await ViewModel.InitializeAsync(TargetItem, currentUserId);
-    }
-
-    private Task<IEnumerable<Item>> SearchItems(string value, CancellationToken token)
-    {
-        return ViewModel.SearchItemsAsync(value, token);
-    }
-
-    private Task<IEnumerable<Tag>> SearchTags(string value, CancellationToken token)
-    {
-        return ViewModel.SearchTagsAsync(value, token);
-    }
-
-    private async Task Submit()
-    {
-        await _form!.ValidateAsync();
-        if (!_isValid)
-        {
-            return;
-        }
-
-        var result = await ViewModel.SubmitAsync();
-        switch (result)
-        {
-            case Success<bool>:
-                Snackbar.Add("タグ付けの依頼（バウンティ）を作成しました。", Severity.Success);
-                MudDialog.Close(DialogResult.Ok(true));
-                break;
-            case Failure fail:
-                Snackbar.Add(fail.ErrorMessage, Severity.Error);
-                break;
-        }
-    }
-
-    private void Cancel()
-    {
-        MudDialog.Cancel();
-    }
-}

@@ -1,7 +1,6 @@
 @page "/User/UserSearch"
 @rendermode InteractiveServer
 @attribute [AllowAnonymous]
-@inject UserSearchViewModel ViewModel
 
 <MudContainer MaxWidth="MaxWidth.Small" Class="mt-10">
     <MudText Typo="Typo.h5" GutterBottom="true">ユーザー検索</MudText>
@@ -37,10 +36,3 @@
         </MudCard>
     }
 </MudContainer>
-
-@code {
-    private Task<IEnumerable<ApplicationUser>> SearchUsersAsync(string? value, CancellationToken token)
-    {
-        return ViewModel.SearchUsersAsync(value, token);
-    }
-}

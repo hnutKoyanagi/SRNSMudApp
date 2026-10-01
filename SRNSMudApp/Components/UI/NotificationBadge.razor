@@ -1,7 +1,4 @@
-@using System.Security.Claims
 @implements IDisposable
-@inject NotificationBadgeViewModel ViewModel
-@inject NavigationManager NavigationManager
 
 @if (ViewModel.CurrentUserId is not null)
 {
@@ -10,40 +7,4 @@
         <MudIconButton Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit" Href="notifications"
                        aria-label="notifications" />
     </MudBadge>
-}
-
-@code {
-    [CascadingParameter] private Task<AuthenticationState> AuthenticationStateTask { get; set; } = default!;
-
-    protected override async Task OnInitializedAsync()
-    {
-        NavigationManager.LocationChanged += OnLocationChanged;
-        ViewModel.StateChanged += OnStateChanged;
-
-        var authState = await AuthenticationStateTask;
-        var userId = authState.User.Identity?.IsAuthenticated == true
-            ? authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-            : null;
-
-        await ViewModel.InitializeAsync(userId, NavigationManager.Uri);
-    }
-
-    private async void OnLocationChanged(object? sender, LocationChangedEventArgs e)
-    {
-        if (await ViewModel.OnLocationChangedAsync(e.Location))
-        {
-            await InvokeAsync(StateHasChanged);
-        }
-    }
-
-    private async void OnStateChanged(object? sender, EventArgs e)
-    {
-        await InvokeAsync(StateHasChanged);
-    }
-
-    public void Dispose()
-    {
-        NavigationManager.LocationChanged -= OnLocationChanged;
-        ViewModel.StateChanged -= OnStateChanged;
-    }
 }

@@ -1,7 +1,4 @@
-@using SRNSMudApp.Components.PublicOffer
 @namespace SRNSMudApp.Components.UI
-@inject IDialogLauncher DialogLauncher
-@inject ISnackbar Snackbar
 
 <MudTable Items="@Offers" Hover="true" Breakpoint="Breakpoint.Sm" Elevation="0" Outlined="true" Dense="true"
           Class="mt-4">
@@ -39,27 +36,3 @@
         <MudTablePager PageSizeOptions="[10, 20, 50]" />
     </PagerContent>
 </MudTable>
-
-@code {
-    [Parameter] public IEnumerable<PublicTradeOffer> Offers { get; set; } = [];
-
-    [Parameter] public EventCallback OnOfferTriggered { get; set; }
-
-    private async Task TriggerOffer(PublicTradeOffer offer)
-    {
-        var parameters = new DialogParameters
-        {
-            { "Offer", offer }
-        };
-
-        var dialog = await DialogLauncher.ShowAsync<TriggerPublicOfferDialog>("オファーを受諾", parameters);
-        var result = await dialog.Result;
-
-        if (result is { Canceled: false })
-        {
-            Snackbar.Add("オファーを受諾し、リクエストを作成しました。", Severity.Success);
-            await OnOfferTriggered.InvokeAsync();
-        }
-    }
-
-}

@@ -9,10 +9,6 @@
 @using SRNSMudApp.Models.Unions
 @using SRNSMudApp.Services
 
-@inject ImportTaggingViewModel ViewModel
-@inject ISnackbar Snackbar
-@inject IJSRuntime JS
-@inject NavigationManager NavigationManager
 
 <MudText Typo="Typo.h4" GutterBottom="true">タグ付け構造インポート (JSON)</MudText>
 <MudText Typo="Typo.body1" Class="mb-4">
@@ -40,7 +36,7 @@
                       @bind-Value="ViewModel.JsonText"
                       Lines="10"
                       Variant="Variant.Outlined"
-                      Placeholder="@_placeholderJson" />
+                      Placeholder="@PlaceholderJson" />
 
         <MudButton Variant="Variant.Filled"
                    Color="Color.Success"
@@ -78,60 +74,3 @@
     </MudButton>
 }
 
-@code {
-    [CascadingParameter]
-    private Task<AuthenticationState>? AuthState { get; set; }
-
-    private const string _placeholderJson = """
-    {
-      "TaggingRequestEntity": {
-        "Item": [...],
-        "TagRelations": [...],
-        "TagEdges": [...]
-      }
-    }
-    """;
-
-    private IBrowserFile? _file;
-
-    protected override async Task OnInitializedAsync()
-    {
-        if (AuthState != null)
-        {
-            var auth = await AuthState;
-            ViewModel.Initialize(auth.User);
-        }
-    }
-
-    private async Task OnFileSelected(IBrowserFile? file)
-    {
-        _file = file;
-        if (file != null)
-        {
-            try
-            {
-                using var stream = file.OpenReadStream(10 * 1024 * 1024);
-                using var reader = new StreamReader(stream, Encoding.UTF8);
-                ViewModel.JsonText = await reader.ReadToEndAsync();
-            }
-            catch (Exception ex)
-            {
-                Snackbar.Add($"ファイルの読み込みに失敗しました: {ex.Message}", Severity.Error);
-            }
-        }
-    }
-
-    private async Task StartImportAsync()
-    {
-        var result = await ViewModel.ExecuteImportAsync(JS);
-        switch (result)
-        {
-            case Success<TaggingImportResult>:
-                Snackbar.Add("インポートが完了しました！", Severity.Success);
-                break;
-            case Failure fail:
-                Snackbar.Add(fail.ErrorMessage, Severity.Error);
-                break;
-        }
-    }
-}

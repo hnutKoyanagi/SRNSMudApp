@@ -1,12 +1,6 @@
 @page "/Tag/AddTag"
-@using System.ComponentModel.DataAnnotations
-@using System.Security.Claims
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = "Admin")]
-@using SRNSMudApp.Models.Unions
-@inject AddTagPageViewModel ViewModel
-@inject NavigationManager NavigationManager
-@inject ISnackbar Snackbar
 
 <MudText Typo="Typo.h3">Add Tag</MudText>
 
@@ -34,23 +28,3 @@
         </MudCardActions>
     </MudCard>
 </EditForm>
-
-@code {
-    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
-
-    private async Task AddTagAsync()
-    {
-        var authState = await AuthStateTask;
-        var result = await ViewModel.CreateTagAsync(authState.User);
-
-        switch (result)
-        {
-            case Success<Tag>:
-                NavigationManager.NavigateTo("/Tag/TagList");
-                break;
-            case Failure fail:
-                Snackbar.Add(fail.ErrorMessage, Severity.Error);
-                break;
-        }
-    }
-}

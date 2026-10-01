@@ -1,10 +1,3 @@
-@using System.Security.Claims
-@using SRNSMudApp.Data
-@using SRNSMudApp.Models.Unions
-@using SRNSMudApp.Services
-@inject TagEditViewModel ViewModel
-@inject ISnackbar Snackbar
-
 <MudDialog>
     <DialogContent>
         <MudTextField T="string" @bind-Value="ViewModel.EditName" Label="タグ名" Variant="Variant.Outlined" Class="mb-4"
@@ -25,48 +18,7 @@
     <DialogActions>
         <MudButton OnClick="@Cancel">キャンセル</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="@SaveAsync" Disabled="@(!ViewModel.CanSave)">
-            保存</MudButton>
-        </DialogActions>
-    </MudDialog>
-
-@code {
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
-    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
-
-    [Parameter] public Tag Tag { get; set; } = null!;
-
-    protected override async Task OnInitializedAsync()
-    {
-        var auth = await AuthStateTask;
-        string? currentUserId = auth.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        bool isAdmin = auth.User.IsInRole("Admin");
-
-        await ViewModel.InitializeAsync(Tag, currentUserId, isAdmin);
-    }
-
-    private void Cancel()
-    {
-        MudDialog.Cancel();
-    }
-
-    private async Task SaveAsync()
-    {
-        var result = await ViewModel.SaveAsync();
-        if (result is Success<bool>)
-        {
-            MudDialog.Close(DialogResult.Ok(true));
-        }
-        else if (result is Failure failure)
-        {
-            var severity = failure.ErrorMessage.Contains("ロック", StringComparison.Ordinal)
-                ? Severity.Warning
-                : Severity.Error;
-            Snackbar.Add(failure.ErrorMessage, severity);
-
-            if (severity == Severity.Warning)
-            {
-                MudDialog.Cancel();
-            }
-        }
-    }
-}
+            保存
+        </MudButton>
+    </DialogActions>
+</MudDialog>

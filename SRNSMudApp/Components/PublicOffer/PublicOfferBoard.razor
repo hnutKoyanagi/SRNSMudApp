@@ -6,10 +6,6 @@
 
 @attribute [Authorize]
 
-@inject PublicOfferBoardViewModel ViewModel
-@inject IDialogLauncher DialogLauncher
-@inject ISnackbar Snackbar
-
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
     <MudText Typo="Typo.h4" GutterBottom="true">公開オファー掲示板</MudText>
     <MudText Typo="Typo.body1" Class="mb-4">他のユーザーが提供しているタグの公開オファー一覧です。</MudText>
@@ -78,61 +74,3 @@
         </MudGrid>
     }
 </MudContainer>
-
-@code {
-    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
-
-    protected override async Task OnInitializedAsync()
-    {
-        var authState = await AuthStateTask;
-        ViewModel.CurrentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
-
-        await ViewModel.LoadDataAsync();
-    }
-
-    private async Task OpenCreateDialog()
-    {
-        var options = PublicOfferBoardViewModel.CreateDialogOptions();
-        var dialog = await DialogLauncher.ShowAsync<CreatePublicOfferDialog>("公開オファーの作成", options);
-        var result = await dialog.Result;
-
-        if (result is { Canceled: false })
-        {
-            await ViewModel.LoadDataAsync();
-        }
-    }
-
-    private async Task TriggerOffer(PublicTradeOffer offer)
-    {
-        var parameters = PublicOfferBoardViewModel.TriggerDialogParameters(offer);
-        var options = PublicOfferBoardViewModel.TriggerDialogOptions();
-        var dialog = await DialogLauncher.ShowAsync<TriggerPublicOfferDialog>("オファーに応じる", parameters, options);
-        var result = await dialog.Result;
-
-        if (result is { Canceled: false, Data: int contractId })
-        {
-            var acceptResult = await ViewModel.AcceptTriggeredContractAsync(contractId);
-            if (acceptResult is Success<bool>)
-            {
-                Snackbar.Add("公開オファーを利用してタグを獲得しました！", Severity.Success);
-            }
-            else if (acceptResult is Failure f)
-            {
-                Snackbar.Add(f.ErrorMessage, Severity.Error);
-            }
-        }
-    }
-
-    private async Task DeactivateOffer(PublicTradeOffer offer)
-    {
-        var result = await ViewModel.DeactivateOfferAsync(offer);
-        if (result is Success<bool>)
-        {
-            Snackbar.Add("オファーを取り下げました。", Severity.Success);
-        }
-        else if (result is Failure f)
-        {
-            Snackbar.Add(f.ErrorMessage, Severity.Error);
-        }
-    }
-}

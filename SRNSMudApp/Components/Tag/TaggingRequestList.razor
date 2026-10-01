@@ -1,9 +1,6 @@
-@using System.Security.Claims
-@using SRNSMudApp.Components.UI
-@using SRNSMudApp.Services
-@inject IDialogLauncher DialogLauncher
-@inject TaggingRequestActionViewModel ViewModel
-<MudTable T="TaggingRequestEntity" Items="[.. Requests.Where(r => r.Status != TradeStatus.Rejected)]" Hover="true"
+@namespace SRNSMudApp.Components.Tag
+
+<MudTable T="Data.TaggingRequestEntity" Items="[.. Requests.Where(r => r.Status != Data.TradeStatus.Rejected)]" Hover="true"
           Breakpoint="Breakpoint.Sm" Elevation="0" @bind-SelectedItem="SelectedRequest" OnRowClick="OnRowClicked"
           RowClassFunc="SelectedRowClassFunc">
     <HeaderContent>
@@ -17,13 +14,13 @@
         <MudTd DataLabel="タイプ">
             @switch (context.RequestType)
             {
-                case TaggingRequestType.Add:
+                case Data.TaggingRequestType.Add:
                     <MudChip T="string" Color="Color.Success" Size="Size.Small">追加 (+@(context.ProposedWeight))</MudChip>
                     break;
-                case TaggingRequestType.Remove:
+                case Data.TaggingRequestType.Remove:
                     <MudChip T="string" Color="Color.Error" Size="Size.Small">削除</MudChip>
                     break;
-                case TaggingRequestType.DecreaseWeight:
+                case Data.TaggingRequestType.DecreaseWeight:
                     <MudChip T="string" Color="Color.Warning" Size="Size.Small">追加 (-@(context.ProposedWeight))</MudChip>
                     break;
             }
@@ -61,86 +58,3 @@
         </MudTd>
     </RowTemplate>
 </MudTable>
-
-@code {
-    [Parameter] public IEnumerable<TaggingRequestEntity> Requests { get; set; } = [];
-    [Parameter] public EventCallback OnRequestChanged { get; set; }
-    [Parameter] public RenderFragment<TaggingRequestEntity>? RejectButtonTemplate { get; set; }
-    [Parameter] public TaggingRequestEntity? SelectedRequest { get; set; }
-    [Parameter] public EventCallback<TaggingRequestEntity?> SelectedRequestChanged { get; set; }
-
-    private string SelectedRowClassFunc(TaggingRequestEntity element, int rowNumber)
-    {
-        switch (SelectedRequest)
-        {
-            case not null when SelectedRequest.Id == element.Id:
-                return "mud-table-row-selected";
-            default:
-                return string.Empty;
-        }
-    }
-
-    private async Task OnRowClicked(TableRowClickEventArgs<TaggingRequestEntity> args)
-    {
-        SelectedRequest = args.Item;
-        await SelectedRequestChanged.InvokeAsync(args.Item);
-    }
-
-    private string? _currentUserId;
-
-    [CascadingParameter] private Task<AuthenticationState> AuthenticationStateTask { get; set; } = default!;
-
-    protected override async Task OnInitializedAsync()
-    {
-        var authState = await AuthenticationStateTask;
-        _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-    }
-
-    private bool CanApprove(TaggingRequestEntity request)
-    {
-        return ViewModel.CanApprove(request, _currentUserId ?? "");
-    }
-
-    private async Task ApproveRequestAsync(TaggingRequestEntity request)
-    {
-        if (_currentUserId is null)
-        {
-            return;
-        }
-
-        if (await ViewModel.ApproveRequestAsync(request.Id, _currentUserId))
-        {
-            await OnRequestChanged.InvokeAsync();
-        }
-    }
-
-    private async Task RejectRequestAsync(TaggingRequestEntity request)
-    {
-        if (_currentUserId is null)
-        {
-            return;
-        }
-
-        if (await ViewModel.RejectRequestAsync(request.Id, _currentUserId))
-        {
-            await OnRequestChanged.InvokeAsync();
-        }
-    }
-
-    public async Task OpenThreadDialog(TaggingRequestEntity request)
-    {
-        var parameters = new DialogParameters<TaggingRequestThreadDialog>
-        {
-            { x => x.TaggingRequest, request }
-        };
-        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
-        var dialog = await DialogLauncher.ShowAsync<TaggingRequestThreadDialog>("リクエストスレッド", parameters, options);
-        var result = await dialog.Result;
-
-        if (result is { Canceled: false })
-        {
-            await OnRequestChanged.InvokeAsync();
-        }
-    }
-
-}

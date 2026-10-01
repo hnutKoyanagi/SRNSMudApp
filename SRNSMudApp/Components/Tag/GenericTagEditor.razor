@@ -1,6 +1,5 @@
 @using SRNSMudApp.Services
 @typeparam TItem where TItem : class, IDirectTaggable
-@inject GenericTagEditorViewModel ViewModel
 
 <div class="d-flex flex-column gap-2">
     <MudText Typo="Typo.subtitle2">タグ</MudText>
@@ -30,26 +29,3 @@
         </MudButton>
     </div>
 </div>
-
-@code {
-    [Parameter][EditorRequired] public TItem TargetEntity { get; set; } = null!;
-    [Parameter] public EventCallback OnTagsChanged { get; set; }
-
-    private async Task AddTagAsync()
-    {
-        bool success = await ViewModel.AddTagAsync<TItem>(TargetEntity.Id);
-        if (success && OnTagsChanged.HasDelegate)
-        {
-            await OnTagsChanged.InvokeAsync();
-        }
-    }
-
-    private async Task RemoveTagAsync(int tagId)
-    {
-        bool success = await ViewModel.RemoveTagAsync<TItem>(TargetEntity.Id, tagId);
-        if (success && OnTagsChanged.HasDelegate)
-        {
-            await OnTagsChanged.InvokeAsync();
-        }
-    }
-}

@@ -1,6 +1,5 @@
-@using SRNSMudApp.Data
+@namespace SRNSMudApp.Components.Diagram
 @using SRNSMudApp.Components.Tag
-@inject TagEdgeInspectorViewModel ViewModel
 
 <MudPaper Elevation="4" Class="pa-4 tag-edge-inspector" Style="width: 360px; height: 100%; overflow-y: auto;">
     <div class="d-flex justify-space-between align-center mb-3">
@@ -153,43 +152,3 @@
     }
 </MudPaper>
 
-@code {
-    [Parameter]
-    public TagEdge? Edge { get; set; }
-
-    [Parameter]
-    public string CurrentUserId { get; set; } = "";
-
-    [Parameter]
-    public IReadOnlyList<Tag> AllTags { get; set; } = [];
-
-    [Parameter]
-    public EventCallback OnClose { get; set; }
-
-    [Parameter]
-    public EventCallback<TagEdge> OnDeleteEdge { get; set; }
-
-    [Parameter]
-    public EventCallback<TagEdge> OnAttachTag { get; set; }
-
-    [Parameter]
-    public EventCallback<TagEdgeTagAttachment> OnDetachTag { get; set; }
-
-    [Parameter]
-    public EventCallback<Tag> OnAddChildTag { get; set; }
-
-    protected override void OnParametersSet()
-    {
-        ViewModel.Edge = Edge;
-        ViewModel.CurrentUserId = CurrentUserId;
-    }
-
-    private async Task HandleAddChildTag(Tag targetTag)
-    {
-        ViewModel.CloseTree();
-        if (OnAddChildTag.HasDelegate)
-        {
-            await OnAddChildTag.InvokeAsync(targetTag);
-        }
-    }
-}

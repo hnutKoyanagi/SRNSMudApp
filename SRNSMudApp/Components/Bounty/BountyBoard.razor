@@ -5,9 +5,6 @@
 @attribute [Authorize]
 
 @using SRNSMudApp.Services
-@inject BountyBoardViewModel ViewModel
-@inject IDialogLauncher DialogLauncher
-@inject ISnackbar Snackbar
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
     <MudText Typo="Typo.h4" GutterBottom="true">Bounty Board</MudText>
@@ -24,7 +21,7 @@
     {
         <MudProgressCircular Indeterminate="true" />
     }
-    else if (!ViewModel.Bounties.Any())
+    else if (ViewModel.Bounties.Count == 0)
     {
         <MudAlert Severity="Severity.Info">現在、募集中のバウンティはありません。</MudAlert>
     }
@@ -80,40 +77,3 @@
         </MudGrid>
     }
 </MudContainer>
-
-@code {
-    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
-
-    protected override async Task OnInitializedAsync()
-    {
-        var authState = await AuthStateTask;
-        ViewModel.CurrentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
-
-        await ViewModel.LoadDataAsync();
-    }
-
-    private async Task OpenCreateDialog()
-    {
-        var options = BountyBoardViewModel.CreateDialogOptions();
-        var dialog = await DialogLauncher.ShowAsync<BountyCreateDialog>("タグ付けの依頼を作成", options);
-        var result = await dialog.Result;
-
-        if (result is { Canceled: false })
-        {
-            await ViewModel.LoadDataAsync();
-        }
-    }
-
-    private async Task FulfillBounty(TaggingRequestEntity bounty)
-    {
-        var parameters = BountyBoardViewModel.FulfillDialogParameters(bounty);
-        var options = BountyBoardViewModel.FulfillDialogOptions();
-        var dialog = await DialogLauncher.ShowAsync<FulfillBountyDialog>("依頼を叶える", parameters, options);
-        var result = await dialog.Result;
-
-        if (result is { Canceled: false })
-        {
-            await ViewModel.LoadDataAsync();
-        }
-    }
-}

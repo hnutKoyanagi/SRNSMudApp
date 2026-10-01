@@ -1,6 +1,4 @@
-@using System.Security.Claims
-@using SRNSMudApp.Services
-@inject TagAddViewModel ViewModel
+@namespace SRNSMudApp.Components.Tag
 
 <MudDialog>
     <DialogContent>
@@ -29,7 +27,7 @@
 
                         <!-- スクロール可能な一覧エリア -->
                         <div class="tag-search-results">
-                            <MudRadioGroup T="Tag" @bind-Value="ViewModel.SelectedTag">
+                            <MudRadioGroup T="Data.Tag" @bind-Value="ViewModel.SelectedTag">
                                 @foreach (var tag in ViewModel.SearchResults)
                                 {
                                     var isActive = _activeTreeTagId == tag.Id;
@@ -73,7 +71,7 @@
 
             <MudTabPanel Text="子タグを新規作成">
                 <MudStack Spacing="3">
-                    <MudAutocomplete T="Tag" Label="親タグ" @bind-Value="ViewModel.ParentTag"
+                    <MudAutocomplete T="Data.Tag" Label="親タグ" @bind-Value="ViewModel.ParentTag"
                                      SearchFunc="@SearchParentTagsAsync" ToStringFunc="@(t => t?.Name ?? string.Empty)"
                                      Placeholder="親タグを検索・選択..." Clearable="true" Required="true" RequiredError="親タグを選択してください"
                                      Immediate="true"
@@ -106,93 +104,3 @@
         }
     </DialogActions>
 </MudDialog>
-
-@code {
-    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
-
-    [Parameter] public Tag? DefaultParentTag { get; set; }
-
-    // 子タグ作成タブ用フィールド
-    private int _activeTabIndex;
-
-    // ツリーポップオーバー用
-    private int? _activeTreeTagId;
-
-    private void OnActiveTabIndexChanged(int newIndex)
-    {
-        _activeTabIndex = newIndex;
-        if (_activeTabIndex == 1 && ViewModel.ParentTag == null && ViewModel.SelectedTag != null)
-        {
-            ViewModel.ParentTag = ViewModel.SelectedTag;
-        }
-    }
-
-    private void SelectParentAndOpenCreateTab(Tag tag)
-    {
-        ViewModel.ParentTag = tag;
-        _activeTabIndex = 1;
-    }
-
-    private Task<IEnumerable<Tag>> SearchParentTagsAsync(string value, CancellationToken token)
-    {
-        return Task.FromResult(ViewModel.SearchParentTags(value));
-    }
-
-    private void ToggleTree(int tagId)
-    {
-        _activeTreeTagId = _activeTreeTagId == tagId ? null : tagId;
-    }
-
-    protected override async Task OnInitializedAsync()
-    {
-        await ViewModel.InitializeAsync();
-    }
-
-    protected override void OnParametersSet()
-    {
-        if (DefaultParentTag is null)
-        {
-            return;
-        }
-
-        ViewModel.ParentTag = DefaultParentTag;
-        _activeTabIndex = 1;
-    }
-
-    private async Task SearchAsync()
-    {
-        await ViewModel.SearchAsync();
-    }
-
-    private async Task HandleKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter")
-        {
-            await SearchAsync();
-        }
-    }
-
-    private void SubmitSearch()
-    {
-        MudDialog.Close(DialogResult.Ok(ViewModel.SelectedTag));
-    }
-
-    private async Task SubmitCreateChildAsync()
-    {
-        var authState = await AuthStateTask;
-        var userId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var isAdmin = authState.User.IsInRole("Admin");
-
-        var createdTag = await ViewModel.CreateChildTagAsync(userId, isAdmin);
-        if (createdTag != null)
-        {
-            MudDialog.Close(DialogResult.Ok(createdTag));
-        }
-    }
-
-    private void Cancel()
-    {
-        MudDialog.Cancel();
-    }
-}

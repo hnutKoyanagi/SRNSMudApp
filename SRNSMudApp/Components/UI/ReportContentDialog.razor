@@ -1,8 +1,6 @@
 @using System.Security.Claims
 @using SRNSMudApp.Data
 @using SRNSMudApp.Services
-@inject ReportContentViewModel ViewModel
-@inject ISnackbar Snackbar
 
 <MudDialog>
     <DialogContent>
@@ -71,51 +69,3 @@
     </DialogActions>
 </MudDialog>
 
-@code {
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
-    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
-
-    [Parameter] public ReportTargetType TargetType { get; set; }
-    [Parameter] public int? ItemId { get; set; }
-    [Parameter] public int? TagId { get; set; }
-    [Parameter] public string TargetContent { get; set; } = string.Empty;
-    [Parameter] public string? TargetOwnerName { get; set; }
-
-    protected override async Task OnInitializedAsync()
-    {
-        string userId = string.Empty;
-        if (AuthStateTask is not null)
-        {
-            var authState = await AuthStateTask;
-            userId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
-        }
-
-        ViewModel.Initialize(TargetType, ItemId, TagId, TargetContent, TargetOwnerName, userId);
-    }
-
-    private void Cancel()
-    {
-        MudDialog.Cancel();
-    }
-
-    private async Task SubmitAsync()
-    {
-        if (string.IsNullOrEmpty(ViewModel.CurrentUserId))
-        {
-            Snackbar.Add("通報するにはログインが必要です。", Severity.Warning);
-            MudDialog.Cancel();
-            return;
-        }
-
-        try
-        {
-            _ = await ViewModel.SubmitAsync();
-            Snackbar.Add("通報を受け付けました。ご協力ありがとうございます。", Severity.Success);
-            MudDialog.Close(DialogResult.Ok(true));
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"通報の送信中にエラーが発生しました: {ex.Message}", Severity.Error);
-        }
-    }
-}

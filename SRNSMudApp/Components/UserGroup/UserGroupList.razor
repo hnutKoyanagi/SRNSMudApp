@@ -1,15 +1,6 @@
 @page "/UserGroup/List"
-@using System.Security.Claims
-@using Microsoft.AspNetCore.Authorization
-@using SRNSMudApp.Data
-@using SRNSMudApp.Models.Unions
-@using SRNSMudApp.Services
-@using SRNSMudApp.Services.Dialogs
-@rendermode InteractiveServer
-@attribute [Authorize]
-@inject UserGroupListViewModel ViewModel
-@inject IDialogLauncher DialogLauncher
-@inject ISnackbar Snackbar
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@namespace SRNSMudApp.Components.UserGroup
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-6">
     <div class="d-flex align-center mb-6">
@@ -29,13 +20,13 @@
         </MudButton>
     </div>
 
-    @if (_isLoading)
+    @if (IsLoading)
     {
         <div class="d-flex justify-center my-8">
             <MudProgressCircular Indeterminate="true" />
         </div>
     }
-    else if (_groups.Count == 0)
+    else if (Groups.Count == 0)
     {
         <MudPaper Elevation="0" Outlined="true" Class="pa-8 text-center rounded-xl">
             <MudIcon Icon="@Icons.Material.Filled.GroupOff" Size="Size.Large" Color="Color.Secondary" Class="mb-3" />
@@ -51,7 +42,7 @@
     }
     else
     {
-        <MudTable Items="@_groups" Hover="true" Elevation="2" Class="rounded-xl">
+        <MudTable Items="@Groups" Hover="true" Elevation="2" Class="rounded-xl">
             <HeaderContent>
                 <MudTh>グループ名</MudTh>
                 <MudTh>説明</MudTh>
@@ -67,7 +58,7 @@
                             @(context.Name.FirstOrDefault().ToString().ToUpperInvariant())
                         </MudAvatar>
                         <strong>@context.Name</strong>
-                        @if (context.OwnerId == _currentUserId)
+                        @if (context.OwnerId == CurrentUserId)
                         {
                             <MudChip T="string" Color="Color.Info" Size="Size.Small">管理者</MudChip>
                         }
@@ -96,7 +87,7 @@
                                    StartIcon="@Icons.Material.Filled.People" OnClick="@(() => OpenMembersDialogAsync(context))">
                             メンバー
                         </MudButton>
-                        @if (context.OwnerId == _currentUserId)
+                        @if (context.OwnerId == CurrentUserId)
                         {
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Default" Size="Size.Small" Title="編集"
                                            OnClick="@(() => OpenEditDialogAsync(context))" />
@@ -109,81 +100,3 @@
         </MudTable>
     }
 </MudContainer>
-
-@code {
-    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
-
-    private IReadOnlyList<UserGroup> _groups => ViewModel.Groups;
-    private string _currentUserId => ViewModel.CurrentUserId;
-    private bool _isLoading => ViewModel.IsLoading;
-
-    protected override async Task OnInitializedAsync()
-    {
-        if (AuthState is not null)
-        {
-            var auth = await AuthState;
-            ViewModel.CurrentUserId = auth.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
-        }
-
-        await ViewModel.LoadGroupsAsync();
-    }
-
-    private async Task OpenCreateDialogAsync()
-    {
-        if (string.IsNullOrEmpty(_currentUserId))
-        {
-            return;
-        }
-
-        var dialog = await DialogLauncher.ShowAsync<UserGroupCreateEditDialog>("新規グループ作成", ViewModel.CreateDialogParameters());
-        var result = await dialog.Result;
-        if (result is { Canceled: false })
-        {
-            await ViewModel.LoadGroupsAsync();
-        }
-    }
-
-    private async Task OpenEditDialogAsync(UserGroup group)
-    {
-        if (string.IsNullOrEmpty(_currentUserId))
-        {
-            return;
-        }
-
-        var dialog = await DialogLauncher.ShowAsync<UserGroupCreateEditDialog>("グループを編集", ViewModel.EditDialogParameters(group));
-        var result = await dialog.Result;
-        if (result is { Canceled: false })
-        {
-            await ViewModel.LoadGroupsAsync();
-        }
-    }
-
-    private async Task OpenMembersDialogAsync(UserGroup group)
-    {
-        if (string.IsNullOrEmpty(_currentUserId))
-        {
-            return;
-        }
-
-        var dialog = await DialogLauncher.ShowAsync<UserGroupMembersDialog>("メンバー管理", ViewModel.MembersDialogParameters(group));
-        var result = await dialog.Result;
-        if (result is { Canceled: false })
-        {
-            await ViewModel.LoadGroupsAsync();
-        }
-    }
-
-    private async Task DeleteGroupAsync(UserGroup group)
-    {
-        var result = await ViewModel.DeleteGroupAsync(group.Id);
-        switch (result)
-        {
-            case Success<bool>:
-                Snackbar.Add($"グループ「{group.Name}」を削除しました。", Severity.Success);
-                break;
-            case Failure fail:
-                Snackbar.Add(fail.ErrorMessage, Severity.Error);
-                break;
-        }
-    }
-}

@@ -1,8 +1,6 @@
 @using System.Security.Claims
 @using SRNSMudApp.Services
 @using SRNSMudApp.Models.Unions
-@inject FulfillBountyViewModel ViewModel
-@inject ISnackbar Snackbar
 
 <MudDialog>
     <DialogContent>
@@ -39,7 +37,7 @@
                 あなたはタグ「@Bounty.RequestedTag.Name」のオーナーです。アセットを消費せずに依頼を完了できます。
             </MudAlert>
         }
-        else if (ViewModel.MyValidAssets.Any())
+        else if (ViewModel.MyValidAssets.Count > 0)
         {
             <MudForm @ref="_form" @bind-IsValid="@_isValid">
                 <MudSelect T="RightAsset" Label="消費するアセットを選択" @bind-Value="ViewModel.SelectedAsset" Required="true"
@@ -67,65 +65,3 @@
         </MudButton>
     </DialogActions>
 </MudDialog>
-
-@code {
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
-    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
-
-    [Parameter] public TaggingRequestEntity Bounty { get; set; } = null!;
-
-    private MudForm? _form;
-    private bool _isValid;
-
-    protected override async Task OnInitializedAsync()
-    {
-        var authState = await AuthStateTask;
-        var currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
-
-        await ViewModel.InitializeAsync(Bounty, currentUserId);
-    }
-
-    private bool CanSubmit()
-    {
-        if (ViewModel.IsLoading)
-        {
-            return false;
-        }
-
-        return ViewModel.CanFulfillAsOwner || (ViewModel.MyValidAssets.Any() && ViewModel.SelectedAsset is not null && _isValid);
-    }
-
-    private async Task Submit()
-    {
-        if (!CanSubmit())
-        {
-            return;
-        }
-
-        if (!ViewModel.CanFulfillAsOwner)
-        {
-            await _form!.ValidateAsync();
-            if (!_isValid)
-            {
-                return;
-            }
-        }
-
-        var result = await ViewModel.SubmitAsync();
-        switch (result)
-        {
-            case Success<string>:
-                Snackbar.Add("依頼を完了しました！", Severity.Success);
-                MudDialog.Close(DialogResult.Ok(true));
-                break;
-            case Failure fail:
-                Snackbar.Add($"エラーが発生しました: {fail.ErrorMessage}", Severity.Error);
-                break;
-        }
-    }
-
-    private void Cancel()
-    {
-        MudDialog.Cancel();
-    }
-}

@@ -1,10 +1,3 @@
-@using System.Security.Claims
-@using SRNSMudApp.Models.Unions
-@using SRNSMudApp.Services
-@using SRNSMudApp.Services.Commands
-@inject CreatePublicOfferViewModel ViewModel
-@inject ISnackbar Snackbar
-
 <MudDialog>
     <DialogContent>
         <MudForm @ref="_form" @bind-IsValid="@_isValid">
@@ -23,47 +16,3 @@
         </MudButton>
     </DialogActions>
 </MudDialog>
-
-@code {
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
-    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
-
-    private MudForm? _form;
-    private bool _isValid;
-
-    protected override async Task OnInitializedAsync()
-    {
-        var authState = await AuthStateTask;
-        ViewModel.CurrentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
-    }
-
-    private async Task<IEnumerable<Tag>> SearchMyTags(string? value, CancellationToken token)
-    {
-        return await ViewModel.SearchMyTagsAsync(value, token);
-    }
-
-    private async Task Submit()
-    {
-        await _form!.ValidateAsync();
-        if (!_isValid || ViewModel.SelectedTag is null)
-        {
-            return;
-        }
-
-        var result = await ViewModel.SubmitAsync();
-        if (result is Success<bool>)
-        {
-            Snackbar.Add("公開オファーを作成しました。", Severity.Success);
-            MudDialog.Close(DialogResult.Ok(true));
-        }
-        else if (result is Failure failure)
-        {
-            Snackbar.Add(failure.ErrorMessage, Severity.Error);
-        }
-    }
-
-    private void Cancel()
-    {
-        MudDialog.Cancel();
-    }
-}

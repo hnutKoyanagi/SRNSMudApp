@@ -1,12 +1,6 @@
 @page "/Admin/Reports"
-@using System.Security.Claims
-@using SRNSMudApp.Data
-@using SRNSMudApp.Services
-@using SRNSMudApp.Services.Dialogs
-@attribute [Authorize(Roles = "Admin")]
-@inject ReportManagerViewModel ViewModel
-@inject IDialogLauncher DialogLauncher
-@inject ISnackbar Snackbar
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+@namespace SRNSMudApp.Components.Admin
 
 <PageTitle>通報管理 (Reports)</PageTitle>
 
@@ -21,33 +15,33 @@
 <MudPaper Class="pa-4 mb-4" Elevation="1">
     <MudGrid>
         <MudItem xs="12" md="4">
-            <MudSelect T="ReportStatus?" Label="ステータス絞り込み" Value="_selectedStatus"
+            <MudSelect T="Data.ReportStatus?" Label="ステータス絞り込み" Value="SelectedStatus"
                        ValueChanged="OnStatusFilterChangedAsync" Variant="Variant.Outlined" Dense="true">
-                <MudSelectItem Value="@((ReportStatus?)null)">すべてのステータス</MudSelectItem>
-                <MudSelectItem Value="@((ReportStatus?)ReportStatus.Pending)">未対応 (Pending)</MudSelectItem>
-                <MudSelectItem Value="@((ReportStatus?)ReportStatus.ActionTaken)">処置済み (ActionTaken)</MudSelectItem>
-                <MudSelectItem Value="@((ReportStatus?)ReportStatus.Reviewed)">確認済み (Reviewed)</MudSelectItem>
-                <MudSelectItem Value="@((ReportStatus?)ReportStatus.Dismissed)">却下 (Dismissed)</MudSelectItem>
+                <MudSelectItem Value="@((Data.ReportStatus?)null)">すべてのステータス</MudSelectItem>
+                <MudSelectItem Value="@((Data.ReportStatus?)Data.ReportStatus.Pending)">未対応 (Pending)</MudSelectItem>
+                <MudSelectItem Value="@((Data.ReportStatus?)Data.ReportStatus.ActionTaken)">処置済み (ActionTaken)</MudSelectItem>
+                <MudSelectItem Value="@((Data.ReportStatus?)Data.ReportStatus.Reviewed)">確認済み (Reviewed)</MudSelectItem>
+                <MudSelectItem Value="@((Data.ReportStatus?)Data.ReportStatus.Dismissed)">却下 (Dismissed)</MudSelectItem>
             </MudSelect>
         </MudItem>
         <MudItem xs="12" md="4">
-            <MudSelect T="ReportTargetType?" Label="対象種別絞り込み" Value="_selectedTargetType"
+            <MudSelect T="Data.ReportTargetType?" Label="対象種別絞り込み" Value="SelectedTargetType"
                        ValueChanged="OnTargetTypeFilterChangedAsync" Variant="Variant.Outlined" Dense="true">
-                <MudSelectItem Value="@((ReportTargetType?)null)">すべての対象種別</MudSelectItem>
-                <MudSelectItem Value="@((ReportTargetType?)ReportTargetType.Item)">アイテムのみ</MudSelectItem>
-                <MudSelectItem Value="@((ReportTargetType?)ReportTargetType.Tag)">タグのみ</MudSelectItem>
+                <MudSelectItem Value="@((Data.ReportTargetType?)null)">すべての対象種別</MudSelectItem>
+                <MudSelectItem Value="@((Data.ReportTargetType?)Data.ReportTargetType.Item)">アイテムのみ</MudSelectItem>
+                <MudSelectItem Value="@((Data.ReportTargetType?)Data.ReportTargetType.Tag)">タグのみ</MudSelectItem>
             </MudSelect>
         </MudItem>
         <MudItem xs="12" md="4" Class="d-flex align-center justify-end">
             <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Refresh"
-                       OnClick="LoadReportsAsync" Disabled="_isLoading">
+                       OnClick="LoadReportsAsync" Disabled="IsLoading">
                 再読み込み
             </MudButton>
         </MudItem>
     </MudGrid>
 </MudPaper>
 
-<MudTable Items="@_reports" Hover="true" Dense="true" Elevation="1" Loading="@_isLoading"
+<MudTable Items="@Reports" Hover="true" Dense="true" Elevation="1" Loading="@IsLoading"
           LoadingProgressColor="Color.Primary">
     <HeaderContent>
         <MudTh>ID</MudTh>
@@ -97,74 +91,3 @@
         <MudText Class="pa-4 text-center" Color="Color.Secondary">該当する通報はありません。</MudText>
     </NoRecordsContent>
 </MudTable>
-
-@code {
-    private IReadOnlyList<ContentReport> _reports => ViewModel.Reports;
-    private ReportStatus? _selectedStatus
-    {
-        get => ViewModel.SelectedStatus;
-        set => ViewModel.SelectedStatus = value;
-    }
-    private ReportTargetType? _selectedTargetType
-    {
-        get => ViewModel.SelectedTargetType;
-        set => ViewModel.SelectedTargetType = value;
-    }
-    private bool _isLoading => ViewModel.IsLoading;
-
-    protected override async Task OnInitializedAsync()
-    {
-        await LoadReportsAsync();
-    }
-
-    private async Task LoadReportsAsync()
-    {
-        var (success, errorMessage) = await ViewModel.LoadReportsAsync();
-        if (!success && !string.IsNullOrEmpty(errorMessage))
-        {
-            Snackbar.Add(errorMessage, Severity.Error);
-        }
-    }
-
-    private async Task OnStatusFilterChangedAsync(ReportStatus? status)
-    {
-        _selectedStatus = status;
-        await LoadReportsAsync();
-    }
-
-    private async Task OnTargetTypeFilterChangedAsync(ReportTargetType? targetType)
-    {
-        _selectedTargetType = targetType;
-        await LoadReportsAsync();
-    }
-
-    private async Task OpenDetailDialogAsync(ContentReport report)
-    {
-        var latestReport = await ViewModel.GetReportByIdAsync(report.Id);
-        if (latestReport is null)
-        {
-            Snackbar.Add("通報が見つかりません。", Severity.Error);
-            await LoadReportsAsync();
-            return;
-        }
-
-        var parameters = new DialogParameters
-        {
-            [nameof(ReportDetailDialog.Report)] = latestReport
-        };
-        var options = new DialogOptions
-        {
-            CloseOnEscapeKey = true,
-            MaxWidth = MaxWidth.Medium,
-            FullWidth = true
-        };
-
-        var dialog = await DialogLauncher.ShowAsync<ReportDetailDialog>("通報の詳細・対応", parameters, options);
-        var result = await dialog.Result;
-
-        if (result is { Canceled: false })
-        {
-            await LoadReportsAsync();
-        }
-    }
-}
