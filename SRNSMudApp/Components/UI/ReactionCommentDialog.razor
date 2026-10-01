@@ -21,7 +21,7 @@
             else
             {
                 <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3" NoIcon="false">
-                    タイマーが停止しました。保存またはキャンセルボタンを押すまで表示されます。
+                    タイマーが停止しました。保存ボタンを押すまで表示されます。
                 </MudAlert>
             }
 
@@ -36,7 +36,6 @@
                           AutoFocus="true" />
         </DialogContent>
         <DialogActions>
-            <MudButton OnClick="Cancel" Variant="Variant.Text">キャンセル</MudButton>
             <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save">保存</MudButton>
         </DialogActions>
     </MudDialog>

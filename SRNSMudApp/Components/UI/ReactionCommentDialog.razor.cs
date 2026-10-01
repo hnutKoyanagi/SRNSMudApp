@@ -82,12 +82,6 @@ public partial class ReactionCommentDialog : ComponentBase, IDisposable
         MudDialog.Close(DialogResult.Ok(new ReactionCommentDialogResult(true, Comment)));
     }
 
-    private void Cancel()
-    {
-        _cts?.Cancel();
-        MudDialog.Close(DialogResult.Ok(new ReactionCommentDialogResult(false, null)));
-    }
-
     public void Dispose()
     {
         Dispose(true);
