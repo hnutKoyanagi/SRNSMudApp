@@ -56,4 +56,27 @@ public class TagNodeWidgetTests : IAsyncDisposable
         // Assert: TagDetail ページへ遷移していること
         Assert.Contains("/TagDetail/42", navManager.Uri);
     }
+
+    [Theory]
+    [InlineData(TagFocusRole.Source, "tag-role-chip", "始点 (Source)")]
+    [InlineData(TagFocusRole.Target, "tag-role-chip", "終点 (Target)")]
+    public void TagNodeWidget_RendersRoleChip_WhenFocusedRoleIsSet(TagFocusRole role, string expectedClass, string expectedTooltip)
+    {
+        // Arrange
+        var diagram = new BlazorDiagram();
+        var tag = new TagEntity { Id = 10, Name = "C#", OwnerId = "user1" };
+        var node = new TagNode(tag, new Point(0, 0)) { FocusRole = role };
+        diagram.Nodes.Add(node);
+
+        // Act
+        var cut = _ctx.Render<TagNodeWidget>(parameters => parameters
+            .Add(p => p.Node, node)
+            .AddCascadingValue(diagram));
+
+        // Assert
+        var chip = cut.Find($".{expectedClass}");
+        Assert.NotNull(chip);
+        var markup = cut.Markup;
+        Assert.Contains(expectedTooltip, markup);
+    }
 }

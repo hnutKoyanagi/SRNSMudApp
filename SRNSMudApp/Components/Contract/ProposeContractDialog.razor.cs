@@ -24,9 +24,24 @@ public partial class ProposeContractDialog : ComponentBase
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
     [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
 
+    /// <summary>
+    ///     契約提案の対象となるアイテム。指定されていない場合はダイアログ内でユーザーが選択します。
+    /// </summary>
     [Parameter] public ItemEntity? TargetItem { get; set; }
+
+    /// <summary>
+    ///     提案対象（付与・変更・削除を希望する）のタグエンティティ。
+    /// </summary>
     [Parameter] public TagEntity RequestedTag { get; set; } = null!;
+
+    /// <summary>
+    ///     初期設定する Weight 変更量。未指定（0）の場合は 1 がデフォルト値となります。
+    /// </summary>
     [Parameter] public int WeightDelta { get; set; }
+
+    /// <summary>
+    ///     タグ削除リクエストかどうかを示すフラグ。
+    /// </summary>
     [Parameter] public bool IsRemovalRequest { get; set; }
 
     private bool _isValid = true;

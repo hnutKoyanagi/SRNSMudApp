@@ -3,6 +3,7 @@
 using System.Text.Json;
 
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 using SRNSMudApp.Data;
 using SRNSMudApp.Models;
@@ -60,10 +61,12 @@ public interface IRightAssetDataProvider
 /// </summary>
 public class RightAssetDataProvider(
     IDbContextFactory<ApplicationDbContext> dbFactory,
-    INotificationService? notificationService = null) : IRightAssetDataProvider
+    INotificationService? notificationService = null,
+    ILogger<RightAssetDataProvider>? logger = null) : IRightAssetDataProvider
 {
     private readonly IDbContextFactory<ApplicationDbContext> _dbFactory = dbFactory ?? throw new ArgumentNullException(nameof(dbFactory));
     private readonly INotificationService? _notificationService = notificationService;
+    private readonly ILogger<RightAssetDataProvider>? _logger = logger;
 
     /// <inheritdoc />
     public async Task<RightAssetOverviewData?> GetRightAssetOverviewByTagIdAsync(int tagId, CancellationToken cancellationToken = default)
@@ -350,6 +353,10 @@ public class RightAssetDataProvider(
         dbContext.Items.Add(requestItem);
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        _logger?.LogInformation(
+            "User {RequesterUserId} submitted permission request for Tag {TagId} ({TagName}) to User {TargetUserId} with amount {Amount}.",
+            requesterUserId, request.RequestedTagId, tag.Name, request.TargetUserId, request.RequestedAmount);
+
         _notificationService?.NotifyNotificationsChanged();
 
         return Result.Ok(true);
@@ -412,7 +419,7 @@ public class RightAssetDataProvider(
         if (totalApproverAmount < payload.RequestedAmount)
         {
             // 自分のタグ（タグオーナー自身）である場合、不足分の操作権限を新規発行して承認する
-            if (tag != null && string.Equals(tag.OwnerId, currentUserId, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(tag.OwnerId, currentUserId, StringComparison.OrdinalIgnoreCase))
             {
                 int neededAmount = payload.RequestedAmount - totalApproverAmount;
                 var mintedAsset = new RightAsset
@@ -426,6 +433,10 @@ public class RightAssetDataProvider(
                 dbContext.RightAssets.Add(mintedAsset);
                 approverAssets.Add(mintedAsset);
                 totalApproverAmount += neededAmount;
+
+                _logger?.LogInformation(
+                    "Minted {MintedAmount} additional RightAsset for Tag {TagId} to owner {OwnerId}.",
+                    neededAmount, targetTagId, currentUserId);
             }
             else
             {
@@ -446,67 +457,22 @@ public class RightAssetDataProvider(
             }
         }
 
-        // 1. 承認者から要求量を減算
-        int remainingToDeduct = payload.RequestedAmount;
-        foreach (var asset in approverAssets)
-        {
-            if (remainingToDeduct <= 0) break;
-            if (asset.Amount <= remainingToDeduct)
-            {
-                remainingToDeduct -= asset.Amount;
-                asset.Amount = 0;
-                asset.IsBurned = true;
-                asset.Status = new Burned(DateTime.UtcNow);
-            }
-            else
-            {
-                asset.Amount -= remainingToDeduct;
-                remainingToDeduct = 0;
-            }
-        }
+        // 1. 承認者から要求量を減算し、リクエスト送信者に要求量を付与
+        TransferRequestedRightAsset(dbContext, approverAssets, payload.RequestedAmount, item.OwnerId, targetTagId);
 
-        // 2. リクエスト送信者に要求量を付与
-        var newAssetForRequester = new RightAsset
-        {
-            OwnerId = item.OwnerId,
-            TargetTagId = targetTagId,
-            Amount = payload.RequestedAmount,
-            IsBurned = false,
-            Status = new NotBurned()
-        };
-        dbContext.RightAssets.Add(newAssetForRequester);
+        // 2. 対価アセットの移転（存在する場合）
+        TransferOfferedRightAsset(dbContext, offeredAsset, payload.OfferedAmount, currentUserId);
 
-        // 3. 対価アセットの移転（存在する場合）
-        if (offeredAsset is not null && payload.OfferedAmount > 0)
-        {
-            if (offeredAsset.Amount <= payload.OfferedAmount)
-            {
-                offeredAsset.Amount = 0;
-                offeredAsset.IsBurned = true;
-                offeredAsset.Status = new Burned(DateTime.UtcNow);
-            }
-            else
-            {
-                offeredAsset.Amount -= payload.OfferedAmount;
-            }
-
-            var newAssetForApprover = new RightAsset
-            {
-                OwnerId = currentUserId,
-                TargetTagId = offeredAsset.TargetTagId,
-                Amount = payload.OfferedAmount,
-                IsBurned = false,
-                Status = new NotBurned()
-            };
-            dbContext.RightAssets.Add(newAssetForApprover);
-        }
-
-        // 4. ステータス更新
+        // 3. ステータス更新
         var updatedPayload = payload with { Status = TradeStatus.Executed, RequestedTagId = targetTagId };
         item.ItemKindJson = JsonSerializer.Serialize(updatedPayload);
         item.UpdatedDate = DateTime.UtcNow;
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        _logger?.LogInformation(
+            "User {ApproverUserId} approved permission request {ItemId} for Tag {TagId} from User {RequesterUserId}.",
+            currentUserId, itemId, targetTagId, item.OwnerId);
 
         if (_notificationService != null)
         {
@@ -561,6 +527,10 @@ public class RightAssetDataProvider(
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        _logger?.LogInformation(
+            "User {CurrentUserId} rejected permission request {ItemId} for Tag {TagId}. Comment: {Comment}",
+            currentUserId, itemId, targetTagId, comment);
+
         if (_notificationService != null)
         {
             var reasonSuffix = string.IsNullOrWhiteSpace(comment) ? "" : $"\n理由: {comment}";
@@ -574,6 +544,72 @@ public class RightAssetDataProvider(
         }
 
         return Result.Ok(true);
+    }
+
+    private static void TransferRequestedRightAsset(
+        ApplicationDbContext dbContext,
+        List<RightAsset> approverAssets,
+        int requestedAmount,
+        string requesterUserId,
+        int targetTagId)
+    {
+        int remainingToDeduct = requestedAmount;
+        foreach (var asset in approverAssets)
+        {
+            if (remainingToDeduct <= 0) break;
+            if (asset.Amount <= remainingToDeduct)
+            {
+                remainingToDeduct -= asset.Amount;
+                asset.Amount = 0;
+                asset.IsBurned = true;
+                asset.Status = new Burned(DateTime.UtcNow);
+            }
+            else
+            {
+                asset.Amount -= remainingToDeduct;
+                remainingToDeduct = 0;
+            }
+        }
+
+        var newAssetForRequester = new RightAsset
+        {
+            OwnerId = requesterUserId,
+            TargetTagId = targetTagId,
+            Amount = requestedAmount,
+            IsBurned = false,
+            Status = new NotBurned()
+        };
+        dbContext.RightAssets.Add(newAssetForRequester);
+    }
+
+    private static void TransferOfferedRightAsset(
+        ApplicationDbContext dbContext,
+        RightAsset? offeredAsset,
+        int offeredAmount,
+        string approverUserId)
+    {
+        if (offeredAsset is null || offeredAmount <= 0) return;
+
+        if (offeredAsset.Amount <= offeredAmount)
+        {
+            offeredAsset.Amount = 0;
+            offeredAsset.IsBurned = true;
+            offeredAsset.Status = new Burned(DateTime.UtcNow);
+        }
+        else
+        {
+            offeredAsset.Amount -= offeredAmount;
+        }
+
+        var newAssetForApprover = new RightAsset
+        {
+            OwnerId = approverUserId,
+            TargetTagId = offeredAsset.TargetTagId,
+            Amount = offeredAmount,
+            IsBurned = false,
+            Status = new NotBurned()
+        };
+        dbContext.RightAssets.Add(newAssetForApprover);
     }
 
     /// <summary>

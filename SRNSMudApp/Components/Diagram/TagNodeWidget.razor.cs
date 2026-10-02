@@ -19,6 +19,9 @@ public partial class TagNodeWidget : ComponentBase
     [Inject] private IJSRuntime JS { get; set; } = null!;
     [Inject] private NavigationManager NavigationManager { get; set; } = null!;
 
+    /// <summary>
+    ///     ウィジェットで描画対象となるタグノード。
+    /// </summary>
     [Parameter] public TagNode Node { get; set; } = null!;
 
     private bool _isTreeOpen;

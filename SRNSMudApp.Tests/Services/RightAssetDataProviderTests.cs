@@ -652,6 +652,38 @@ public class RightAssetDataProviderTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public async Task SubmitPermissionRequestAsync_WithCustomLogger_LogsInformation()
+    {
+        var (db, _, userA, userB, tagId, _) = await CreateScopeAsync();
+        await using (db)
+        {
+            var mockLogger = new Moq.Mock<Microsoft.Extensions.Logging.ILogger<RightAssetDataProvider>>();
+            var stubFactory = new DbContextFactoryStub(_sharedDb.Options);
+            var sutWithLogger = new RightAssetDataProvider(stubFactory, logger: mockLogger.Object);
+
+            var request = new TagPermissionRequestDto(
+                RequestedTagId: tagId,
+                TargetUserId: userA,
+                RequestedAmount: 2
+            );
+
+            // Act
+            var submitResult = await sutWithLogger.SubmitPermissionRequestAsync(userB, request);
+
+            // Assert
+            Assert.True(submitResult is Success<bool>);
+            mockLogger.Verify(
+                x => x.Log(
+                    Microsoft.Extensions.Logging.LogLevel.Information,
+                    Moq.It.IsAny<Microsoft.Extensions.Logging.EventId>(),
+                    Moq.It.Is<Moq.It.IsAnyType>((v, t) => true),
+                    Moq.It.IsAny<Exception>(),
+                    Moq.It.IsAny<Func<Moq.It.IsAnyType, Exception?, string>>()),
+                Moq.Times.AtLeastOnce);
+        }
+    }
+
 
     private sealed class DbContextFactoryStub(DbContextOptions<ApplicationDbContext> options)
         : IDbContextFactory<ApplicationDbContext>
