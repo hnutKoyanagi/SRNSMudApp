@@ -173,7 +173,7 @@ public class NotificationsDataProviderTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetNotificationRawDataAsync_WhenMultipleTagsHaveSameName_DoesNotThrowDuplicateKeyExceptionAndResolvesTagId()
+    public async Task GetNotificationRawDataAsync_WhenMultipleTagsHaveSameName_DoesNotThrowDuplicateKeyExceptionAndDoesNotSubstituteTagId()
     {
         var (db, sut, itemOwnerId, commenterId, _, _) = await CreateScopeAsync();
         await using (db)
@@ -181,7 +181,7 @@ public class NotificationsDataProviderTests : IAsyncLifetime
             // 同一名のタグが複数存在する場合 (例: "真実")
             var dupName = "真実";
             var tag1 = new Tag { Name = dupName, OwnerId = commenterId };
-            var tag2 = new Tag { Name = dupName, OwnerId = itemOwnerId }; // リクエスト受信者がオーナーのタグ
+            var tag2 = new Tag { Name = dupName, OwnerId = itemOwnerId };
             db.Tags.AddRange(tag1, tag2);
 
             // ItemKindJson なし（古いリクエストなど）で、本文に「真実」が含まれるリクエスト
@@ -200,16 +200,15 @@ public class NotificationsDataProviderTests : IAsyncLifetime
             db.Items.Add(requestItem);
             await db.SaveChangesAsync();
 
-            // Act: 重複キー例外（ArgumentException）が発生しないこと
+            // Act: 通知生データを取得
             NotificationRawData rawData = await sut.GetNotificationRawDataAsync(itemOwnerId);
 
-            // Assert
+            // Assert: 重複キー例外が発生せず、タグIDのすり替え・解決も行われないこと
             Assert.NotNull(rawData.TagPermissionRequests);
             var item = Assert.Single(rawData.TagPermissionRequests, i => i.Id == requestItem.Id);
             var payload = RightAssetDataProvider.ParsePermissionPayload(item);
             Assert.NotNull(payload);
-            // リクエスト受信者がオーナーである tag2 の ID が優先して設定されていること
-            Assert.Equal(tag2.Id, payload.RequestedTagId);
+            Assert.Equal(0, payload.RequestedTagId);
         }
     }
 

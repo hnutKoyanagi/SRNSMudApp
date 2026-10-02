@@ -388,39 +388,19 @@ public class RightAssetDataProvider(
             return Result.Fail<bool>("このリクエストは既に処理されています。");
         }
 
-        Tag? tag = null;
-        if (payload.RequestedTagId > 0)
-        {
-            tag = await dbContext.Tags.FirstOrDefaultAsync(t => t.Id == payload.RequestedTagId, cancellationToken);
-        }
-
-        // TagIdで取得できなかった場合、または取得したタグのオーナーが承認者でない場合、
-        // 承認者自身が所有する同名タグを優先して検索・解決する
-        if ((tag == null || !string.Equals(tag.OwnerId, currentUserId, StringComparison.OrdinalIgnoreCase))
-            && !string.IsNullOrWhiteSpace(payload.RequestedTagName))
-        {
-            var ownerTag = await dbContext.Tags
-                .Where(t => t.Name == payload.RequestedTagName && t.OwnerId == currentUserId)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (ownerTag != null)
-            {
-                tag = ownerTag;
-            }
-            else if (tag == null)
-            {
-                tag = await dbContext.Tags
-                    .Where(t => t.Name == payload.RequestedTagName)
-                    .OrderByDescending(t => t.OwnerId == currentUserId)
-                    .FirstOrDefaultAsync(cancellationToken);
-            }
-        }
-
-        int targetTagId = tag?.Id ?? payload.RequestedTagId;
-        if (targetTagId <= 0)
+        if (payload.RequestedTagId <= 0)
         {
             return Result.Fail<bool>("対象のタグが見つかりません。");
         }
+
+        // TagId のみで対象タグを取得する
+        Tag? tag = await dbContext.Tags.FirstOrDefaultAsync(t => t.Id == payload.RequestedTagId, cancellationToken);
+        if (tag is null)
+        {
+            return Result.Fail<bool>("対象のタグが見つかりません。");
+        }
+
+        int targetTagId = tag.Id;
 
         // 承認者（currentUserId）の要求タグ保有残高を確認
         List<RightAsset> approverAssets = await dbContext.RightAssets
@@ -575,18 +555,6 @@ public class RightAssetDataProvider(
         }
 
         int targetTagId = payload.RequestedTagId;
-        if (targetTagId <= 0 && !string.IsNullOrWhiteSpace(payload.RequestedTagName))
-        {
-            var resolvedTag = await dbContext.Tags
-                .Where(t => t.Name == payload.RequestedTagName)
-                .OrderByDescending(t => string.Equals(t.OwnerId, currentUserId, StringComparison.OrdinalIgnoreCase))
-                .FirstOrDefaultAsync(cancellationToken);
-            if (resolvedTag != null)
-            {
-                targetTagId = resolvedTag.Id;
-            }
-        }
-
         var updatedPayload = payload with { Status = TradeStatus.Rejected, RejectReason = comment, RequestedTagId = targetTagId };
         item.ItemKindJson = JsonSerializer.Serialize(updatedPayload);
         item.UpdatedDate = DateTime.UtcNow;
