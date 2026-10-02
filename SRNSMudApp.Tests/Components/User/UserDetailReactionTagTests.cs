@@ -168,4 +168,3 @@ public sealed class UserDetailReactionTagTests : IAsyncLifetime
         await _ctx.DisposeAsync();
     }
 }
-

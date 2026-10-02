@@ -194,4 +194,51 @@ public partial class NotificationsPage
             ApplyResult(result);
         }
     }
+
+    private async Task ApprovePermissionRequestAsync(NotificationDto notification)
+    {
+        TagCardActionResult result = await ViewModel.ApprovePermissionRequestAsync(notification);
+        ApplyResult(result);
+    }
+
+    private async Task RejectPermissionRequestAsync(NotificationDto notification)
+    {
+        if (_userId == null)
+        {
+            return;
+        }
+
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        IDialogReference dialog = await DialogLauncher.ShowAsync<RejectRequestDialog>("権限リクエストを却下", options);
+        DialogResult? dialogResult = await dialog.Result;
+
+        if (dialogResult is { Canceled: false })
+        {
+            var comment = dialogResult.Data as string;
+            TagCardActionResult result = await ViewModel.RejectPermissionRequestAsync(notification, comment);
+            ApplyResult(result);
+        }
+    }
+
+    private async Task NavigateToTagDetailByNameAsync(string tagName)
+    {
+        if (string.IsNullOrWhiteSpace(tagName))
+        {
+            return;
+        }
+
+        var tag = ViewModel.AllTags.FirstOrDefault(t => t.Name == tagName);
+        if (tag != null)
+        {
+            NavigationManager.NavigateTo($"/TagDetail/{tag.Id}");
+            return;
+        }
+
+        await ViewModel.FetchTagsAsync();
+        tag = ViewModel.AllTags.FirstOrDefault(t => t.Name == tagName);
+        if (tag != null)
+        {
+            NavigationManager.NavigateTo($"/TagDetail/{tag.Id}");
+        }
+    }
 }

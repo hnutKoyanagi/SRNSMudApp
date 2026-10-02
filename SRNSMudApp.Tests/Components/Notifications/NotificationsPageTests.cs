@@ -32,6 +32,8 @@ public sealed class NotificationsPageTests : IAsyncLifetime
     private readonly Mock<ITaggingRequestActions> _actionsMock = new();
     private readonly Mock<IDialogLauncher> _dialogLauncherMock = new();
     private readonly Mock<ITaggingContractService> _contractServiceMock = new();
+    private readonly Mock<IRightAssetDataProvider> _rightAssetDataMock = new();
+    private readonly Mock<IHomeDataProvider> _homeDataMock = new();
 
     public NotificationsPageTests()
     {
@@ -42,6 +44,11 @@ public sealed class NotificationsPageTests : IAsyncLifetime
         _ = _ctx.Services.AddScoped(_ => _actionsMock.Object);
         _ = _ctx.Services.AddScoped(_ => _dialogLauncherMock.Object);
         _ctx.Services.AddScoped(_ => _contractServiceMock.Object);
+        _ctx.Services.AddScoped(_ => _rightAssetDataMock.Object);
+        _ctx.Services.AddScoped(_ => _homeDataMock.Object);
+
+        _notifDataMock.Setup(d => d.GetAssociatedItemsAsync(It.IsAny<IReadOnlyList<int>>()))
+            .ReturnsAsync([]);
 
         _ctx.Services.AddAuthorizationCore();
 
@@ -129,6 +136,117 @@ public sealed class NotificationsPageTests : IAsyncLifetime
         host.FindAll("button[title='リクエストを却下する']")[^1].Click();
 
         _contractServiceMock.Verify(s => s.CancelContractAsync(note2.SourceId, OwnerUserId), Times.Once);
+    }
+
+    [Fact]
+    public void TagPermissionRequest_DisplaysApproveAndRejectButtons()
+    {
+        var permNote = new NotificationDto
+        {
+            SourceId = 200,
+            ActorName = "requester_bob",
+            Message = "タグ操作権限リクエスト",
+            CreatedAt = DateTimeOffset.UtcNow,
+            IsRead = false,
+            Kind = new TagPermissionRequestNotification(
+                ItemId: 200,
+                RequestedTagId: 10,
+                RequestedTagName: "TargetTag",
+                RequestedAmount: 5,
+                OfferedRightAssetId: null,
+                OfferedTagName: null,
+                OfferedAmount: 0,
+                RequesterName: "requester_bob",
+                Message: "子タグを作成したいです",
+                Status: TradeStatus.Proposed),
+            TargetUrl = new RelativeUrl("/TagDetail/10"),
+            AssociatedItemId = 200
+        };
+
+        _ = _notifServiceMock.Setup(s => s.GetUserNotificationsAsync(OwnerUserId))
+            .ReturnsAsync([permNote]);
+
+        _ = _rightAssetDataMock.Setup(d => d.ApprovePermissionRequestAsync(200, OwnerUserId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Success<bool>(true));
+
+        RenderFragment page = builder =>
+        {
+            builder.OpenComponent<NotificationsPage>(0);
+            builder.CloseComponent();
+        };
+        IRenderedComponent<AuthHost> host =
+            _ctx.Render<AuthHost>(parameters => parameters.Add(p => p.ChildContent, page));
+
+        host.WaitForState(() => host.Markup.Contains("TargetTag"));
+
+        Assert.Contains("TargetTag", host.Markup);
+        Assert.Contains("要求数量: 5", host.Markup);
+        Assert.Contains("無償リクエスト", host.Markup);
+        Assert.Contains("子タグを作成したいです", host.Markup);
+
+        // タグ名リンクが /TagDetail/10 に遷移可能であること
+        var tagLink = host.Find("[data-testid='permission-request-tag-link']");
+        Assert.NotNull(tagLink);
+        Assert.Equal("/TagDetail/10", tagLink.GetAttribute("href"));
+
+        // 承認ボタンと却下ボタンが表示されていること
+        var approveButton = host.FindAll("button").FirstOrDefault(b => b.TextContent.Trim().Contains("承認", StringComparison.Ordinal));
+        var rejectButton = host.FindAll("button").FirstOrDefault(b => b.TextContent.Trim().Contains("却下", StringComparison.Ordinal));
+        Assert.NotNull(approveButton);
+        Assert.NotNull(rejectButton);
+
+        // 承認ボタンクリック
+        approveButton.Click();
+
+        _rightAssetDataMock.Verify(d => d.ApprovePermissionRequestAsync(200, OwnerUserId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public void TagPermissionRequest_WhenRequestedTagIdIsZero_ResolvesFromAllTagsAndRendersLink()
+    {
+        var targetTag = new SRNSMudApp.Data.Tag { Id = 42, Name = "ResolvedTag", OwnerId = OwnerUserId };
+        _homeDataMock.Setup(h => h.GetTagsAndRelationsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(([targetTag], []));
+
+        var permNote = new NotificationDto
+        {
+            SourceId = 201,
+            ActorName = "requester_bob",
+            Message = "タグ操作権限リクエスト",
+            CreatedAt = DateTimeOffset.UtcNow,
+            IsRead = false,
+            Kind = new TagPermissionRequestNotification(
+                ItemId: 201,
+                RequestedTagId: 0, // RequestedTagId が 0 の場合でも AllTags から 42 を解決してリンク化
+                RequestedTagName: "ResolvedTag",
+                RequestedAmount: 3,
+                OfferedRightAssetId: null,
+                OfferedTagName: null,
+                OfferedAmount: 0,
+                RequesterName: "requester_bob",
+                Message: null,
+                Status: TradeStatus.Proposed),
+            TargetUrl = new RelativeUrl("/notifications"),
+            AssociatedItemId = 0
+        };
+
+        _ = _notifServiceMock.Setup(s => s.GetUserNotificationsAsync(OwnerUserId))
+            .ReturnsAsync([permNote]);
+
+        RenderFragment page = builder =>
+        {
+            builder.OpenComponent<NotificationsPage>(0);
+            builder.CloseComponent();
+        };
+        IRenderedComponent<AuthHost> host =
+            _ctx.Render<AuthHost>(parameters => parameters.Add(p => p.ChildContent, page));
+
+        host.WaitForState(() => host.Markup.Contains("ResolvedTag"));
+
+        // タグ名リンクが /TagDetail/42 に遷移可能であること
+        var tagLink = host.Find("[data-testid='permission-request-tag-link']");
+        Assert.NotNull(tagLink);
+        Assert.Equal("/TagDetail/42", tagLink.GetAttribute("href"));
     }
 
     private static AuthenticationState CreateAuthState(string userId)

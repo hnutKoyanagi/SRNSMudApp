@@ -23,6 +23,7 @@ public class NotificationsViewModel
     private readonly IItemSplitService _itemSplitService;
     private readonly ITagContentProposalService _tagContentProposalService;
     private readonly ITagNameProposalService _tagNameProposalService;
+    private readonly IRightAssetDataProvider _rightAssetDataProvider;
 
     public NotificationsViewModel(
         INotificationService notificationService,
@@ -33,7 +34,8 @@ public class NotificationsViewModel
         ITaggingContractService taggingContractService,
         IItemSplitService itemSplitService,
         ITagContentProposalService tagContentProposalService,
-        ITagNameProposalService tagNameProposalService)
+        ITagNameProposalService tagNameProposalService,
+        IRightAssetDataProvider rightAssetDataProvider)
     {
         _notificationService = notificationService;
         _homeData = homeData;
@@ -44,6 +46,7 @@ public class NotificationsViewModel
         _itemSplitService = itemSplitService;
         _tagContentProposalService = tagContentProposalService;
         _tagNameProposalService = tagNameProposalService;
+        _rightAssetDataProvider = rightAssetDataProvider;
     }
 
     public string? CurrentUserId { get; private set; }
@@ -319,6 +322,55 @@ public class NotificationsViewModel
         }
     }
 
+    public async Task<TagCardActionResult> ApprovePermissionRequestAsync(NotificationDto notification)
+    {
+        if (CurrentUserId == null)
+        {
+            return TagCardActionResult.NoOp();
+        }
+
+        Result<bool> result = await _rightAssetDataProvider.ApprovePermissionRequestAsync(notification.SourceId, CurrentUserId);
+        switch (result)
+        {
+            case Success<bool>:
+                UpdateNotificationStatus(notification, TradeStatus.Executed);
+                await FetchTagsAsync();
+                return TagCardActionResult.Success("操作権限リクエストを承認しました。");
+            case Failure fail:
+                return TagCardActionResult.Error(fail.ErrorMessage);
+            default:
+                return TagCardActionResult.NoOp();
+        }
+    }
+
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "例外をUI向けメッセージに変換するため")]
+    public async Task<TagCardActionResult> RejectPermissionRequestAsync(NotificationDto notification, string? comment)
+    {
+        if (CurrentUserId == null)
+        {
+            return TagCardActionResult.NoOp();
+        }
+
+        try
+        {
+            Result<bool> rejectResult = await _rightAssetDataProvider.RejectPermissionRequestAsync(notification.SourceId, CurrentUserId, comment);
+            switch (rejectResult)
+            {
+                case Success<bool>:
+                    UpdateNotificationStatus(notification, TradeStatus.Rejected);
+                    return TagCardActionResult.Success("操作権限リクエストを却下しました。", shouldNotifyChanged: true);
+                case Failure fail:
+                    return TagCardActionResult.Error(fail.ErrorMessage);
+                default:
+                    return TagCardActionResult.NoOp();
+            }
+        }
+        catch (Exception ex)
+        {
+            return TagCardActionResult.Error($"エラー: {ex.Message}");
+        }
+    }
+
     [SuppressMessage("Maintainability", "CA1508:Avoid dead code", Justification = "NotificationKind pattern matching false positive")]
     private void UpdateNotificationStatus(NotificationDto notification, TradeStatus newStatus)
     {
@@ -328,6 +380,7 @@ public class NotificationsViewModel
             ItemSplitRequestNotification splitNote => notification with { Kind = splitNote with { Status = newStatus }, IsRead = true },
             TagContentProposalNotification proposalNote => notification with { Kind = proposalNote with { Status = newStatus }, IsRead = true },
             TagNameProposalNotification nameNote => notification with { Kind = nameNote with { Status = newStatus }, IsRead = true },
+            TagPermissionRequestNotification permNote => notification with { Kind = permNote with { Status = newStatus }, IsRead = true },
             _ => null
         };
 
@@ -357,9 +410,9 @@ public class NotificationsViewModel
     /// </summary>
     public static void MapAssociatedItems(
         IEnumerable<NotificationDto> notifications,
-        IReadOnlyCollection<Data.Item> items)
+        IReadOnlyCollection<Data.Item>? items)
     {
-        if (items.Count == 0)
+        if (items == null || items.Count == 0)
         {
             return;
         }

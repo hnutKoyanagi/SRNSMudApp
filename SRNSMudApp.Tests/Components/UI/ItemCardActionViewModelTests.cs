@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging.Abstractions;
+
 using Moq;
 
 using MudBlazor;
@@ -35,7 +37,8 @@ public sealed class ItemCardActionViewModelTests
             _tagServiceMock.Object,
             _splitServiceMock.Object,
             _quoteServiceMock.Object,
-            _snackbarMock.Object);
+            _snackbarMock.Object,
+            NullLogger<ItemCardActionViewModel>.Instance);
     }
 
     [Fact]
@@ -375,6 +378,17 @@ public sealed class ItemCardActionViewModelTests
 
         Assert.Empty(result);
         _splitServiceMock.Verify(s => s.GetPendingSplitRequestsForOriginalItemAsync(It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetPendingSplitRequestsAsync_WhenServiceThrows_ReturnsEmptyAndDoesNotThrow()
+    {
+        _splitServiceMock.Setup(s => s.GetPendingSplitRequestsForOriginalItemAsync(10))
+            .ThrowsAsync(new InvalidOperationException("Simulated connection terminated error"));
+
+        var result = await _sut.GetPendingSplitRequestsAsync(10);
+
+        Assert.Empty(result);
     }
 
     [Fact]

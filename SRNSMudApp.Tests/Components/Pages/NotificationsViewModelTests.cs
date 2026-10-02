@@ -27,6 +27,7 @@ public class NotificationsViewModelTests
     private readonly Mock<IItemSplitService> _itemSplitServiceMock = new();
     private readonly Mock<ITagContentProposalService> _tagContentProposalServiceMock = new();
     private readonly Mock<ITagNameProposalService> _tagNameProposalServiceMock = new();
+    private readonly Mock<IRightAssetDataProvider> _rightAssetDataProviderMock = new();
 
     public NotificationsViewModelTests()
     {
@@ -48,7 +49,8 @@ public class NotificationsViewModelTests
             _taggingContractServiceMock.Object,
             _itemSplitServiceMock.Object,
             _tagContentProposalServiceMock.Object,
-            _tagNameProposalServiceMock.Object);
+            _tagNameProposalServiceMock.Object,
+            _rightAssetDataProviderMock.Object);
 
     private static NotificationDto CreateNotification(int associatedItemId = 0, int? highlightTagId = null, bool isRead = false) =>
         new()
@@ -93,6 +95,24 @@ public class NotificationsViewModelTests
                 ProposalId: sourceId, TagId: tagId,
                 CurrentTagName: "old-name", ProposedName: "new-name",
                 RequesterName: "requester", Reason: null, Status: TradeStatus.Proposed),
+            SourceId = sourceId,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+
+    private static NotificationDto CreateTagPermissionRequestNotification(int sourceId = 5, int tagId = 12) =>
+        new()
+        {
+            Kind = new TagPermissionRequestNotification(
+                ItemId: sourceId,
+                RequestedTagId: tagId,
+                RequestedTagName: "permission-tag",
+                RequestedAmount: 1,
+                OfferedRightAssetId: null,
+                OfferedTagName: null,
+                OfferedAmount: 0,
+                RequesterName: "requester",
+                Message: "Please approve",
+                Status: TradeStatus.Proposed),
             SourceId = sourceId,
             CreatedAt = DateTimeOffset.UtcNow
         };
@@ -656,5 +676,85 @@ public class NotificationsViewModelTests
 
         Assert.Equal(TagCardActionResultType.Error, result.Type);
         Assert.Contains("name reject error", result.Message);
+    }
+
+    [Fact]
+    public async Task ApprovePermissionRequestAsync_WhenSuccess_UpdatesNotificationAndReturnsSuccess()
+    {
+        var sut = CreateViewModel();
+        _notificationServiceMock.Setup(s => s.GetUserNotificationsAsync("user-1"))
+            .ReturnsAsync([CreateTagPermissionRequestNotification()]);
+        await sut.InitializeAsync("user-1");
+        var note = sut.Notifications[0];
+
+        Result<bool> res = new Success<bool>(true);
+        _rightAssetDataProviderMock.Setup(s => s.ApprovePermissionRequestAsync(note.SourceId, "user-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(res);
+
+        var result = await sut.ApprovePermissionRequestAsync(note);
+
+        Assert.Equal(TagCardActionResultType.Success, result.Type);
+        Assert.True(result.ShouldNotifyChanged);
+        Assert.Equal("操作権限リクエストを承認しました。", result.Message);
+        var updated = sut.Notifications[0];
+        Assert.True(updated.IsRead);
+        Assert.True(updated.Kind is TagPermissionRequestNotification { Status: TradeStatus.Executed });
+    }
+
+    [Fact]
+    public async Task ApprovePermissionRequestAsync_WhenFailure_ReturnsError()
+    {
+        var sut = CreateViewModel();
+        await sut.InitializeAsync("user-1");
+        var note = CreateTagPermissionRequestNotification();
+
+        Result<bool> fail = new Failure("権限不足です。");
+        _rightAssetDataProviderMock.Setup(s => s.ApprovePermissionRequestAsync(note.SourceId, "user-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(fail);
+
+        var result = await sut.ApprovePermissionRequestAsync(note);
+
+        Assert.Equal(TagCardActionResultType.Error, result.Type);
+        Assert.Equal("権限不足です。", result.Message);
+    }
+
+    [Fact]
+    public async Task RejectPermissionRequestAsync_WhenSuccess_UpdatesNotificationAndReturnsSuccess()
+    {
+        var sut = CreateViewModel();
+        _notificationServiceMock.Setup(s => s.GetUserNotificationsAsync("user-1"))
+            .ReturnsAsync([CreateTagPermissionRequestNotification()]);
+        await sut.InitializeAsync("user-1");
+        var note = sut.Notifications[0];
+
+        Result<bool> res = new Success<bool>(true);
+        _rightAssetDataProviderMock.Setup(s => s.RejectPermissionRequestAsync(note.SourceId, "user-1", "reason", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(res);
+
+        var result = await sut.RejectPermissionRequestAsync(note, "reason");
+
+        Assert.Equal(TagCardActionResultType.Success, result.Type);
+        Assert.True(result.ShouldNotifyChanged);
+        Assert.Equal("操作権限リクエストを却下しました。", result.Message);
+        var updated = sut.Notifications[0];
+        Assert.True(updated.IsRead);
+        Assert.True(updated.Kind is TagPermissionRequestNotification { Status: TradeStatus.Rejected });
+    }
+
+    [Fact]
+    public async Task RejectPermissionRequestAsync_WhenFailure_ReturnsError()
+    {
+        var sut = CreateViewModel();
+        await sut.InitializeAsync("user-1");
+        var note = CreateTagPermissionRequestNotification();
+
+        Result<bool> fail = new Failure("却下に失敗しました。");
+        _rightAssetDataProviderMock.Setup(s => s.RejectPermissionRequestAsync(note.SourceId, "user-1", "reason", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(fail);
+
+        var result = await sut.RejectPermissionRequestAsync(note, "reason");
+
+        Assert.Equal(TagCardActionResultType.Error, result.Type);
+        Assert.Equal("却下に失敗しました。", result.Message);
     }
 }

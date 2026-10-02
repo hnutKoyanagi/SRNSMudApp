@@ -1,3 +1,8 @@
+using System.Diagnostics.CodeAnalysis;
+
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+
 using MudBlazor;
 
 using SRNSMudApp.Data;
@@ -20,6 +25,7 @@ public class ItemCardActionViewModel
     private readonly IItemSplitService _itemSplitService;
     private readonly IItemQuoteService _itemQuoteService;
     private readonly ISnackbar _snackbar;
+    private readonly ILogger<ItemCardActionViewModel> _logger;
 
     public ItemCardActionViewModel(
         IItemReplyService itemReplyService,
@@ -28,7 +34,8 @@ public class ItemCardActionViewModel
         IItemTagService itemTagService,
         IItemSplitService itemSplitService,
         IItemQuoteService itemQuoteService,
-        ISnackbar snackbar)
+        ISnackbar snackbar,
+        ILogger<ItemCardActionViewModel>? logger = null)
     {
         _itemReplyService = itemReplyService;
         _itemCardDataProvider = itemCardDataProvider;
@@ -37,6 +44,7 @@ public class ItemCardActionViewModel
         _itemSplitService = itemSplitService;
         _itemQuoteService = itemQuoteService;
         _snackbar = snackbar;
+        _logger = logger ?? NullLogger<ItemCardActionViewModel>.Instance;
     }
 
     /// <summary>
@@ -175,6 +183,8 @@ public class ItemCardActionViewModel
     /// <summary>
     ///     指定アイテムに紐づくタグ付けリクエスト一覧を取得する。
     /// </summary>
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "データベース一時切断時にUIがクラッシュするのを防ぐため")]
+    [SuppressMessage("Performance", "CA1848:Use the LoggerMessage delegates", Justification = "エラー発生時のみのフォールバックログのため")]
     public async Task<IReadOnlyList<TaggingRequestEntity>> GetTaggingRequestsAsync(int itemId)
     {
         if (itemId <= 0)
@@ -182,12 +192,22 @@ public class ItemCardActionViewModel
             return [];
         }
 
-        return await _itemTagService.GetTaggingRequestsForItemAsync(itemId) ?? [];
+        try
+        {
+            return await _itemTagService.GetTaggingRequestsForItemAsync(itemId) ?? [];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "アイテム {ItemId} のタグ付けリクエスト一覧の取得中にエラーが発生しました。", itemId);
+            return [];
+        }
     }
 
     /// <summary>
     ///     指定アイテムに対する保留中の分割リクエスト一覧を取得する。
     /// </summary>
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "データベース一時切断時にUIがクラッシュするのを防ぐため")]
+    [SuppressMessage("Performance", "CA1848:Use the LoggerMessage delegates", Justification = "エラー発生時のみのフォールバックログのため")]
     public async Task<IReadOnlyList<ItemSplitRequest>> GetPendingSplitRequestsAsync(int itemId)
     {
         if (itemId <= 0)
@@ -195,12 +215,22 @@ public class ItemCardActionViewModel
             return [];
         }
 
-        return await _itemSplitService.GetPendingSplitRequestsForOriginalItemAsync(itemId) ?? [];
+        try
+        {
+            return await _itemSplitService.GetPendingSplitRequestsForOriginalItemAsync(itemId) ?? [];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "アイテム {ItemId} の分割リクエスト一覧の取得中にエラーが発生しました。", itemId);
+            return [];
+        }
     }
 
     /// <summary>
     ///     指定アイテムの引用数を取得する。
     /// </summary>
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "データベース一時切断時にUIがクラッシュするのを防ぐため")]
+    [SuppressMessage("Performance", "CA1848:Use the LoggerMessage delegates", Justification = "エラー発生時のみのフォールバックログのため")]
     public async Task<int> GetQuoteCountAsync(int itemId)
     {
         if (itemId <= 0)
@@ -208,12 +238,22 @@ public class ItemCardActionViewModel
             return 0;
         }
 
-        return await _itemQuoteService.GetQuoteCountAsync(itemId);
+        try
+        {
+            return await _itemQuoteService.GetQuoteCountAsync(itemId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "アイテム {ItemId} の引用数取得中にエラーが発生しました。", itemId);
+            return 0;
+        }
     }
 
     /// <summary>
     ///     指定アイテムに対するリプライ一覧を取得する。
     /// </summary>
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "データベース一時切断時にUIがクラッシュするのを防ぐため")]
+    [SuppressMessage("Performance", "CA1848:Use the LoggerMessage delegates", Justification = "エラー発生時のみのフォールバックログのため")]
     public async Task<IReadOnlyList<Data.Item>> GetItemRepliesAsync(int itemId)
     {
         if (itemId <= 0)
@@ -221,12 +261,22 @@ public class ItemCardActionViewModel
             return [];
         }
 
-        return await _itemReplyService.GetItemRepliesAsync(itemId) ?? [];
+        try
+        {
+            return await _itemReplyService.GetItemRepliesAsync(itemId) ?? [];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "アイテム {ItemId} のリプライ一覧取得中にエラーが発生しました。", itemId);
+            return [];
+        }
     }
 
     /// <summary>
     ///     指定アイテムに対するリプライ数を取得する。取得できない場合は fallbackCount を返す。
     /// </summary>
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "データベース一時切断時にUIがクラッシュするのを防ぐため")]
+    [SuppressMessage("Performance", "CA1848:Use the LoggerMessage delegates", Justification = "エラー発生時のみのフォールバックログのため")]
     public async Task<int> GetItemReplyCountAsync(int itemId, int fallbackCount)
     {
         if (itemId <= 0)
@@ -234,13 +284,23 @@ public class ItemCardActionViewModel
             return fallbackCount;
         }
 
-        int count = await _itemReplyService.GetItemReplyCountAsync(itemId);
-        return count > 0 ? count : fallbackCount;
+        try
+        {
+            int count = await _itemReplyService.GetItemReplyCountAsync(itemId);
+            return count > 0 ? count : fallbackCount;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "アイテム {ItemId} のリプライ数取得中にエラーが発生しました。", itemId);
+            return fallbackCount;
+        }
     }
 
     /// <summary>
     ///     スレッドからオプトアウトしたユーザー一覧を取得する。
     /// </summary>
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "データベース一時切断時にUIがクラッシュするのを防ぐため")]
+    [SuppressMessage("Performance", "CA1848:Use the LoggerMessage delegates", Justification = "エラー発生時のみのフォールバックログのため")]
     public async Task<HashSet<string>> GetOptedOutUsersAsync(int rootItemId)
     {
         if (rootItemId <= 0)
@@ -248,7 +308,15 @@ public class ItemCardActionViewModel
             return [];
         }
 
-        return await _itemReplyService.GetOptedOutUsersAsync(rootItemId) ?? [];
+        try
+        {
+            return await _itemReplyService.GetOptedOutUsersAsync(rootItemId) ?? [];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "ルートアイテム {RootItemId} のオプトアウトユーザー取得中にエラーが発生しました。", rootItemId);
+            return [];
+        }
     }
 
     /// <summary>

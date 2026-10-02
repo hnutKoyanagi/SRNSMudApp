@@ -40,7 +40,9 @@ public class NotificationService(
                 .Concat(BuildResolvedTagContentProposalNotifications(raw.ResolvedTagContentProposals ?? [], raw.ReadStates))
                 .Concat(BuildTagNameProposalNotifications(raw.TagNameProposals ?? [], raw.ReadStates))
                 .Concat(BuildResolvedTagNameProposalNotifications(raw.ResolvedTagNameProposals ?? [], raw.ReadStates))
-                .Concat(BuildTagRelationCommentNotifications(raw.TagRelationComments ?? [], raw.ReadStates));
+                .Concat(BuildTagRelationCommentNotifications(raw.TagRelationComments ?? [], raw.ReadStates))
+                .Concat(BuildTagPermissionRequestNotifications(raw.TagPermissionRequests ?? [], raw.ReadStates))
+                .Concat(BuildResolvedTagPermissionNotifications(raw.ResolvedTagPermissionRequests ?? [], raw.ReadStates));
 
         return [.. notifications.OrderByDescending(n => n.CreatedAt)];
     }
@@ -542,4 +544,83 @@ public class NotificationService(
                 AssociatedItemId = tr.ItemId
             };
         });
+
+    internal static IEnumerable<NotificationDto> BuildTagPermissionRequestNotifications(
+        IEnumerable<Item> items,
+        IReadOnlyList<NotificationReadState> readStates) =>
+        items.Select(item =>
+        {
+            var payload = RightAssetDataProvider.ParsePermissionPayload(item);
+            var requesterName = item.Owner?.UserName ?? "ユーザー";
+            var tagName = payload?.RequestedTagName ?? "タグ";
+            var requestedAmount = payload?.RequestedAmount ?? 1;
+            var offeredAssetId = payload?.OfferedRightAssetId;
+            var offeredTagName = payload?.OfferedTagName;
+            var offeredAmount = payload?.OfferedAmount ?? 0;
+            var status = payload?.Status ?? TradeStatus.Proposed;
+            var rejectReason = payload?.RejectReason;
+
+            return new NotificationDto
+            {
+                SourceId = item.Id,
+                Kind = new TagPermissionRequestNotification(
+                    ItemId: item.Id,
+                    RequestedTagId: payload?.RequestedTagId ?? 0,
+                    RequestedTagName: tagName,
+                    RequestedAmount: requestedAmount,
+                    OfferedRightAssetId: offeredAssetId,
+                    OfferedTagName: offeredTagName,
+                    OfferedAmount: offeredAmount,
+                    RequesterName: requesterName,
+                    Message: payload?.Message,
+                    Status: status,
+                    RejectReason: rejectReason),
+                Message = $"{requesterName} さんからタグ「{tagName}」の操作権限リクエスト ({requestedAmount}) が届いています。",
+                CreatedAt = new DateTimeOffset(item.CreatedDate, TimeSpan.Zero),
+                TargetUrl = payload?.RequestedTagId > 0
+                    ? new RelativeUrl($"/TagDetail/{payload.RequestedTagId}")
+                    : new RelativeUrl("/notifications"),
+                IsRead = IsRead(readStates, item.Id, "TagPermissionRequest"),
+                ActorName = requesterName,
+                AssociatedItemId = item.Id,
+                HighlightTagId = payload?.RequestedTagId > 0 ? payload.RequestedTagId : null
+            };
+        });
+
+    internal static IEnumerable<NotificationDto> BuildResolvedTagPermissionNotifications(
+        IEnumerable<Item> items,
+        IReadOnlyList<NotificationReadState> readStates) =>
+        items
+            .Select(item => (Item: item, Payload: RightAssetDataProvider.ParsePermissionPayload(item)))
+            .Where(x => x.Payload != null && x.Payload.Status != TradeStatus.Proposed)
+            .Select(x =>
+            {
+                var item = x.Item;
+                var payload = x.Payload!;
+                var isApproved = payload.Status == TradeStatus.Executed;
+                var tagName = payload.RequestedTagName;
+                var sourceType = isApproved ? "TagPermissionApproved" : "TagPermissionRejected";
+                var message = isApproved
+                    ? $"あなたのタグ「{tagName}」の操作権限リクエストが承認されました。"
+                    : $"あなたのタグ「{tagName}」の操作権限リクエストが却下されました。{(string.IsNullOrWhiteSpace(payload.RejectReason) ? "" : $"\n理由: {payload.RejectReason}")}";
+
+                NotificationType kind = isApproved
+                    ? new TagPermissionApprovedNotification(item.Id, payload.RequestedTagId, tagName, payload.RequestedAmount)
+                    : new TagPermissionRejectedNotification(item.Id, payload.RequestedTagId, tagName, payload.RejectReason);
+
+                return new NotificationDto
+                {
+                    SourceId = item.Id,
+                    Kind = kind,
+                    Message = message,
+                    CreatedAt = new DateTimeOffset(item.UpdatedDate, TimeSpan.Zero),
+                    TargetUrl = payload.RequestedTagId > 0
+                        ? new RelativeUrl($"/TagDetail/{payload.RequestedTagId}")
+                        : new RelativeUrl("/notifications"),
+                    IsRead = IsRead(readStates, item.Id, sourceType),
+                    ActorName = "システム",
+                    AssociatedItemId = item.Id,
+                    HighlightTagId = payload.RequestedTagId > 0 ? payload.RequestedTagId : null
+                };
+            });
 }
