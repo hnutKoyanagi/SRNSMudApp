@@ -81,6 +81,9 @@ builder.Services.AddContractAndCommandServices();
 // ドメインサービス・ダイアログ抽象化の登録
 builder.Services.AddTaggingAndDomainServices();
 
+// コンポーネント用 ViewModel 群の登録 (MVVM パターン)
+builder.Services.AddViewModels();
+
 // Push Notification 関連サービスの登録 (Azure Notification Hubs & WebPush)
 builder.Services.Configure<VapidOptions>(builder.Configuration.GetSection(VapidOptions.SectionName));
 builder.Services.Configure<AzureNotificationHubOptions>(builder.Configuration.GetSection(AzureNotificationHubOptions.SectionName));

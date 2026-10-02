@@ -1,12 +1,6 @@
 @page "/Admin/TagManagement"
-@rendermode InteractiveServer
-@attribute [Authorize(Roles = "Admin")]
-@using Microsoft.AspNetCore.Authorization
-@using SRNSMudApp.Data
-@using SRNSMudApp.Services
-@inject ITagLockService TagLockService
-@inject ISnackbar Snackbar
-@inject NavigationManager NavigationManager
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+@namespace SRNSMudApp.Components.Admin
 
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-5">
     <div class="d-flex align-center mb-4">
@@ -25,10 +19,10 @@
                 </MudText>
             </CardHeaderContent>
             <CardHeaderActions>
-                @if (_currentConfiguredLevel > 0)
+                @if (ViewModel.CurrentConfiguredLevel > 0)
                 {
                     <MudChip T="string" Color="Color.Warning" Variant="Variant.Filled">
-                        第@_currentConfiguredLevel 階層までロック中
+                        第@ViewModel.CurrentConfiguredLevel 階層までロック中
                     </MudChip>
                 }
                 else
@@ -41,12 +35,12 @@
         </MudCardHeader>
         <MudCardContent>
             <div class="d-flex align-center gap-4 flex-wrap">
-                <MudNumericField @bind-Value="_inputLevel" Label="ロックする階層（n階層目まで）" Min="0" Max="20" Step="1"
+                <MudNumericField @bind-Value="ViewModel.InputLevel" Label="ロックする階層（n階層目まで）" Min="0" Max="20" Step="1"
                                  Variant="Variant.Outlined"
                                  HelperText="0 を指定すると階層ロックは無効になります（個別ロックのみ適用）。1 はルート直下の子タグ、2 はその子タグまでが対象です。"
                                  Style="max-width: 320px;" Immediate="true" />
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
-                           OnClick="SaveHierarchyLockSettingAsync" Disabled="_isSavingSetting">
+                           OnClick="SaveHierarchyLockSettingAsync" Disabled="ViewModel.IsSavingSetting">
                     設定を保存
                 </MudButton>
             </div>
@@ -67,14 +61,14 @@
                             タグごとの階層レベル、ロック状態の確認および個別ロックの切り替えを行えます。
                         </MudText>
                     </div>
-                    <MudTextField @bind-Value="_searchString" Placeholder="タグ名・親タグ・作成者で検索..."
+                    <MudTextField @bind-Value="ViewModel.SearchString" Placeholder="タグ名・親タグ・作成者で検索..."
                                   Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium"
                                   Class="mt-0" Immediate="true" Clearable="true" Style="max-width: 300px;" />
                 </div>
             </CardHeaderContent>
         </MudCardHeader>
         <MudCardContent>
-            @if (_isLoading)
+            @if (ViewModel.IsLoading)
             {
                 <div class="d-flex justify-center pa-8">
                     <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
@@ -82,7 +76,7 @@
             }
             else
             {
-                <MudTable Items="@FilteredTags" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Elevation="0"
+                <MudTable Items="@ViewModel.FilteredTags" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Elevation="0"
                           RowsPerPage="20">
                     <HeaderContent>
                         <MudTh>ID</MudTh>
@@ -182,70 +176,6 @@
                 }
             </MudCardContent>
         </MudCard>
-    </MudContainer>
+</MudContainer>
 
-@code {
-    private int _currentConfiguredLevel;
-    private int _inputLevel;
-    private bool _isSavingSetting;
-    private bool _isLoading = true;
-    private string? _searchString;
-    private IReadOnlyList<TagLockItemDto> _tags = [];
-
-    private IEnumerable<TagLockItemDto> FilteredTags =>
-        TagManagementViewModel.FilterTags(_tags, _searchString);
-
-    protected override async Task OnInitializedAsync()
-    {
-        await LoadDataAsync();
-    }
-
-    private async Task LoadDataAsync()
-    {
-        _isLoading = true;
-        try
-        {
-            _currentConfiguredLevel = await TagLockService.GetLockedHierarchyLevelAsync();
-            _inputLevel = _currentConfiguredLevel;
-            _tags = await TagLockService.GetAllTagsWithLockStatusAsync();
-        }
-        finally
-        {
-            _isLoading = false;
-        }
-    }
-
-    private async Task SaveHierarchyLockSettingAsync()
-    {
-        _isSavingSetting = true;
-        try
-        {
-            await TagLockService.SetLockedHierarchyLevelAsync(_inputLevel);
-            Snackbar.Add($"階層ロック設定を {_inputLevel} 階層目までに更新しました。", Severity.Success);
-            await LoadDataAsync();
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"設定の保存に失敗しました: {ex.Message}", Severity.Error);
-        }
-        finally
-        {
-            _isSavingSetting = false;
-        }
-    }
-
-    private async Task ToggleTagLockAsync(int tagId)
-    {
-        try
-        {
-            bool isLocked = await TagLockService.ToggleTagLockAsync(tagId);
-            Snackbar.Add(isLocked ? "タグを個別ロックしました。" : "タグの個別ロックを解除しました。", Severity.Success);
-            await LoadDataAsync();
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"ロック操作に失敗しました: {ex.Message}", Severity.Error);
-        }
-    }
-}
 

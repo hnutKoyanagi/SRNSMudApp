@@ -1,11 +1,3 @@
-@using System.Security.Claims
-@using SRNSMudApp.Models.Unions
-@using SRNSMudApp.Services
-@using SRNSMudApp.Services.Commands
-@inject IContractLookupDataProvider ContractData
-@inject ICommandHandler<CreateTriggerContractCommand, Result<bool>> CreateTriggerContractHandler
-@inject ISnackbar Snackbar
-
 <MudDialog>
     <DialogContent>
         <MudForm @ref="_form" @bind-IsValid="@_isValid">
@@ -18,21 +10,21 @@
                 要求されるアセット量: @(Offer.RequiredAssetAmount > 0 ? Offer.RequiredAssetAmount.ToString() : "無償")
             </MudAlert>
 
-            <MudAutocomplete T="Item" Label="タグを付与する対象のアイテム" @bind-Value="_selectedItem" SearchFunc="@SearchItems"
+            <MudAutocomplete T="Item" Label="タグを付与する対象のアイテム" @bind-Value="SelectedItem" SearchFunc="@SearchItems"
                              ToStringFunc="@(i => i?.Content ?? "")" Required="true" RequiredError="アイテムを選択してください"
                              ResetValueOnEmptyText="true" CoerceText="true" CoerceValue="true" />
 
             @if (Offer.RequiredAssetAmount > 0)
             {
-                <MudSelect T="RightAsset" Label="消費するアセット（必須）" @bind-Value="_selectedAsset" Clearable="true" Required="true"
+                <MudSelect T="RightAsset" Label="消費するアセット（必須）" @bind-Value="SelectedAsset" Clearable="true" Required="true"
                            RequiredError="要求量以上のアセットを選択してください"
                            ToStringFunc="@(a => a?.TargetTag?.Name != null ? $"[ID: {a.Id}] {a.TargetTag.Name} の権利 (量: {a.Amount})" : "")">
-                    @foreach (var asset in _validAssets)
+                    @foreach (var asset in ValidAssets)
                     {
                         <MudSelectItem Value="@asset" />
                     }
                 </MudSelect>
-                @if (!_validAssets.Any())
+                @if (ValidAssets.Count == 0)
                 {
                     <MudText Color="Color.Error" Typo="Typo.caption">条件を満たすアセットを所有していません。</MudText>
                 }
@@ -42,82 +34,8 @@
     <DialogActions>
         <MudButton OnClick="Cancel">キャンセル</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit"
-                   Disabled="@(!_isValid || (Offer.RequiredAssetAmount > 0 && !_validAssets.Any()))">
+                   Disabled="@(!_isValid || (Offer.RequiredAssetAmount > 0 && ValidAssets.Count == 0))">
             実行する
         </MudButton>
     </DialogActions>
 </MudDialog>
-
-@code {
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
-    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
-
-    [Parameter] public PublicTradeOffer Offer { get; set; } = null!;
-
-    private MudForm? _form;
-    private bool _isValid;
-    private string _currentUserId = string.Empty;
-
-    private Item? _selectedItem;
-    private RightAsset? _selectedAsset;
-    private List<RightAsset> _validAssets = [];
-
-    protected override async Task OnInitializedAsync()
-    {
-        var authState = await AuthStateTask;
-        _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
-
-        if (Offer.RequiredAssetAmount > 0)
-        {
-            await LoadMyAssetsAsync();
-        }
-    }
-
-    private async Task LoadMyAssetsAsync()
-    {
-        // Asset must match the OfferedTagId
-        // ("ユーザーが提供する RightAsset の TargetTagId は、OfferedTagId と一致しているか判定に使用します")
-        _validAssets = await ContractData.GetValidRightAssetsAsync(
-            _currentUserId, Offer.OfferedTagId, Offer.RequiredAssetAmount);
-    }
-
-    private async Task<IEnumerable<Item>> SearchItems(string? value, CancellationToken token)
-    {
-        return await ContractData.SearchItemsAsync(value, token);
-    }
-
-    private async Task Submit()
-    {
-        await _form!.ValidateAsync();
-        if (!_isValid || _selectedItem is null)
-        {
-            return;
-        }
-        if (Offer.RequiredAssetAmount > 0 && _selectedAsset is null)
-        {
-            return;
-        }
-
-        var triggerContract = new TaggingRequestEntity
-        {
-            ContractType = "Trigger",
-            OwnerId = _currentUserId,
-            RequesterUserId = _currentUserId,
-            TagOwnerUserId = Offer.OwnerId,
-            TargetItemId = _selectedItem.Id,
-            RequestedTagId = Offer.OfferedTagId,
-
-            Payload = new SRNSMudApp.Models.Unions.PublicOfferPayload(Offer.Id),
-            ConsumedRightAssetId = _selectedAsset?.Id
-        };
-
-        _ = await CreateTriggerContractHandler.HandleAsync(new CreateTriggerContractCommand(triggerContract));
-
-        MudDialog.Close(DialogResult.Ok(triggerContract.Id));
-    }
-
-    private void Cancel()
-    {
-        MudDialog.Cancel();
-    }
-}

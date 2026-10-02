@@ -1,11 +1,14 @@
-// Components/Admin/InvitationManagerViewModel.cs
 #region
 
+using System.Diagnostics.CodeAnalysis;
+using System.Security.Claims;
 using System.Security.Cryptography;
 
 using MudBlazor;
 
 using SRNSMudApp.Data;
+using SRNSMudApp.Models.Unions;
+using SRNSMudApp.Services;
 
 #endregion
 
@@ -22,11 +25,117 @@ public enum InvitationStatus
 }
 
 /// <summary>
-///     InvitationManager コンポーネントの表示・判定・乱数生成ロジックを担当する ViewModel。
+///     InvitationManager コンポーネントの表示・判定・乱数生成・招待操作ロジックを担当する ViewModel。
 /// </summary>
-public static class InvitationManagerViewModel
+public sealed class InvitationManagerViewModel
 {
     private const string CodeCharacters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+    private readonly IAdminDataProvider _adminData;
+    private readonly TimeProvider _timeProvider;
+
+    public InvitationManagerViewModel(IAdminDataProvider adminData, TimeProvider? timeProvider = null)
+    {
+        _adminData = adminData ?? throw new ArgumentNullException(nameof(adminData));
+        _timeProvider = timeProvider ?? TimeProvider.System;
+    }
+
+    public string NewEmail { get; set; } = string.Empty;
+    public string? CurrentUserId { get; private set; }
+    public IReadOnlyList<Invitation> Invitations { get; private set; } = [];
+    public bool IsProcessing { get; private set; }
+
+    public void Initialize(ClaimsPrincipal? user)
+    {
+        CurrentUserId = user?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+    }
+
+    /// <summary>
+    ///     招待一覧を読み込みます。
+    /// </summary>
+    public async Task LoadInvitationsAsync()
+    {
+        IsProcessing = true;
+        try
+        {
+            Invitations = await _adminData.GetInvitationsAsync();
+        }
+        finally
+        {
+            IsProcessing = false;
+        }
+    }
+
+    /// <summary>
+    ///     新規招待を生成・登録します。
+    /// </summary>
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "招待作成結果をResult型で返却するため")]
+    public async Task<Result<Invitation>> CreateInvitationAsync()
+    {
+        if (string.IsNullOrWhiteSpace(NewEmail))
+        {
+            return new Failure("Email is required.");
+        }
+
+        IsProcessing = true;
+        try
+        {
+            var code = GenerateRandomCode(16);
+            var now = _timeProvider.GetUtcNow().UtcDateTime;
+            var invitation = new Invitation
+            {
+                Email = NewEmail,
+                InvitationCode = code,
+                ExpirationDate = now.AddDays(7),
+                IsUsed = false,
+                InvitedByAdminId = CurrentUserId ?? string.Empty,
+                OwnerId = CurrentUserId ?? "system"
+            };
+
+            await _adminData.CreateInvitationAsync(invitation);
+            NewEmail = string.Empty;
+            await LoadInvitationsAsync();
+            return new Success<Invitation>(invitation);
+        }
+        catch (Exception ex)
+        {
+            return new Failure($"招待の作成に失敗しました: {ex.Message}");
+        }
+        finally
+        {
+            IsProcessing = false;
+        }
+    }
+
+    /// <summary>
+    ///     指定した招待を削除します。
+    /// </summary>
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "招待削除結果をResult型で返却するため")]
+    public async Task<Result<bool>> DeleteInvitationAsync(Invitation invitation)
+    {
+        ArgumentNullException.ThrowIfNull(invitation);
+
+        IsProcessing = true;
+        try
+        {
+            await _adminData.DeleteInvitationAsync(invitation);
+            await LoadInvitationsAsync();
+            return new Success<bool>(true);
+        }
+        catch (Exception ex)
+        {
+            return new Failure($"招待の削除に失敗しました: {ex.Message}");
+        }
+        finally
+        {
+            IsProcessing = false;
+        }
+    }
+
+    /// <summary>
+    ///     招待コードからログイン・登録用リンクを生成します。
+    /// </summary>
+    public static string BuildInviteLink(string code) => $"/Account/Login?inviteCode={code}";
 
     /// <summary>
     ///     指定した文字数の暗号論的ランダムな招待コードを生成する。

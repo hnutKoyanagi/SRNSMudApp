@@ -1,14 +1,10 @@
 @page "/PublicOffer/PublicOfferBoard"
 @using System.Security.Claims
+@using SRNSMudApp.Models.Unions
 @using SRNSMudApp.Services
 @rendermode InteractiveServer
 
 @attribute [Authorize]
-
-@inject IPublicOfferDataProvider ContractData
-@inject IDialogLauncher DialogLauncher
-@inject ISnackbar Snackbar
-@inject ITaggingContractService ContractService
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
     <MudText Typo="Typo.h4" GutterBottom="true">公開オファー掲示板</MudText>
@@ -19,18 +15,18 @@
         オファーを作成する
     </MudButton>
 
-    @if (_isLoading)
+    @if (ViewModel.IsLoading)
     {
         <MudProgressCircular Indeterminate="true" />
     }
-    else if (!_offers.Any())
+    else if (!ViewModel.Offers.Any())
     {
         <MudAlert Severity="Severity.Info">現在、アクティブな公開オファーはありません。</MudAlert>
     }
     else
     {
         <MudGrid>
-            @foreach (var offer in _offers)
+            @foreach (var offer in ViewModel.Offers)
             {
                 <MudItem xs="12" sm="6" md="4" @key="offer.Id">
                     <MudCard Elevation="3">
@@ -59,7 +55,7 @@
                             }
                         </MudCardContent>
                         <MudCardActions>
-                            @if (offer.OwnerId == _currentUserId)
+                            @if (ViewModel.IsOwner(offer))
                             {
                                 <MudButton Color="Color.Error" Variant="Variant.Text" OnClick="() => DeactivateOffer(offer)">
                                     取り下げる
@@ -78,74 +74,3 @@
         </MudGrid>
     }
 </MudContainer>
-
-@code {
-    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
-
-    private bool _isLoading = true;
-    private string _currentUserId = string.Empty;
-    private List<PublicTradeOffer> _offers = [];
-
-    protected override async Task OnInitializedAsync()
-    {
-        var authState = await AuthStateTask;
-        _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
-
-        await LoadDataAsync();
-    }
-
-    private async Task LoadDataAsync()
-    {
-        _isLoading = true;
-        _offers = await ContractData.GetActivePublicOffersAsync();
-
-        _isLoading = false;
-    }
-
-    private async Task OpenCreateDialog()
-    {
-        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
-        var dialog = await DialogLauncher.ShowAsync<CreatePublicOfferDialog>("公開オファーの作成", options);
-        var result = await dialog.Result;
-
-        if (result is { Canceled: false })
-        {
-            await LoadDataAsync();
-        }
-    }
-
-    private async Task TriggerOffer(PublicTradeOffer offer)
-    {
-        var parameters = new DialogParameters<TriggerPublicOfferDialog> { { x => x.Offer, offer } };
-        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
-        var dialog = await DialogLauncher.ShowAsync<TriggerPublicOfferDialog>("オファーに応じる", parameters, options);
-        var result = await dialog.Result;
-
-        if (result is { Canceled: false, Data: int contractId })
-        {
-            // Now accept the contract we just created via the dialog
-            try
-            {
-                await ContractService.AcceptContractAsync(contractId, _currentUserId);
-                Snackbar.Add("公開オファーを利用してタグを獲得しました！", Severity.Success);
-            }
-            catch (Exception ex)
-            {
-                Snackbar.Add($"エラーが発生しました: {ex.Message}", Severity.Error);
-                // Also could try to cancel the contract since it failed
-                await ContractService.CancelContractAsync(contractId, _currentUserId);
-            }
-
-            await LoadDataAsync();
-        }
-    }
-
-    private async Task DeactivateOffer(PublicTradeOffer offer)
-    {
-        if (await ContractData.DeactivatePublicOfferAsync(offer.Id, _currentUserId))
-        {
-            Snackbar.Add("オファーを取り下げました。", Severity.Success);
-            await LoadDataAsync();
-        }
-    }
-}

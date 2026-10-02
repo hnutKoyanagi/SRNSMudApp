@@ -131,6 +131,88 @@ public class NotificationsDataProviderTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public async Task GetNotificationRawDataAsync_RetrievesSplitRequestsAndProposals_WithoutExceptions()
+    {
+        // Arrange
+        var (db, sut, itemOwnerId, commenterId, itemId, tagId) = await CreateScopeAsync();
+        await using (db)
+        {
+            var splitRequest = new ItemSplitRequest
+            {
+                OwnerId = commenterId,
+                OriginalItemId = itemId,
+                RequesterUserId = commenterId,
+                OwnerUserId = itemOwnerId,
+                SelectedText = "分割対象テキスト",
+                Status = TradeStatus.Proposed
+            };
+            db.ItemSplitRequests.Add(splitRequest);
+
+            var proposal = new TagContentProposal
+            {
+                OwnerId = commenterId,
+                TagId = tagId,
+                RequesterUserId = commenterId,
+                OwnerUserId = itemOwnerId,
+                ProposedContent = "新しいタグ説明",
+                Status = TradeStatus.Proposed
+            };
+            db.TagContentProposals.Add(proposal);
+            await db.SaveChangesAsync();
+
+            // Act
+            NotificationRawData rawData = await sut.GetNotificationRawDataAsync(itemOwnerId);
+
+            // Assert
+            Assert.NotNull(rawData.SplitRequests);
+            Assert.Contains(rawData.SplitRequests, r => r.Id == splitRequest.Id);
+            Assert.NotNull(rawData.TagContentProposals);
+            Assert.Contains(rawData.TagContentProposals, p => p.Id == proposal.Id);
+        }
+    }
+
+    [Fact]
+    public async Task GetNotificationRawDataAsync_WhenMultipleTagsHaveSameName_DoesNotThrowDuplicateKeyExceptionAndResolvesTagId()
+    {
+        var (db, sut, itemOwnerId, commenterId, _, _) = await CreateScopeAsync();
+        await using (db)
+        {
+            // 同一名のタグが複数存在する場合 (例: "真実")
+            var dupName = "真実";
+            var tag1 = new Tag { Name = dupName, OwnerId = commenterId };
+            var tag2 = new Tag { Name = dupName, OwnerId = itemOwnerId }; // リクエスト受信者がオーナーのタグ
+            db.Tags.AddRange(tag1, tag2);
+
+            // ItemKindJson なし（古いリクエストなど）で、本文に「真実」が含まれるリクエスト
+            var requestItem = new Item
+            {
+                OwnerId = commenterId,
+                Content = $"【タグ操作権限リクエスト】\nタグ「{dupName}」の操作権限 1 をリクエストしました。（無償リクエスト）",
+                NotificationRecipients =
+                [
+                    new ItemReplyNotificationRecipient
+                    {
+                        RecipientUserId = itemOwnerId
+                    }
+                ]
+            };
+            db.Items.Add(requestItem);
+            await db.SaveChangesAsync();
+
+            // Act: 重複キー例外（ArgumentException）が発生しないこと
+            NotificationRawData rawData = await sut.GetNotificationRawDataAsync(itemOwnerId);
+
+            // Assert
+            Assert.NotNull(rawData.TagPermissionRequests);
+            var item = Assert.Single(rawData.TagPermissionRequests, i => i.Id == requestItem.Id);
+            var payload = RightAssetDataProvider.ParsePermissionPayload(item);
+            Assert.NotNull(payload);
+            // リクエスト受信者がオーナーである tag2 の ID が優先して設定されていること
+            Assert.Equal(tag2.Id, payload.RequestedTagId);
+        }
+    }
+
     private sealed class DbContextFactoryStub(DbContextOptions<ApplicationDbContext> options) : IDbContextFactory<ApplicationDbContext>
     {
         public ApplicationDbContext CreateDbContext() => new(options);

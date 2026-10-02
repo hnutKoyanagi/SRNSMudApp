@@ -1,21 +1,13 @@
 @page "/Contract/ContractManagement"
-@using System.Security.Claims
-@using SRNSMudApp.Services
-@using SRNSMudApp.Components.UI
-@using SRNSMudApp.Models.Unions
-@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@namespace SRNSMudApp.Components.Contract
 
-@attribute [Authorize]
-
-@inject IContractManagementDataProvider ContractData
-@inject ITaggingContractService ContractService
-@inject ISnackbar Snackbar
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
     <MudText Typo="Typo.h4" GutterBottom="true">コントラクト管理</MudText>
 
     @* ページ状態の描画は AsyncPageView (RenderFragment 差し替え) に委譲する (mainRules: 条件文回避) *@
-    <SRNSMudApp.Components.UI.AsyncPageView T="ContractManagementData" State="_pageState">
+    <SRNSMudApp.Components.UI.AsyncPageView T="ContractManagementData" State="ViewModel.PageState">
         <LoadingContent>
             <MudProgressCircular Indeterminate="true" />
         </LoadingContent>
@@ -116,81 +108,3 @@
         </LoadedContent>
     </SRNSMudApp.Components.UI.AsyncPageView>
 </MudContainer>
-
-@code {
-    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
-
-    public record ContractManagementData(IReadOnlyList<TaggingRequestEntity> IncomingContracts,
-IReadOnlyList<TaggingRequestEntity> OutgoingContracts);
-
-    private AsyncPageState<ContractManagementData> _pageState = new Loading();
-    private string _currentUserId = string.Empty;
-
-    protected override async Task OnInitializedAsync()
-    {
-        var authState = await AuthStateTask;
-        _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
-
-        await LoadDataAsync();
-    }
-
-    private async Task LoadDataAsync()
-    {
-        try
-        {
-            _pageState = new Loading();
-            StateHasChanged();
-
-            ContractManagementPageData page = await ContractData.GetContractsAsync(_currentUserId);
-
-            _pageState = new Loaded<ContractManagementData>(new ContractManagementData(page.IncomingContracts,
-page.OutgoingContracts));
-        }
-        catch (Exception ex)
-        {
-            _pageState = new Failed(ex);
-        }
-    }
-
-    private async Task AcceptContract(TaggingRequestEntity contract)
-    {
-        var result = await ContractService.AcceptContractAsync(contract.Id, _currentUserId);
-        if (result is Success<string>)
-        {
-            Snackbar.Add("コントラクトを承認しました。", Severity.Success);
-            await LoadDataAsync();
-        }
-        else if (result is Failure f)
-        {
-            Snackbar.Add($"エラーが発生しました: {f.ErrorMessage}", Severity.Error);
-        }
-    }
-
-    private async Task RejectContract(TaggingRequestEntity contract)
-    {
-        var result = await ContractService.CancelContractAsync(contract.Id, _currentUserId);
-        if (result is Success<string>)
-        {
-            Snackbar.Add("コントラクトを拒否しました。", Severity.Success);
-            await LoadDataAsync();
-        }
-        else if (result is Failure f)
-        {
-            Snackbar.Add($"エラーが発生しました: {f.ErrorMessage}", Severity.Error);
-        }
-    }
-
-    private async Task CancelContract(TaggingRequestEntity contract)
-    {
-        var result = await ContractService.CancelContractAsync(contract.Id, _currentUserId);
-        if (result is Success<string>)
-        {
-            Snackbar.Add("コントラクトを取り下げました。", Severity.Success);
-            await LoadDataAsync();
-        }
-        else if (result is Failure f)
-        {
-            Snackbar.Add($"エラーが発生しました: {f.ErrorMessage}", Severity.Error);
-        }
-    }
-}

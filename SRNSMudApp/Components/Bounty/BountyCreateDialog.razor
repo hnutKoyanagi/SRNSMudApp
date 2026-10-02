@@ -1,17 +1,9 @@
-@using System.Security.Claims
-@using SRNSMudApp.Models.Unions
-@using SRNSMudApp.Services
-@using SRNSMudApp.Services.Commands
-@inject IContractLookupDataProvider ContractData
-@inject ICommandHandler<CreateBountyCommand, Result<bool>> CreateBountyHandler
-@inject ISnackbar Snackbar
-
 <MudDialog>
     <DialogContent>
         <MudForm @ref="_form" @bind-IsValid="@_isValid">
             @if (TargetItem is null)
             {
-                <MudAutocomplete T="Item" Label="対象のアイテム" @bind-Value="_selectedItem" SearchFunc="@SearchItems"
+                <MudAutocomplete T="Item" Label="対象のアイテム" @bind-Value="ViewModel.TargetItem" SearchFunc="@SearchItems"
                                  ToStringFunc="@(i => i?.Content ?? "")" Required="true" RequiredError="アイテムを選択してください"
                                  ResetValueOnEmptyText="true" CoerceText="true" CoerceValue="true" MaxItems="10" />
             }
@@ -20,13 +12,13 @@
                 <MudTextField T="string" Label="対象のアイテム" Value="@TargetItem.Content" ReadOnly="true" />
             }
 
-            <MudAutocomplete T="Tag" Label="希望するタグ" @bind-Value="_selectedTag" SearchFunc="@SearchTags"
+            <MudAutocomplete T="Tag" Label="希望するタグ" @bind-Value="ViewModel.SelectedTag" SearchFunc="@SearchTags"
                              ToStringFunc="@(t => t?.Name ?? "")" Required="true" RequiredError="タグを選択してください"
                              ResetValueOnEmptyText="true" CoerceText="true" CoerceValue="true" MaxItems="10" />
 
-            <MudSelect T="RightAsset" Label="報酬として提供するアセット（任意）" @bind-Value="_selectedRewardAsset" Clearable="true"
+            <MudSelect T="RightAsset" Label="報酬として提供するアセット（任意）" @bind-Value="ViewModel.SelectedRewardAsset" Clearable="true"
                        ToStringFunc="@(a => a?.TargetTag?.Name != null ? $"[ID: {a.Id}] {a.TargetTag.Name} の権利" : "")">
-                @foreach (var asset in _myAssets)
+                @foreach (var asset in ViewModel.MyAssets)
                 {
                     <MudSelectItem Value="@asset" />
                 }
@@ -40,79 +32,3 @@
         </MudButton>
     </DialogActions>
 </MudDialog>
-
-@code {
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
-    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
-
-    [Parameter] public Item? TargetItem { get; set; }
-
-    private MudForm? _form;
-    private bool _isValid;
-
-    private string _currentUserId = string.Empty;
-    private Item? _selectedItem;
-    private Tag? _selectedTag;
-    private RightAsset? _selectedRewardAsset;
-
-    private List<RightAsset> _myAssets = [];
-
-    protected override async Task OnInitializedAsync()
-    {
-        var authState = await AuthStateTask;
-        _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
-
-        if (TargetItem is not null)
-        {
-            _selectedItem = TargetItem;
-        }
-
-        await LoadMyAssetsAsync();
-    }
-
-    private async Task LoadMyAssetsAsync()
-    {
-        _myAssets = await ContractData.GetAvailableRightAssetsAsync(_currentUserId);
-    }
-
-    private async Task<IEnumerable<Item>> SearchItems(string value, CancellationToken token)
-    {
-        return await ContractData.SearchItemsAsync(value, token);
-    }
-
-    private async Task<IEnumerable<Tag>> SearchTags(string value, CancellationToken token)
-    {
-        return await ContractData.SearchTagsByNameAsync(value, token);
-    }
-
-    private async Task Submit()
-    {
-        await _form!.ValidateAsync();
-        if (!_isValid || _selectedItem is null || _selectedTag is null)
-        {
-            return;
-        }
-
-        var bounty = new TaggingRequestEntity
-        {
-            ContractType = "Bounty",
-            OwnerId = _currentUserId,
-            RequesterUserId = _currentUserId,
-            TagOwnerUserId = _selectedTag.OwnerId, // Base property for who owns the requested tag
-            TargetItemId = _selectedItem.Id,
-            RequestedTagId = _selectedTag.Id,
-
-            Payload = new SRNSMudApp.Models.Unions.BountyPayload(_selectedRewardAsset?.Id ?? 0)
-        };
-
-        _ = await CreateBountyHandler.HandleAsync(new CreateBountyCommand(bounty));
-
-        Snackbar.Add("タグ付けの依頼（バウンティ）を作成しました。", Severity.Success);
-        MudDialog.Close(DialogResult.Ok(true));
-    }
-
-    private void Cancel()
-    {
-        MudDialog.Cancel();
-    }
-}

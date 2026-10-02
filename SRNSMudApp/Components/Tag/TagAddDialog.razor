@@ -1,9 +1,4 @@
-@using System.Security.Claims
-@using SRNSMudApp.Services
-@inject ITagSearchQueryService TagSearchQueryService
-@inject ITagCommandService TagCommandService
-@inject ITagLockService TagLockService
-@inject ISnackbar Snackbar
+@namespace SRNSMudApp.Components.Tag
 
 <MudDialog>
     <DialogContent>
@@ -12,28 +7,28 @@
             <MudTabPanel Text="既存タグから選択">
                 <!-- 検索入力エリア -->
                 <div class="d-flex align-center gap-4 mb-4">
-                    <MudTextField @bind-Value="_searchText" Label="タグを検索" Placeholder="タグ名 または 内容を入力..."
+                    <MudTextField @bind-Value="ViewModel.SearchText" Label="タグを検索" Placeholder="タグ名 または 内容を入力..."
                                   Immediate="true" OnKeyDown="@HandleKeyDown" Clearable="true" AutoFocus="true" />
                     <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="@SearchAsync">検索</MudButton>
                 </div>
 
                 <!-- 検索結果表示エリア -->
-                @if (_isSearching)
+                @if (ViewModel.IsSearching)
                 {
                     <div class="d-flex justify-center pa-4">
                         <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
                     </div>
                 }
-                else if (_searchResults != null)
+                else if (ViewModel.SearchResults != null)
                 {
-                    @if (_searchResults.Any())
+                    @if (ViewModel.SearchResults.Any())
                     {
                         <MudText Typo="Typo.subtitle2" Class="mb-2">検索候補から1つ選択してください：</MudText>
 
                         <!-- スクロール可能な一覧エリア -->
                         <div class="tag-search-results">
-                            <MudRadioGroup T="Tag" @bind-Value="SelectedTag">
-                                @foreach (var tag in _searchResults)
+                            <MudRadioGroup T="Data.Tag" @bind-Value="ViewModel.SelectedTag">
+                                @foreach (var tag in ViewModel.SearchResults)
                                 {
                                     var isActive = _activeTreeTagId == tag.Id;
                                     <div class="d-flex align-center search-result-item">
@@ -57,7 +52,7 @@
                                         <MudPopover Open="@isActive" AnchorOrigin="Origin.TopRight" TransformOrigin="Origin.TopLeft"
                                                     OverflowBehavior="OverflowBehavior.FlipAlways" Class="tree-popover" Paper="false"
                                                     Style="z-index: 1500; margin-left: 10px;">
-                                            <TagTreePopoverContent TargetTag="@tag" AllTags="@_allTags" EnableSwap="false"
+                                            <TagTreePopoverContent TargetTag="@tag" AllTags="@ViewModel.AllTags" EnableSwap="false"
                                                                    EnableExpand="false" EnableNavigation="false" />
                                         </MudPopover>
                                     </div>
@@ -76,15 +71,16 @@
 
             <MudTabPanel Text="子タグを新規作成">
                 <MudStack Spacing="3">
-                    <MudAutocomplete T="Tag" Label="親タグ" @bind-Value="_parentTag" SearchFunc="@SearchParentTagsAsync"
-                                     ToStringFunc="@(t => t?.Name ?? string.Empty)" Placeholder="親タグを検索・選択..." Clearable="true"
-                                     Required="true" RequiredError="親タグを選択してください" Immediate="true"
-                                     HelperText="@(_parentTag != null ? $"選択中親タグ: {_parentTag.Name}" : "親となるタグを検索して選択してください")" />
+                    <MudAutocomplete T="Data.Tag" Label="親タグ" @bind-Value="ViewModel.ParentTag"
+                                     SearchFunc="@SearchParentTagsAsync" ToStringFunc="@(t => t?.Name ?? string.Empty)"
+                                     Placeholder="親タグを検索・選択..." Clearable="true" Required="true" RequiredError="親タグを選択してください"
+                                     Immediate="true"
+                                     HelperText="@(ViewModel.ParentTag != null ? $"選択中親タグ: {ViewModel.ParentTag.Name}" : "親となるタグを検索して選択してください")" />
 
-                    <MudTextField @bind-Value="_newTagName" Label="子タグ名" Required="true" RequiredError="タグ名は必須です"
-                                  Immediate="true" />
+                    <MudTextField @bind-Value="ViewModel.NewTagName" Label="子タグ名" Required="true"
+                                  RequiredError="タグ名は必須です" Immediate="true" />
 
-                    <MudTextField @bind-Value="_newTagContent" Label="内容" Lines="3" Immediate="true" />
+                    <MudTextField @bind-Value="ViewModel.NewTagContent" Label="内容" Lines="3" Immediate="true" />
                 </MudStack>
             </MudTabPanel>
         </MudTabs>
@@ -95,187 +91,16 @@
         @if (_activeTabIndex == 0)
         {
             <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="@SubmitSearch"
-                       Disabled="@(SelectedTag == null)">
+                       Disabled="@(ViewModel.SelectedTag == null)">
                 選択して追加
             </MudButton>
         }
         else
         {
             <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="@SubmitCreateChildAsync"
-                       Disabled="@(_parentTag == null || string.IsNullOrWhiteSpace(_newTagName))">
+                       Disabled="@(ViewModel.ParentTag == null || string.IsNullOrWhiteSpace(ViewModel.NewTagName))">
                 子タグを作成して追加
             </MudButton>
         }
     </DialogActions>
 </MudDialog>
-
-@code {
-    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
-
-    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
-
-    [Parameter] public Tag? DefaultParentTag { get; set; }
-
-    private List<Tag> _allTags = [];
-    private string _searchText = string.Empty;
-    private List<Tag>? _searchResults;
-    private bool _isSearching;
-    private Tag? SelectedTag { get; set; }
-
-    // 子タグ作成タブ用フィールド
-    private int _activeTabIndex;
-    private Tag? _parentTag;
-    private string _newTagName = string.Empty;
-    private string? _newTagContent;
-
-    // ツリーポップオーバー用
-    private int? _activeTreeTagId;
-
-    private void OnActiveTabIndexChanged(int newIndex)
-    {
-        _activeTabIndex = newIndex;
-        if (_activeTabIndex == 1 && _parentTag == null && SelectedTag != null)
-        {
-            _parentTag = SelectedTag;
-        }
-    }
-
-    private void SelectParentAndOpenCreateTab(Tag tag)
-    {
-        _parentTag = tag;
-        _activeTabIndex = 1;
-    }
-
-    private Task<IEnumerable<Tag>> SearchParentTagsAsync(string value, CancellationToken token)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return Task.FromResult<IEnumerable<Tag>>(_allTags.Take(15));
-        }
-
-        var filtered = _allTags
-            .Where(t => t.Name.Contains(value, StringComparison.OrdinalIgnoreCase) ||
-                        t.Content.Contains(value, StringComparison.OrdinalIgnoreCase))
-            .Take(15);
-        return Task.FromResult(filtered);
-    }
-
-    private void ToggleTree(int tagId)
-    {
-        _activeTreeTagId = _activeTreeTagId == tagId ? null : tagId;
-    }
-
-    protected override async Task OnInitializedAsync()
-    {
-        _allTags = await TagSearchQueryService.GetAllTagsAsync();
-    }
-
-    protected override void OnParametersSet()
-    {
-        if (DefaultParentTag is null)
-        {
-            return;
-        }
-
-        _parentTag = DefaultParentTag;
-        _activeTabIndex = 1;
-    }
-
-    private async Task SearchAsync()
-    {
-        if (string.IsNullOrWhiteSpace(_searchText))
-        {
-            _searchResults = null;
-            SelectedTag = null;
-            return;
-        }
-
-        _isSearching = true;
-        SelectedTag = null;
-
-        try
-        {
-            _searchResults = await TagSearchQueryService.SearchTagsAsync(_searchText);
-
-            if (_searchResults.Count == 1)
-            {
-                SelectedTag = _searchResults[0];
-            }
-        }
-        finally
-        {
-            _isSearching = false;
-        }
-    }
-
-    private async Task HandleKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter")
-        {
-            await SearchAsync();
-        }
-    }
-
-    private void SubmitSearch()
-    {
-        MudDialog.Close(DialogResult.Ok(SelectedTag));
-    }
-
-    private async Task SubmitCreateChildAsync()
-    {
-        if (string.IsNullOrWhiteSpace(_newTagName))
-        {
-            return;
-        }
-
-        if (_parentTag is null)
-        {
-            Snackbar.Add("親タグを選択してください。", Severity.Warning);
-            return;
-        }
-
-        var isAdmin = false;
-        string? userId = null;
-        var authState = await AuthStateTask;
-        userId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        isAdmin = authState.User.IsInRole("Admin");
-
-        var isRestricted = await TagLockService.IsChildCreationRestrictedAsync(_parentTag.Id);
-        if (isRestricted && !isAdmin)
-        {
-            Snackbar.Add("選択された親タグ配下（または兄弟）はロックされているため子タグを作成できません。", Severity.Warning);
-            return;
-        }
-
-        if (string.IsNullOrEmpty(userId))
-        {
-            Snackbar.Add("ユーザーが見つかりません。", Severity.Error);
-            return;
-        }
-
-        Tag? existingTag = await TagSearchQueryService.FindTagByNameAsync(_newTagName);
-        if (existingTag is not null)
-        {
-            Snackbar.Add("同じ名前のタグが既に存在します。", Severity.Error);
-            return;
-        }
-
-        var newTag = new Tag
-        {
-            Name = _newTagName,
-            Content = _newTagContent ?? string.Empty,
-            OwnerId = userId!,
-            ParentTagId = _parentTag.Id,
-            CachedWeight = 0
-        };
-
-        await TagCommandService.CreateTagAsync(newTag, isAdmin);
-
-        MudDialog.Close(DialogResult.Ok(newTag));
-    }
-
-    private void Cancel()
-    {
-        MudDialog.Cancel();
-    }
-}

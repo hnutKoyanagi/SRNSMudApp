@@ -54,7 +54,7 @@ public class ItemCardVoteCoordinator(
     }
 
     /// <inheritdoc />
-    public async Task<bool> ToggleReactionAsync(
+    public async Task<ItemVoteResult?> ToggleReactionAsync(
         int itemId,
         string currentUserId,
         string reactionTagName,
@@ -70,7 +70,7 @@ public class ItemCardVoteCoordinator(
         if (string.IsNullOrEmpty(currentUserId))
         {
             _ = _snackbar.Add(ErrorMessages.LoginRequired, Severity.Warning);
-            return false;
+            return null;
         }
 
         if (ensureSystemTagsAsync is not null)
@@ -90,8 +90,22 @@ public class ItemCardVoteCoordinator(
                 ?? (await _itemReactionService.EnsureReactionTagAsync(currentUserId, reactionTagName)).Id;
         }
 
-        return await ToggleTagVoteAsync(
-            () => _itemReactionService.ToggleItemReactionAsync(itemId, currentUserId, tagId, targetWeight, comment));
+        return await _itemReactionService.ToggleItemReactionAsync(itemId, currentUserId, tagId, targetWeight, comment);
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> UpdateReactionCommentAsync(
+        int relationId,
+        string currentUserId,
+        string? comment)
+    {
+        if (string.IsNullOrEmpty(currentUserId))
+        {
+            _ = _snackbar.Add(ErrorMessages.LoginRequired, Severity.Warning);
+            return false;
+        }
+
+        return await _itemReactionService.UpdateTagRelationCommentAsync(relationId, currentUserId, comment);
     }
 
     private static async Task<bool> ToggleTagVoteAsync(

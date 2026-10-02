@@ -5,9 +5,6 @@
 @attribute [Authorize]
 
 @using SRNSMudApp.Services
-@inject IBountyDataProvider ContractData
-@inject IDialogLauncher DialogLauncher
-@inject ISnackbar Snackbar
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
     <MudText Typo="Typo.h4" GutterBottom="true">Bounty Board</MudText>
@@ -20,18 +17,18 @@
         タグ付けを依頼する
     </MudButton>
 
-    @if (_isLoading)
+    @if (ViewModel.IsLoading)
     {
         <MudProgressCircular Indeterminate="true" />
     }
-    else if (!_bounties.Any())
+    else if (ViewModel.Bounties.Count == 0)
     {
         <MudAlert Severity="Severity.Info">現在、募集中のバウンティはありません。</MudAlert>
     }
     else
     {
         <MudGrid>
-            @foreach (var bounty in _bounties)
+            @foreach (var bounty in ViewModel.Bounties)
             {
                 <MudItem xs="12" sm="6" md="4" @key="bounty.Id">
                     <MudCard Elevation="3">
@@ -48,7 +45,7 @@
                             <MudText Typo="Typo.body2" Class="mb-2">@bounty.TargetItem.Content</MudText>
 
                             @{
-                                RightAsset? rewardAsset = BountyBoardViewModel.ResolveRewardAsset(bounty, _rewardAssets);
+                                RightAsset? rewardAsset = ViewModel.ResolveRewardAsset(bounty);
                             }
                             @if (rewardAsset is not null)
                             {
@@ -63,7 +60,7 @@
                             }
                         </MudCardContent>
                         <MudCardActions>
-                            @if (!BountyBoardViewModel.CanFulfillBounty(bounty, _currentUserId))
+                            @if (!ViewModel.CanFulfillBounty(bounty))
                             {
                                 <MudButton Disabled="true" Variant="Variant.Text">自分の依頼</MudButton>
                             }
@@ -80,55 +77,3 @@
         </MudGrid>
     }
 </MudContainer>
-
-@code {
-    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
-
-    private bool _isLoading = true;
-    private string _currentUserId = string.Empty;
-    private IReadOnlyList<TaggingRequestEntity> _bounties = [];
-    private Dictionary<int, RightAsset> _rewardAssets = [];
-
-    protected override async Task OnInitializedAsync()
-    {
-        var authState = await AuthStateTask;
-        _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
-
-        await LoadDataAsync();
-    }
-
-    private async Task LoadDataAsync()
-    {
-        _isLoading = true;
-        BountyBoardData board = await ContractData.GetActiveBountiesAsync();
-        _bounties = board.Bounties;
-        _rewardAssets = board.RewardAssets;
-
-        _isLoading = false;
-    }
-
-    private async Task OpenCreateDialog()
-    {
-        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
-        var dialog = await DialogLauncher.ShowAsync<BountyCreateDialog>("タグ付けの依頼を作成", options);
-        var result = await dialog.Result;
-
-        if (result is { Canceled: false })
-        {
-            await LoadDataAsync();
-        }
-    }
-
-    private async Task FulfillBounty(TaggingRequestEntity bounty)
-    {
-        var parameters = new DialogParameters<FulfillBountyDialog> { { x => x.Bounty, bounty } };
-        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
-        var dialog = await DialogLauncher.ShowAsync<FulfillBountyDialog>("依頼を叶える", parameters, options);
-        var result = await dialog.Result;
-
-        if (result is { Canceled: false })
-        {
-            await LoadDataAsync();
-        }
-    }
-}

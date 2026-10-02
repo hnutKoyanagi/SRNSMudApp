@@ -71,11 +71,14 @@ public sealed class AddItemTests : IAsyncLifetime
 
         cut.Find("form").Submit();
 
-        _itemCardDataMock.Verify(d => d.CreateItemAsync(
-            It.Is<SRNSMudApp.Data.Item>(i => i.Content == TestContent && i.OwnerId == ExistingUserId),
-            It.IsAny<IReadOnlyCollection<int>?>()), Times.Once);
+        cut.WaitForAssertion(() =>
+        {
+            _itemCardDataMock.Verify(d => d.CreateItemAsync(
+                It.Is<SRNSMudApp.Data.Item>(i => i.Content == TestContent && i.OwnerId == ExistingUserId),
+                It.IsAny<IReadOnlyCollection<int>?>()), Times.Once);
 
-        Assert.True(onItemAddedCalled);
+            Assert.True(onItemAddedCalled);
+        });
     }
 
     [Fact]
@@ -95,9 +98,12 @@ public sealed class AddItemTests : IAsyncLifetime
             MetaKey = true
         });
 
-        _itemCardDataMock.Verify(d => d.CreateItemAsync(
-            It.Is<SRNSMudApp.Data.Item>(i => i.Content == TestContent && i.OwnerId == ExistingUserId),
-            It.IsAny<IReadOnlyCollection<int>?>()), Times.Once);
+        cut.WaitForAssertion(() =>
+        {
+            _itemCardDataMock.Verify(d => d.CreateItemAsync(
+                It.Is<SRNSMudApp.Data.Item>(i => i.Content == TestContent && i.OwnerId == ExistingUserId),
+                It.IsAny<IReadOnlyCollection<int>?>()), Times.Once);
+        });
     }
 
     [Fact]
@@ -137,9 +143,12 @@ public sealed class AddItemTests : IAsyncLifetime
 
         cut.Find("form").Submit();
 
-        _itemCardDataMock.Verify(d => d.CreateItemAsync(
-            It.Is<SRNSMudApp.Data.Item>(i => i.Content == TestContent && i.OwnerId == ExistingUserId && i.IsPrivate),
-            It.IsAny<IReadOnlyCollection<int>?>()), Times.Once);
+        cut.WaitForAssertion(() =>
+        {
+            _itemCardDataMock.Verify(d => d.CreateItemAsync(
+                It.Is<SRNSMudApp.Data.Item>(i => i.Content == TestContent && i.OwnerId == ExistingUserId && i.IsPrivate),
+                It.IsAny<IReadOnlyCollection<int>?>()), Times.Once);
+        });
     }
 
     [Fact]
@@ -282,12 +291,15 @@ public sealed class AddItemTests : IAsyncLifetime
 
         cut.Find("form").Submit();
 
-        _itemCardDataMock.Verify(d => d.CreateItemAsync(
-            It.Is<SRNSMudApp.Data.Item>(i =>
-                i.NotificationRecipients != null &&
-                i.NotificationRecipients.Count == 1 &&
-                i.NotificationRecipients.Any(r => r.RecipientUserId == "target-user-1")),
-            It.IsAny<IReadOnlyCollection<int>?>()), Times.Once);
+        cut.WaitForAssertion(() =>
+        {
+            _itemCardDataMock.Verify(d => d.CreateItemAsync(
+                It.Is<SRNSMudApp.Data.Item>(i =>
+                    i.NotificationRecipients != null &&
+                    i.NotificationRecipients.Count == 1 &&
+                    i.NotificationRecipients.Any(r => r.RecipientUserId == "target-user-1")),
+                It.IsAny<IReadOnlyCollection<int>?>()), Times.Once);
+        });
     }
 
     [Fact]
@@ -464,10 +476,13 @@ public sealed class AddItemTests : IAsyncLifetime
         cut.Find("textarea").Input("リプライ本文");
         cut.Find("form").Submit();
 
-        Assert.NotNull(savedItem);
-        Assert.Equal("リプライ本文", savedItem.Content);
-        Assert.Equal(42, savedItem.ParentItemId);
-        Assert.Equal(10, savedItem.RootItemId);
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(savedItem);
+            Assert.Equal("リプライ本文", savedItem.Content);
+            Assert.Equal(42, savedItem.ParentItemId);
+            Assert.Equal(10, savedItem.RootItemId);
+        });
     }
 
     [Fact(Skip = "UI timing issues with bUnit and LinkConversionPanel")]

@@ -1,20 +1,62 @@
-// Components/Admin/ReportManagerViewModel.cs
-#region
+using System.Diagnostics.CodeAnalysis;
 
 using MudBlazor;
 
 using SRNSMudApp.Data;
-
-#endregion
+using SRNSMudApp.Services;
 
 namespace SRNSMudApp.Components.Admin;
 
 /// <summary>
-///     ReportManager コンポーネントの表示・判定ロジックを担当する ViewModel。
-///     通報ステータスや通報対象種別の表示文字列・カラーマッピングをカプセル化する。
+///     ReportManager コンポーネントの状態管理、データ取得、および表示・判定ロジックを担当する ViewModel。
+///     通報ステータスや通報対象種別の表示文字列・カラーマッピングをカプセル化し、単体テストを可能にする。
 /// </summary>
-public static class ReportManagerViewModel
+public class ReportManagerViewModel
 {
+    private readonly IContentReportService _contentReportService;
+
+    public ReportManagerViewModel(IContentReportService contentReportService)
+    {
+        _contentReportService = contentReportService;
+    }
+
+    public IReadOnlyList<ContentReport> Reports { get; private set; } = [];
+    public ReportStatus? SelectedStatus { get; set; } = ReportStatus.Pending;
+    public ReportTargetType? SelectedTargetType { get; set; }
+    public bool IsLoading { get; private set; } = true;
+
+    /// <summary>
+    ///     選択されたステータスと対象種別に基づいて通報一覧を非同期取得する。
+    /// </summary>
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types",
+        Justification = "例外発生時にも画面崩壊を防ぎ、UI にエラーメッセージを返却するため捕捉する")]
+    public async Task<(bool Success, string? ErrorMessage)> LoadReportsAsync()
+    {
+        IsLoading = true;
+        try
+        {
+            var reports = await _contentReportService.GetReportsAsync(SelectedStatus, SelectedTargetType);
+            Reports = reports ?? [];
+            return (true, null);
+        }
+        catch (Exception ex)
+        {
+            return (false, $"通報一覧の取得中にエラーが発生しました: {ex.Message}");
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    /// <summary>
+    ///     指定した通報の最新情報を取得する。
+    /// </summary>
+    public async Task<ContentReport?> GetReportByIdAsync(int reportId)
+    {
+        return await _contentReportService.GetReportByIdAsync(reportId);
+    }
+
     /// <summary>
     ///     ReportStatus に対応する日本語表示文字列を取得する。
     /// </summary>

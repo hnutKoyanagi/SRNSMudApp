@@ -1,20 +1,16 @@
+@page "/User/UserDetail"
 @page "/User/UserDetail/{UserId}"
 @rendermode InteractiveServer
-@implements IAsyncDisposable
-
-@using System.Security.Claims
+@namespace SRNSMudApp.Components.User
 @using SRNSMudApp.Components.Tag
-@using SRNSMudApp.Services
-@inject IUserDataProvider UserData
-@inject NavigationManager NavigationManager
-@inject IJSRuntime JSRuntime
+@using SRNSMudApp.Models
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-10">
-    @if (isLoading)
+    @if (ViewModel.IsLoading)
     {
         <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
     }
-    else if (user is null)
+    else if (ViewModel.User is null)
     {
         <MudAlert Severity="Severity.Error">ユーザーが見つかりませんでした。</MudAlert>
     }
@@ -23,35 +19,34 @@
         <div class="d-flex align-center justify-space-between mb-4 flex-wrap gap-4">
             <div class="d-flex align-center gap-3">
                 <MudAvatar Color="Color.Primary" Size="Size.Large">
-                    @(string.IsNullOrEmpty(user.UserName) ? "?" : user.UserName[0].ToString().ToUpperInvariant())
+                    @(string.IsNullOrEmpty(ViewModel.User.UserName) ? "?" : ViewModel.User.UserName[0].ToString().ToUpperInvariant())
                 </MudAvatar>
                 <div>
-                    <MudText Typo="Typo.h5">@user.UserName</MudText>
+                    <MudText Typo="Typo.h5">@ViewModel.User.UserName</MudText>
                     <div class="d-flex align-center gap-2">
-                        <MudText Typo="Typo.h5">@user.UserName</MudText>
-                        @if (user.IsBanned)
+                        @if (ViewModel.User.IsBanned)
                         {
                             <MudChip T="string" Color="Color.Error" Size="Size.Small">利用停止中</MudChip>
                         }
                     </div>
                     <div class="d-flex gap-4 mt-1">
                         <MudText Typo="Typo.body2" Color="Color.Secondary">
-                            <strong>@_followingCount</strong> フォロー中
+                            <strong>@ViewModel.FollowingCount</strong> フォロー中
                         </MudText>
                         <MudText Typo="Typo.body2" Color="Color.Secondary">
-                            <strong>@_followersCount</strong> フォロワー
+                            <strong>@ViewModel.FollowersCount</strong> フォロワー
                         </MudText>
                     </div>
                 </div>
             </div>
 
-            @if (_isLoggedIn && !string.IsNullOrEmpty(_currentUserId) && _currentUserId != UserId)
+            @if (ViewModel.CanFollow)
             {
-                <MudButton Variant="@(_isFollowing ? Variant.Outlined : Variant.Filled)"
-                           Color="@(_isFollowing ? Color.Default : Color.Primary)"
-                           StartIcon="@(_isFollowing ? Icons.Material.Filled.PersonRemove : Icons.Material.Filled.PersonAdd)"
+                <MudButton Variant="@(ViewModel.IsFollowing ? Variant.Outlined : Variant.Filled)"
+                           Color="@(ViewModel.IsFollowing ? Color.Default : Color.Primary)"
+                           StartIcon="@(ViewModel.IsFollowing ? Icons.Material.Filled.PersonRemove : Icons.Material.Filled.PersonAdd)"
                            OnClick="@ToggleFollowAsync">
-                    @(_isFollowing ? "フォロー解除" : "フォロー")
+                    @(ViewModel.IsFollowing ? "フォロー解除" : "フォロー")
                 </MudButton>
             }
         </div>
@@ -59,13 +54,13 @@
         <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" panelClass="pa-4" Class="mt-4"
                  ActivePanelIndex="_activeTabIndex" ActivePanelIndexChanged="OnTabChanged">
             <MudTabPanel Text="アクティビティ (Item & Tag)">
-                <SRNSMudApp.Components.UI.ResourceList Tags="userTags" Items="userItems" OnDataChanged="LoadDataAsync"
+                <SRNSMudApp.Components.UI.ResourceList Tags="ViewModel.UserTags" Items="ViewModel.UserItems" OnDataChanged="ViewModel.LoadDataAsync"
                                                        EnableUrlUpdate="false" />
             </MudTabPanel>
             <MudTabPanel Text="作成したタグツリー">
                 <MudCard Elevation="0" Outlined="true">
                     <MudCardContent>
-                        @if (userTags is { Count: > 0 })
+                        @if (ViewModel.UserTags is { Count: > 0 })
                         {
                             <div id="jqtree-container-user-detail" class="tree-container"></div>
                         }
@@ -76,18 +71,66 @@
                     </MudCardContent>
                 </MudCard>
             </MudTabPanel>
-            <MudTabPanel Text="@($"フォロー中 ({_followingCount})")">
-                @if (_followingUsers.Count > 0)
+            <MudTabPanel Text="Reactionタグ">
+                @if (ViewModel.ReactionTags.Count > 0)
+                {
+                    <MudGrid Class="mt-2">
+                        @foreach (var tag in ViewModel.ReactionTags)
+                        {
+                            <MudItem xs="12" sm="6" md="4">
+                                <MudCard Outlined="true" Class="rounded-xl h-100 pa-2" Elevation="0">
+                                    <MudCardHeader>
+                                        <CardHeaderAvatar>
+                                            <MudAvatar Color="@GetReactionColor(tag.Name)" Variant="Variant.Filled">
+                                                <MudIcon Icon="@GetReactionIcon(tag.Name)" />
+                                            </MudAvatar>
+                                        </CardHeaderAvatar>
+                                        <CardHeaderContent>
+                                            <MudText Typo="Typo.h6">@tag.Name</MudText>
+                                            <MudText Typo="Typo.caption" Color="Color.Secondary">リアクションタグ</MudText>
+                                        </CardHeaderContent>
+                                    </MudCardHeader>
+                                    <MudCardContent>
+                                        <div class="d-flex align-center justify-space-between mb-2">
+                                            <MudText Typo="Typo.body2" Color="Color.Secondary">累積ウェイト (スコア):</MudText>
+                                            <MudChip T="string" Color="@GetReactionColor(tag.Name)" Size="Size.Small" Variant="Variant.Filled">
+                                                @tag.CachedWeight
+                                            </MudChip>
+                                        </div>
+                                        @if (!string.IsNullOrEmpty(tag.Content))
+                                        {
+                                            <MudText Typo="Typo.body2" Class="mt-2 text-muted">@tag.Content</MudText>
+                                        }
+                                    </MudCardContent>
+                                    <MudCardActions>
+                                        <MudButton Variant="Variant.Text" Color="@GetReactionColor(tag.Name)"
+                                                   EndIcon="@Icons.Material.Filled.ArrowForward"
+                                                   Href="@($"/TagDetail/{tag.Id}")">
+                                            タグ詳細を見る
+                                        </MudButton>
+                                    </MudCardActions>
+                                </MudCard>
+                            </MudItem>
+                        }
+                    </MudGrid>
+                }
+                else
+                {
+                    <MudText Color="Color.Secondary" Class="pa-4">Reactionタグはありません。</MudText>
+                }
+            </MudTabPanel>
+            <MudTabPanel Text="@($"フォロー中 ({ViewModel.FollowingCount})")">
+                @if (ViewModel.FollowingUsers.Count > 0)
                 {
                     <MudList T="ApplicationUser" Clickable="false">
-                        @foreach (var followedUser in _followingUsers)
+                        @foreach (var followedUser in ViewModel.FollowingUsers)
                         {
                             <MudListItem T="ApplicationUser">
                                 <div class="d-flex align-center justify-space-between w-100">
                                     <div class="d-flex align-center gap-3">
                                         <MudAvatar Color="Color.Secondary" Size="Size.Medium">
                                             @(string.IsNullOrEmpty(followedUser.UserName) ? "?" :
-                                followedUser.UserName[0].ToString().ToUpperInvariant())
+                                                followedUser.UserName[0].ToString().ToUpperInvariant())
                                         </MudAvatar>
                                         <div>
                                             <MudLink Href="@($"/User/UserDetail/{followedUser.Id}")" Typo="Typo.subtitle1"
@@ -110,18 +153,18 @@
                     <MudText Color="Color.Secondary" Class="pa-4">フォローしているユーザーはいません。</MudText>
                 }
             </MudTabPanel>
-            <MudTabPanel Text="@($"フォロワー ({_followersCount})")">
-                @if (_followerUsers.Count > 0)
+            <MudTabPanel Text="@($"フォロワー ({ViewModel.FollowersCount})")">
+                @if (ViewModel.FollowerUsers.Count > 0)
                 {
                     <MudList T="ApplicationUser" Clickable="false">
-                        @foreach (var follower in _followerUsers)
+                        @foreach (var follower in ViewModel.FollowerUsers)
                         {
                             <MudListItem T="ApplicationUser">
                                 <div class="d-flex align-center justify-space-between w-100">
                                     <div class="d-flex align-center gap-3">
                                         <MudAvatar Color="Color.Secondary" Size="Size.Medium">
                                             @(string.IsNullOrEmpty(follower.UserName) ? "?" :
-                                follower.UserName[0].ToString().ToUpperInvariant())
+                                                follower.UserName[0].ToString().ToUpperInvariant())
                                         </MudAvatar>
                                         <div>
                                             <MudLink Href="@($"/User/UserDetail/{follower.Id}")" Typo="Typo.subtitle1"
@@ -147,165 +190,3 @@
         </MudTabs>
     }
 </MudContainer>
-
-@code {
-    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
-    [Parameter] public string UserId { get; set; } = string.Empty;
-
-    private ApplicationUser? user;
-    private IReadOnlyList<Tag> userTags = [];
-    private IReadOnlyList<Item> userItems = [];
-    private bool isLoading = true;
-
-    private string? _currentUserId;
-    private bool _isLoggedIn;
-    private bool _isFollowing;
-    private int _followingCount;
-    private int _followersCount;
-    private IReadOnlyList<ApplicationUser> _followingUsers = [];
-    private IReadOnlyList<ApplicationUser> _followerUsers = [];
-
-    private string? _lastLoadedUserId;
-    private int _activeTabIndex;
-    private DotNetObjectReference<UserDetail>? _dotNetRef;
-    private bool _isTreeInitialized;
-
-    private void OnTabChanged(int index)
-    {
-        _activeTabIndex = index;
-    }
-
-    protected override async Task OnInitializedAsync()
-    {
-        await ResolveCurrentUserAsync();
-        await LoadDataAsync();
-    }
-
-    protected override async Task OnParametersSetAsync()
-    {
-        if (_lastLoadedUserId != UserId)
-        {
-            _isTreeInitialized = false;
-            await LoadDataAsync();
-        }
-    }
-
-    private async Task ResolveCurrentUserAsync()
-    {
-        var authState = await AuthStateTask;
-        _isLoggedIn = authState.User.Identity?.IsAuthenticated ?? false;
-        _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-    }
-
-    private async Task LoadDataAsync()
-    {
-        try
-        {
-            _lastLoadedUserId = UserId;
-            Task<UserDetailPageData>? detailTask = UserData.GetUserDetailAsync(UserId, _currentUserId);
-            UserDetailPageData? page = detailTask is not null ? await detailTask : null;
-            if (page is null)
-            {
-                Task<UserDetailPageData>? fallbackTask = UserData.GetUserDetailAsync(UserId);
-                page = fallbackTask is not null ? await fallbackTask : null;
-            }
-
-            user = page?.User;
-
-            if (user is not null && page is not null)
-            {
-                userTags = page.UserTags;
-                userItems = page.UserItems;
-                _isFollowing = page.IsFollowing;
-                _followingCount = page.FollowingCount;
-                _followersCount = page.FollowersCount;
-                _followingUsers = page.FollowingUsers ?? [];
-                _followerUsers = page.FollowerUsers ?? [];
-            }
-        }
-        finally
-        {
-            isLoading = false;
-        }
-    }
-
-    private async Task ToggleFollowAsync()
-    {
-        if (string.IsNullOrEmpty(_currentUserId) || user is null || _currentUserId == UserId)
-        {
-            return;
-        }
-
-        _isFollowing = await UserData.ToggleFollowUserAsync(_currentUserId, UserId);
-        if (_isFollowing)
-        {
-            _followersCount++;
-        }
-        else
-        {
-            _followersCount = Math.Max(0, _followersCount - 1);
-        }
-
-        await LoadDataAsync();
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!isLoading && !_isTreeInitialized && user is not null && userTags.Count > 0 && _activeTabIndex == 1)
-        {
-            _dotNetRef = DotNetObjectReference.Create(this);
-            var treeDataJson = GetSerializedTreeData();
-            // isLoggedIn = false にしてドラッグ＆ドロップや追加を無効化（閲覧専用）
-            try
-            {
-                await JSRuntime.InvokeVoidAsync("jqTreeInterop.init", "jqtree-container-user-detail", treeDataJson, _dotNetRef, false);
-            }
-            catch (Exception)
-            {
-            }
-
-            _isTreeInitialized = true;
-        }
-    }
-
-    private string GetSerializedTreeData()
-    {
-        // ルート判定・ツリー構築・JSON 化は TagTreeViewModel に一元化
-        return TagTreeViewModel.SerializeTreeData(userTags);
-    }
-
-    [JSInvokable]
-    public void NavigateToTagDetail(int tagId)
-    {
-        NavigationManager.NavigateTo($"/TagDetail/{tagId}");
-    }
-
-    // jqTreeInterop が呼ばないように isLoggedIn = false で初期化しているが、念のため定義
-    [JSInvokable]
-    public Task OnTreeMove(int movedNodeId, int targetNodeId, string position)
-    {
-        return Task.CompletedTask;
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        _dotNetRef?.Dispose();
-        try
-        {
-            if (_isTreeInitialized)
-            {
-                try
-                {
-                    await JSRuntime.InvokeVoidAsync("jqTreeInterop.destroy", "jqtree-container-user-detail");
-                }
-                catch (Exception)
-                {
-                }
-            }
-        }
-        catch
-        {
-            // Ignore during teardown
-        }
-    }
-}

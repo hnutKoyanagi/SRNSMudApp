@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 using SRNSMudApp.Data;
+using SRNSMudApp.Models;
 
 using Item = SRNSMudApp.Data.Item;
 using Tag = SRNSMudApp.Data.Tag;
@@ -24,7 +25,8 @@ public sealed record UserDetailPageData(
     int FollowingCount = 0,
     int FollowersCount = 0,
     IReadOnlyList<ApplicationUser>? FollowingUsers = null,
-    IReadOnlyList<ApplicationUser>? FollowerUsers = null);
+    IReadOnlyList<ApplicationUser>? FollowerUsers = null,
+    IReadOnlyList<Tag>? ReactionTags = null);
 
 /// <summary>
 ///     ユーザー系コンポーネント用のデータアクセスを分離するインターフェース。
@@ -105,6 +107,8 @@ public class UserDataProvider(
             return new UserDetailPageData(null, [], []);
         }
 
+        await EnsureReactionTagsAsync(dbContext, userId);
+
         List<Tag> userTags = await dbContext.Tags
             .Include(t => t.Owner)
             .Include(t => t.TargetTagRelations)
@@ -154,6 +158,11 @@ public class UserDataProvider(
             .AsNoTracking()
             .ToListAsync();
 
+        List<Tag> reactionTags = userTags
+            .Where(t => ReactionTagNames.IsReactionTagName(t.Name))
+            .OrderBy(t => GetReactionOrder(t.Name))
+            .ToList();
+
         return new UserDetailPageData(
             user,
             userTags,
@@ -162,8 +171,61 @@ public class UserDataProvider(
             followingCount,
             followersCount,
             followingUsers,
-            followerUsers);
+            followerUsers,
+            reactionTags);
     }
+
+    private static async Task EnsureReactionTagsAsync(ApplicationDbContext dbContext, string userId)
+    {
+        string[] reactionNames = [.. ReactionTagNames.All];
+        var existingNames = await dbContext.Tags
+            .Where(t => t.OwnerId == userId && t.IsSystem && reactionNames.Contains(t.Name))
+            .Select(t => t.Name)
+            .ToListAsync();
+
+        if (existingNames.Count == reactionNames.Length)
+        {
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        var created = false;
+        foreach (var name in reactionNames)
+        {
+            if (!existingNames.Contains(name))
+            {
+                dbContext.Tags.Add(new Tag
+                {
+                    Name = name,
+                    IsSystem = true,
+                    OwnerId = userId,
+                    CreatedDate = now,
+                    UpdatedDate = now
+                });
+                created = true;
+            }
+        }
+
+        if (created)
+        {
+            try
+            {
+                await dbContext.SaveChangesAsync();
+            }
+            catch (DbUpdateException)
+            {
+                // 並行作成時のユニーク制約競合は許容
+            }
+        }
+    }
+
+    private static int GetReactionOrder(string name) => name switch
+    {
+        ReactionTagNames.Shinji => 0,
+        ReactionTagNames.Zen => 1,
+        ReactionTagNames.Bi => 2,
+        _ => int.MaxValue
+    };
 
     public async Task<bool> ToggleFollowUserAsync(string currentUserId, string targetUserId)
     {

@@ -34,15 +34,10 @@ public partial class ItemCard : IAsyncDisposable
     [Inject] private IItemCardVoteCoordinator VoteCoordinator { get; set; } = null!;
     [Inject] private IItemCardSplitCoordinator SplitCoordinator { get; set; } = null!;
     [Inject] private IItemCardTagCoordinator TagCoordinator { get; set; } = null!;
-    [Inject] private IItemTagService ItemTagService { get; set; } = null!;
-    [Inject] private IItemReplyService ItemReplyService { get; set; } = null!;
-    [Inject] private IItemQuoteService ItemQuoteService { get; set; } = null!;
-    [Inject] private IItemSplitService ItemSplitService { get; set; } = null!;
     [Inject] private IDialogLauncher DialogLauncher { get; set; } = null!;
     [Inject] private ISnackbar Snackbar { get; set; } = null!;
     [Inject] private IJSRuntime JS { get; set; } = null!;
-    [Inject] private ITaggingContractService TaggingContractService { get; set; } = null!;
-    [Inject] private IItemCardDataProvider ItemCardData { get; set; } = null!;
+    [Inject] private ItemCardActionViewModel ActionViewModel { get; set; } = null!;
     [Inject] private ILinkPreviewService PreviewService { get; set; } = null!;
     [Inject] private NavigationManager NavigationManager { get; set; } = null!;
     [CascadingParameter] private Task<AuthenticationState>? AuthStateTask { get; set; }
@@ -126,17 +121,16 @@ public partial class ItemCard : IAsyncDisposable
 
         _loadedItemId = Item.Id;
         _isReplyPrivate = Item.IsPrivate;
-        _taggingRequests = await ItemTagService.GetTaggingRequestsForItemAsync(Item.Id) ?? [];
-        _pendingSplitRequests = await ItemSplitService.GetPendingSplitRequestsForOriginalItemAsync(Item.Id) ?? [];
-        _quoteCount = await ItemQuoteService.GetQuoteCountAsync(Item.Id);
+        _taggingRequests = await ActionViewModel.GetTaggingRequestsAsync(Item.Id);
+        _pendingSplitRequests = await ActionViewModel.GetPendingSplitRequestsAsync(Item.Id);
+        _quoteCount = await ActionViewModel.GetQuoteCountAsync(Item.Id);
         if (_isRepliesExpanded)
         {
             await LoadRepliesAsync();
         }
         else
         {
-            var count = await ItemReplyService.GetItemReplyCountAsync(Item.Id);
-            _replyCount = count > 0 ? count : (Item.Replies?.Count ?? 0);
+            _replyCount = await ActionViewModel.GetItemReplyCountAsync(Item.Id, Item.Replies?.Count ?? 0);
         }
     }
 
@@ -204,43 +198,17 @@ public partial class ItemCard : IAsyncDisposable
     // --- Tagging Contract Request Alerts ---
     private async Task CancelTaggingRequestAsync()
     {
-        if (Item.AsRequestOf is null)
+        if (await ActionViewModel.CancelTaggingRequestAsync(Item.AsRequestOf, CurrentUserId))
         {
-            return;
-        }
-
-        Result<string> result = await TaggingContractService.CancelContractAsync(Item.AsRequestOf.Id, CurrentUserId);
-        switch (result)
-        {
-            case Success<string>:
-                _ = Item.AsRequestOf.Cancel();
-                _ = Snackbar.Add(ErrorMessages.ContractCancelSuccess, Severity.Success);
-                await NotifyDataChangedAsync();
-                break;
-            case Failure f:
-                _ = Snackbar.Add($"エラー: {f.ErrorMessage}", Severity.Error);
-                break;
+            await NotifyDataChangedAsync();
         }
     }
 
     private async Task ApproveTaggingRequestAsync()
     {
-        if (Item.AsRequestOf is null)
+        if (await ActionViewModel.ApproveTaggingRequestAsync(Item.AsRequestOf, CurrentUserId))
         {
-            return;
-        }
-
-        Result<string> result = await TaggingContractService.AcceptContractAsync(Item.AsRequestOf.Id, CurrentUserId);
-        switch (result)
-        {
-            case Success<string>:
-                _ = Item.AsRequestOf.Execute();
-                _ = Snackbar.Add(ErrorMessages.ContractApproveSuccess, Severity.Success);
-                await NotifyDataChangedAsync();
-                break;
-            case Failure f:
-                _ = Snackbar.Add($"エラー: {f.ErrorMessage}", Severity.Error);
-                break;
+            await NotifyDataChangedAsync();
         }
     }
 
@@ -257,10 +225,10 @@ public partial class ItemCard : IAsyncDisposable
 
     private async Task LoadRepliesAsync()
     {
-        _replies = await ItemReplyService.GetItemRepliesAsync(Item.Id) ?? [];
+        _replies = await ActionViewModel.GetItemRepliesAsync(Item.Id);
         _replyCount = _replies.Count;
         var rootId = Item.RootItemId ?? Item.Id;
-        _optedOutUserIds = await ItemReplyService.GetOptedOutUsersAsync(rootId) ?? [];
+        _optedOutUserIds = await ActionViewModel.GetOptedOutUsersAsync(rootId);
         SyncSelectedTargets(GetReplyTargetCandidates());
     }
 
@@ -364,14 +332,13 @@ public partial class ItemCard : IAsyncDisposable
         _isSubmittingReply = true;
         try
         {
-            (bool isPrivate, int? targetGroupId) = ItemCardViewModel.ResolveReplyPrivacy(_isReplyPrivate, Item);
-            Data.Item? addedReply = await ItemReplyService.AddItemReplyAsync(
-                Item.Id,
+            Data.Item? addedReply = await ActionViewModel.SubmitReplyAsync(
+                Item,
                 _newReplyContent,
                 CurrentUserId,
-                _selectedTargetUserIds,
-                isPrivate: isPrivate,
-                targetUserGroupId: targetGroupId);
+                _isReplyPrivate,
+                _selectedTargetUserIds);
+
             if (addedReply is not null)
             {
                 _newReplyContent = "";
@@ -449,8 +416,18 @@ public partial class ItemCard : IAsyncDisposable
         bool isCurrentlyDownvoted = IsItemReactionDownvoted(reactionTagName);
         bool isNewAddition = !isCurrentlyUpvoted && !isCurrentlyDownvoted;
 
-        string? comment = null;
-        if (isNewAddition)
+        Func<Task>? ensureAsync = OnEnsureSystemTags.HasDelegate ? OnEnsureSystemTags.InvokeAsync : null;
+        ItemVoteResult? voteResult = await VoteCoordinator.ToggleReactionAsync(
+            Item.Id, CurrentUserId, reactionTagName, targetWeight, reactionTagId, AllTags, ensureAsync);
+
+        if (voteResult is null)
+        {
+            return;
+        }
+
+        await NotifyDataChangedAsync();
+
+        if (isNewAddition && voteResult.Action == ItemVoteAction.Added)
         {
             var parameters = new DialogParameters
             {
@@ -464,29 +441,17 @@ public partial class ItemCard : IAsyncDisposable
             };
             IDialogReference dialog = await DialogLauncher.ShowAsync<ReactionCommentDialog>("リアクションを追加", parameters, options);
             DialogResult? result = await dialog.Result;
-            if (result is null || result.Canceled)
+            if (result is not null && !result.Canceled && result.Data is ReactionCommentDialogResult { Saved: true } dialogResult)
             {
-                return;
-            }
-
-            if (result.Data is ReactionCommentDialogResult dialogResult)
-            {
-                if (!dialogResult.Saved)
+                if (!string.IsNullOrWhiteSpace(dialogResult.Comment))
                 {
-                    return;
+                    bool updated = await VoteCoordinator.UpdateReactionCommentAsync(voteResult.RelationId, CurrentUserId, dialogResult.Comment);
+                    if (updated)
+                    {
+                        await NotifyDataChangedAsync();
+                    }
                 }
-
-                comment = dialogResult.Comment;
             }
-        }
-
-        Func<Task>? ensureAsync = OnEnsureSystemTags.HasDelegate ? OnEnsureSystemTags.InvokeAsync : null;
-        var success = await VoteCoordinator.ToggleReactionAsync(
-            Item.Id, CurrentUserId, reactionTagName, targetWeight, reactionTagId, AllTags, ensureAsync, comment);
-
-        if (success)
-        {
-            await NotifyDataChangedAsync();
         }
     }
 
@@ -560,15 +525,10 @@ public partial class ItemCard : IAsyncDisposable
 
     private async Task DeleteItemAsync()
     {
-        if (Item.OwnerId != CurrentUserId)
+        if (await ActionViewModel.DeleteItemAsync(Item.Id, CurrentUserId, Item.OwnerId))
         {
-            _ = Snackbar.Add(ErrorMessages.NotAuthorizedToDelete, Severity.Error);
-            return;
+            await NotifyDataChangedAsync();
         }
-
-        await ItemCardData.DeleteItemAsync(Item.Id);
-        await NotifyDataChangedAsync();
-        _ = Snackbar.Add("アイテムを削除しました。", Severity.Success);
     }
 
     private async Task AdminForceDeleteItemAsync()
@@ -579,7 +539,7 @@ public partial class ItemCard : IAsyncDisposable
             return;
         }
 
-        var success = await ItemCardData.DeleteItemByAdminAsync(Item.Id, CurrentUserId);
+        var success = await ActionViewModel.DeleteItemByAdminAsync(Item.Id, CurrentUserId, _isAdmin);
         if (success)
         {
             await NotifyDataChangedAsync();
@@ -600,7 +560,7 @@ public partial class ItemCard : IAsyncDisposable
         }
 
         var newIsHidden = !Item.IsAdminHidden;
-        var success = await ItemCardData.SetAdminHiddenAsync(Item.Id, newIsHidden, null, CurrentUserId);
+        var success = await ActionViewModel.SetAdminHiddenAsync(Item.Id, newIsHidden, null, CurrentUserId, _isAdmin);
         if (success)
         {
             Item.IsAdminHidden = newIsHidden;
@@ -639,15 +599,7 @@ public partial class ItemCard : IAsyncDisposable
         if (string.IsNullOrEmpty(CurrentUserId)) return;
 
         var rootId = Item.RootItemId ?? Item.Id;
-        var optedOut = await ItemReplyService.ToggleConversationOptOutAsync(rootId, CurrentUserId);
-        if (optedOut)
-        {
-            Snackbar.Add("この会話から抜けました。以後のリプライでメンション対象から外れます。", Severity.Info);
-        }
-        else
-        {
-            Snackbar.Add("この会話に戻りました。", Severity.Success);
-        }
+        await ActionViewModel.ToggleConversationOptOutAsync(rootId, CurrentUserId);
     }
 
     // --- Text Split Logic (Delegated to SplitCoordinator) ---
@@ -702,7 +654,7 @@ public partial class ItemCard : IAsyncDisposable
 
     private async Task ReloadSplitRequestsAsync()
     {
-        _pendingSplitRequests = await ItemSplitService.GetPendingSplitRequestsForOriginalItemAsync(Item.Id) ?? [];
+        _pendingSplitRequests = await ActionViewModel.GetPendingSplitRequestsAsync(Item.Id);
     }
 
     // --- Tag Operations (Delegated to TagCoordinator) ---
@@ -715,7 +667,7 @@ public partial class ItemCard : IAsyncDisposable
                 await NotifyDataChangedAsync();
                 break;
             case TagAddOutcome.ContractProposed:
-                _taggingRequests = await ItemTagService.GetTaggingRequestsForItemAsync(Item.Id) ?? [];
+                _taggingRequests = await ActionViewModel.GetTaggingRequestsAsync(Item.Id);
                 StateHasChanged();
                 await NotifyDataChangedAsync();
                 break;

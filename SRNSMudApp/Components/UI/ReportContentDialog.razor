@@ -1,8 +1,6 @@
 @using System.Security.Claims
 @using SRNSMudApp.Data
 @using SRNSMudApp.Services
-@inject IContentReportService ContentReportService
-@inject ISnackbar Snackbar
 
 <MudDialog>
     <DialogContent>
@@ -29,7 +27,7 @@
         </MudPaper>
 
         <MudSelect T="string"
-                   @bind-Value="_selectedReason"
+                   @bind-Value="ViewModel.SelectedReason"
                    Label="通報の理由"
                    Variant="Variant.Outlined"
                    AnchorOrigin="Origin.BottomCenter"
@@ -44,7 +42,7 @@
         </MudSelect>
 
         <MudTextField T="string"
-                      @bind-Value="_detail"
+                      @bind-Value="ViewModel.Detail"
                       Label="詳細な理由（任意）"
                       Variant="Variant.Outlined"
                       Lines="3"
@@ -53,12 +51,12 @@
                       Placeholder="問題箇所の詳細や補足情報があれば入力してください" />
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="@Cancel" Disabled="@_isSubmitting">キャンセル</MudButton>
+        <MudButton OnClick="@Cancel" Disabled="@ViewModel.IsSubmitting">キャンセル</MudButton>
         <MudButton Color="Color.Error"
                    Variant="Variant.Filled"
                    OnClick="@SubmitAsync"
-                   Disabled="@(string.IsNullOrWhiteSpace(_selectedReason) || _isSubmitting)">
-            @if (_isSubmitting)
+                   Disabled="@(!ViewModel.CanSubmit)">
+            @if (ViewModel.IsSubmitting)
             {
                 <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
                 <span class="ms-2">送信中...</span>
@@ -70,68 +68,4 @@
         </MudButton>
     </DialogActions>
 </MudDialog>
-
-@code {
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
-    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
-
-    [Parameter] public ReportTargetType TargetType { get; set; }
-    [Parameter] public int? ItemId { get; set; }
-    [Parameter] public int? TagId { get; set; }
-    [Parameter] public string TargetContent { get; set; } = string.Empty;
-    [Parameter] public string? TargetOwnerName { get; set; }
-
-    private string _selectedReason = "スパム・宣伝目的";
-    private string _detail = "";
-    private bool _isSubmitting;
-
-    private void Cancel()
-    {
-        MudDialog.Cancel();
-    }
-
-    private async Task SubmitAsync()
-    {
-        if (string.IsNullOrWhiteSpace(_selectedReason))
-        {
-            return;
-        }
-
-        _isSubmitting = true;
-        try
-        {
-            var authState = await AuthStateTask;
-            var currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-            if (string.IsNullOrEmpty(currentUserId))
-            {
-                Snackbar.Add("通報するにはログインが必要です。", Severity.Warning);
-                MudDialog.Cancel();
-                return;
-            }
-
-            var dto = new CreateContentReportDto
-            {
-                TargetType = TargetType,
-                ItemId = ItemId,
-                TagId = TagId,
-                Reason = _selectedReason,
-                Detail = _detail
-            };
-
-            _ = await ContentReportService.CreateReportAsync(dto, currentUserId);
-
-            Snackbar.Add("通報を受け付けました。ご協力ありがとうございます。", Severity.Success);
-            MudDialog.Close(DialogResult.Ok(true));
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"通報の送信中にエラーが発生しました: {ex.Message}", Severity.Error);
-        }
-        finally
-        {
-            _isSubmitting = false;
-        }
-    }
-}
 

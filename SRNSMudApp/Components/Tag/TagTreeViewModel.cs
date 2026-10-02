@@ -1,19 +1,225 @@
-#region
-
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
-using SRNSMudApp.Models;
+using Microsoft.EntityFrameworkCore;
 
-#endregion
+using SRNSMudApp.Components.UI;
+using SRNSMudApp.Data;
+using SRNSMudApp.Models;
+using SRNSMudApp.Models.Unions;
+using SRNSMudApp.Services;
 
 namespace SRNSMudApp.Components.Tag;
 
 /// <summary>
-///     TagTree コンポーネントに含まれる純粋な表示・ツリー操作ロジックを切り出した ViewModel。
+///     TagTree コンポーネントに含まれる表示・ツリー操作およびデータアクセスロジックを集約する ViewModel。
 ///     UI への依存を持たないため、bUnit を使わずに xUnit で直接単体テストできる。
 /// </summary>
-public static class TagTreeViewModel
+public class TagTreeViewModel
 {
+    private readonly ITagTreeDataProvider _tagTreeData;
+    private readonly ITagLockService _tagLockService;
+    private HashSet<int> _lockedTagIds = [];
+
+    public TagTreeViewModel(ITagTreeDataProvider tagTreeData, ITagLockService tagLockService)
+    {
+        _tagTreeData = tagTreeData;
+        _tagLockService = tagLockService;
+    }
+
+    [SuppressMessage("Usage", "CA1002:Do not expose generic lists", Justification = "Tree binding requirement")]
+    public List<Data.Tag> Tags { get; private set; } = [];
+
+    [SuppressMessage("Usage", "CA1002:Do not expose generic lists", Justification = "Tree binding requirement")]
+    public List<PendingTagMoveDto> PendingMoves { get; private set; } = [];
+    public IReadOnlySet<int> LockedTagIds => _lockedTagIds;
+    public string? CurrentUserId { get; private set; }
+    public bool IsAdmin { get; private set; }
+
+    public void SetUser(string? currentUserId, bool isAdmin)
+    {
+        CurrentUserId = currentUserId;
+        IsAdmin = isAdmin;
+    }
+
+    public async Task LoadDataAsync()
+    {
+        Tags = await _tagTreeData.LoadTagsAsync();
+        PendingMoves = await _tagTreeData.LoadPendingTagMovesAsync();
+        var allStatus = await _tagLockService.GetAllTagsWithLockStatusAsync();
+        _lockedTagIds = allStatus.Where(s => s.IsLockedEffective).Select(s => s.Id).ToHashSet();
+    }
+
+    public bool IsTagLocked(int tagId) => _lockedTagIds.Contains(tagId);
+
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "例外をUI向けメッセージに変換するため")]
+    public async Task<TagCardActionResult> AddChildTagAsync(int parentId, string name, string? content)
+    {
+        if (string.IsNullOrEmpty(CurrentUserId))
+        {
+            return TagCardActionResult.Warning("ログインが必要です。");
+        }
+
+        var isRestricted = await _tagLockService.IsChildCreationRestrictedAsync(parentId);
+        if (isRestricted && !IsAdmin)
+        {
+            return TagCardActionResult.Warning("選択された親タグ配下（または兄弟）はロックされているため子タグを作成できません。");
+        }
+
+        Data.Tag newTag = new()
+        {
+            Name = name,
+            Content = content ?? string.Empty,
+            ParentTagId = parentId,
+            OwnerId = CurrentUserId,
+            CachedWeight = 0,
+            CreatedDate = DateTime.UtcNow,
+            UpdatedDate = DateTime.UtcNow
+        };
+
+        try
+        {
+            await _tagTreeData.AddTagAsync(newTag);
+            await LoadDataAsync();
+            return TagCardActionResult.Success($"'{name}' を追加しました。");
+        }
+        catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("UNIQUE constraint failed", StringComparison.Ordinal) == true)
+        {
+            return TagCardActionResult.Error("同じ名前のタグが既に存在します。");
+        }
+        catch (Exception ex)
+        {
+            return TagCardActionResult.Error($"エラーが発生しました: {ex.Message}");
+        }
+    }
+
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "例外をUI向けメッセージに変換するため")]
+    [SuppressMessage("Maintainability", "CA1508:Avoid dead code", Justification = "Result<T> pattern matching false positive")]
+    public async Task<TagCardActionResult> MoveTagAsync(int movedNodeId, int targetNodeId, string position)
+    {
+        Data.Tag? movedItem = Tags.Find(t => t.Id == movedNodeId);
+        Data.Tag? targetItem = Tags.Find(t => t.Id == targetNodeId);
+
+        if (movedItem == null || targetItem == null)
+        {
+            return TagCardActionResult.NoOp();
+        }
+
+        if (IsDescendantOrSelf(Tags, movedItem, targetItem))
+        {
+            return TagCardActionResult.Warning($"'{movedItem.Name}' を自身の配下 '{targetItem.Name}' に移動することはできません。");
+        }
+
+        int? newParentTagId = position switch
+        {
+            "inside" => targetItem.Id,
+            "before" or "after" => targetItem.ParentTagId,
+            _ => movedItem.ParentTagId
+        };
+
+        if (newParentTagId == movedItem.ParentTagId)
+        {
+            return TagCardActionResult.NoOp();
+        }
+
+        if (!IsAdmin)
+        {
+            if (await _tagLockService.IsTagOrSiblingLockedAsync(movedItem.Id))
+            {
+                return TagCardActionResult.Warning($"タグ「{movedItem.Name}」またはその兄弟タグはロックされているため移動できません。");
+            }
+
+            if (newParentTagId.HasValue && await _tagLockService.IsChildCreationRestrictedAsync(newParentTagId.Value))
+            {
+                return TagCardActionResult.Warning("移動先の親タグ配下（または兄弟）はロックされているため移動できません。");
+            }
+        }
+
+        if (!string.IsNullOrEmpty(movedItem.OwnerId) && movedItem.OwnerId != CurrentUserId && !IsAdmin)
+        {
+            if (string.IsNullOrEmpty(CurrentUserId))
+            {
+                return TagCardActionResult.Warning("ログインしていないため、移動リクエストを送信できません。");
+            }
+
+            try
+            {
+                Result<TaggingRequestEntity> requestResult = await _tagTreeData.RequestTagMoveAsync(
+                    CurrentUserId, movedItem.Id, newParentTagId);
+
+                return requestResult switch
+                {
+                    Success<TaggingRequestEntity> =>
+                        TagCardActionResult.Success($"タグ「{movedItem.Name}」の移動リクエストが通りました。"),
+                    Failure f =>
+                        TagCardActionResult.Error($"移動リクエストの送信に失敗しました: {f.ErrorMessage}"),
+                    _ => TagCardActionResult.NoOp()
+                };
+            }
+            catch (Exception ex)
+            {
+                return TagCardActionResult.Error($"移動リクエスト送信中にエラーが発生しました: {ex.Message}");
+            }
+        }
+
+        movedItem.ParentTagId = newParentTagId;
+
+        try
+        {
+            if (await _tagTreeData.UpdateParentAsync(movedItem.Id, movedItem.ParentTagId))
+            {
+                return TagCardActionResult.Success($"タグ「{movedItem.Name}」の移動リクエストが通りました。");
+            }
+
+            return TagCardActionResult.NoOp();
+        }
+        catch (Exception ex)
+        {
+            return TagCardActionResult.Error($"保存時にエラーが発生しました: {ex.Message}");
+        }
+    }
+
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "例外をUI向けメッセージに変換するため")]
+    [SuppressMessage("Maintainability", "CA1508:Avoid dead code", Justification = "Result<T> pattern matching false positive")]
+    public async Task<TagCardActionResult> CancelMoveRequestAsync(int requestId)
+    {
+        if (string.IsNullOrEmpty(CurrentUserId))
+        {
+            return TagCardActionResult.NoOp();
+        }
+
+        try
+        {
+            Result<string> result = await _tagTreeData.CancelTagMoveAsync(requestId, CurrentUserId);
+            return result switch
+            {
+                Success<string> s => TagCardActionResult.Success(s.Value),
+                Failure f => TagCardActionResult.Error($"キャンセルに失敗しました: {f.ErrorMessage}"),
+                _ => TagCardActionResult.NoOp()
+            };
+        }
+        catch (Exception ex)
+        {
+            return TagCardActionResult.Error($"キャンセル処理中にエラーが発生しました: {ex.Message}");
+        }
+    }
+
+    public async Task<TagTreeDeleteResult> DeleteTagsAsync(IReadOnlyList<int> selectedIds)
+    {
+        if (string.IsNullOrEmpty(CurrentUserId) || selectedIds.Count == 0)
+        {
+            return new TagTreeDeleteResult(false, 0, [], []);
+        }
+
+        TagTreeDeleteResult result = await _tagTreeData.DeleteTagsAsync(CurrentUserId, selectedIds, IsAdmin);
+        if (result.HasDeleted)
+        {
+            await LoadDataAsync();
+        }
+
+        return result;
+    }
+
     // タグ階層が深くてもエラーにならないよう MaxDepth を十分に大きくする（CA1869: インスタンス生成はキャッシュ）
     private static readonly JsonSerializerOptions CachedSerializerOptions = new() { MaxDepth = 1024 };
 

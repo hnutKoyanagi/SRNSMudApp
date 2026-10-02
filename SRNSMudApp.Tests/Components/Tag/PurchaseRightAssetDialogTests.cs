@@ -63,6 +63,7 @@ public sealed class PurchaseRightAssetDialogTests : IAsyncDisposable
         _ = _ctx.Services.AddAuth(CurrentUserId);
         _ = _ctx.Services.AddScoped(_ => _purchaseServiceMock.Object);
         _ = _ctx.Services.AddScoped(_ => _snackbarMock.Object);
+        _ = _ctx.Services.AddScoped<PurchaseRightAssetViewModel>();
         _ = _ctx.Render<MudPopoverProvider>();
 
         _ = _purchaseServiceMock.Setup(p => p.GetSupportedNetworks()).Returns(_mockNetworks);

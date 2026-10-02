@@ -1,24 +1,15 @@
 @page "/Tag/TagSearch"
-@using System.Numerics.Tensors
-@using SRNSMudApp.Services
 @rendermode InteractiveServer
-@inject ITagEmbeddingService TagEmbeddingService
 
 <MudContainer MaxWidth="MaxWidth.Small" Class="mt-10">
     <MudText Typo="Typo.h5" GutterBottom="true">タグ検索</MudText>
 
-    <TagAutocomplete @bind-Value="SelectedTag" />
+    <TagAutocomplete @bind-Value="ViewModel.SelectedTag" />
 
-    @switch (SelectedTag)
+    @if (ViewModel.HasSelectedTag)
     {
-        case not null:
-            <MudAlert Severity="Severity.Info" Class="mt-4">
-                選択されたタグ: 名前 = @SelectedTag.Name, ウェイト = @SelectedTag.CachedWeight
-            </MudAlert>
-            break;
+        <MudAlert Severity="Severity.Info" Class="mt-4">
+            @ViewModel.SelectedTagSummary
+        </MudAlert>
     }
 </MudContainer>
-
-@code {
-    private Tag? SelectedTag { get; set; }
-}

@@ -1,6 +1,5 @@
 @using SRNSMudApp.Components.UI
 @using SRNSMudApp.Data
-@inject NavigationManager NavigationManager
 
 <MudAlert
     Severity="@(RequestInfo.RequestType switch { TaggingRequestType.Add => Severity.Success, TaggingRequestType.Remove => Severity.Error, _ => Severity.Warning })"
@@ -104,46 +103,3 @@
     </div>
 </MudAlert>
 
-@code {
-    [Parameter][EditorRequired] public RequestInfo RequestInfo { get; set; } = null!;
-
-    [Parameter] public bool CanCancel { get; set; }
-    [Parameter] public bool CanApprove { get; set; }
-    [Parameter] public bool CanReject { get; set; }
-
-    [Parameter] public EventCallback OnCancel { get; set; }
-    [Parameter] public EventCallback OnApprove { get; set; }
-    [Parameter] public EventCallback OnReject { get; set; }
-
-    private bool _isTargetExpanded;
-
-    private void ToggleTargetExpand()
-    {
-        _isTargetExpanded = !_isTargetExpanded;
-    }
-
-    private async Task OnCancelClicked()
-    {
-        if (OnCancel.HasDelegate)
-        {
-            await OnCancel.InvokeAsync();
-        }
-    }
-
-    private async Task OnApproveClicked()
-    {
-        if (OnApprove.HasDelegate)
-        {
-            await OnApprove.InvokeAsync();
-        }
-    }
-
-    private async Task OnRejectClicked()
-    {
-        if (OnReject.HasDelegate)
-        {
-            await OnReject.InvokeAsync();
-        }
-    }
-
-}

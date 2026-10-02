@@ -2,7 +2,6 @@
 @using MudBlazor
 @using SRNSMudApp.Components.Item
 @using SRNSMudApp.Models
-@inject NavigationManager NavigationManager
 
 <div class="d-flex align-center flex-wrap gap-3 mt-2 mb-1 reaction-bar">
     @* --- 真実 --- *@
@@ -69,51 +68,4 @@
     </div>
 </div>
 
-@code {
-    [Parameter] public int ItemId { get; set; }
-
-    [Parameter] public int ShinjiScore { get; set; }
-    [Parameter] public int ZenScore { get; set; }
-    [Parameter] public int BiScore { get; set; }
-
-    [Parameter] public bool IsShinjiUpvoted { get; set; }
-    [Parameter] public bool IsShinjiDownvoted { get; set; }
-
-    [Parameter] public bool IsZenUpvoted { get; set; }
-    [Parameter] public bool IsZenDownvoted { get; set; }
-
-    [Parameter] public bool IsBiUpvoted { get; set; }
-    [Parameter] public bool IsBiDownvoted { get; set; }
-
-    [Parameter] public EventCallback<(string ReactionTagName, int TargetWeight)> OnReactionVoteClicked { get; set; }
-    [Parameter] public EventCallback<string> OnReactionTagClicked { get; set; }
-
-    private async Task HandleTagClickAsync(string tagName)
-    {
-        if (OnReactionTagClicked.HasDelegate)
-        {
-            await OnReactionTagClicked.InvokeAsync(tagName);
-        }
-
-        if (ItemId > 0)
-        {
-            // 他人に該当タグをつけてもらう（リクエストやタグ確認）ため、タグ管理タブ(tab=tags)を開いた状態でアイテム詳細に遷移する
-            var state = ItemDetailQueryStateFactory.Create(
-                tabIndex: 1,
-                selectedRequestId: null,
-                [FilterEntry.FromName(tagName)]);
-            var parameters = ItemDetailQueryStateFactory.BuildParameters(state);
-            var uri = NavigationManager.GetUriWithQueryParameters($"/ItemDetail/{ItemId}", parameters);
-            NavigationManager.NavigateTo(uri);
-        }
-    }
-
-    private async Task HandleKeyDownAsync(KeyboardEventArgs e, string tagName)
-    {
-        if (e.Key is "Enter" or " ")
-        {
-            await HandleTagClickAsync(tagName);
-        }
-    }
-}
 

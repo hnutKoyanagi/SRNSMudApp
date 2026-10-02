@@ -1,4 +1,4 @@
-@using SRNSMudApp.Data
+@namespace SRNSMudApp.Components.Diagram
 @using SRNSMudApp.Components.Tag
 
 <MudPaper Elevation="4" Class="pa-4 tag-edge-inspector" Style="width: 360px; height: 100%; overflow-y: auto;">
@@ -32,10 +32,10 @@
                         @if (Edge.SourceTag != null)
                         {
                             <MudIconButton Icon="@Icons.Material.Filled.AccountTree" Size="Size.Small" Color="Color.Default"
-                                           Class="pa-0 ml-1" Title="タグツリーを表示" OnClick="@(() => ToggleTree(Edge.SourceTag.Id))" />
-                            <MudOverlay Visible="@(_openTreeTagId == Edge.SourceTag.Id)"
-                                        OnClick="@(() => _openTreeTagId = null)" AutoClose="true" DarkBackground="false" />
-                            <MudPopover Open="@(_openTreeTagId == Edge.SourceTag.Id)" AnchorOrigin="Origin.BottomLeft"
+                                           Class="pa-0 ml-1" Title="タグツリーを表示" OnClick="@(() => ViewModel.ToggleTree(Edge.SourceTag.Id))" />
+                            <MudOverlay Visible="@(ViewModel.OpenTreeTagId == Edge.SourceTag.Id)"
+                                        OnClick="@(() => ViewModel.CloseTree())" AutoClose="true" DarkBackground="false" />
+                            <MudPopover Open="@(ViewModel.OpenTreeTagId == Edge.SourceTag.Id)" AnchorOrigin="Origin.BottomLeft"
                                         TransformOrigin="Origin.TopLeft" OverflowBehavior="OverflowBehavior.FlipAlways"
                                         Class="tree-popover" Paper="false">
                                 <TagTreePopoverContent TargetTag="@Edge.SourceTag" AllTags="@AllTags" EnableSwap="false"
@@ -56,10 +56,10 @@
                         @if (Edge.TargetTag != null)
                         {
                             <MudIconButton Icon="@Icons.Material.Filled.AccountTree" Size="Size.Small" Color="Color.Default"
-                                           Class="pa-0 ml-1" Title="タグツリーを表示" OnClick="@(() => ToggleTree(Edge.TargetTag.Id))" />
-                            <MudOverlay Visible="@(_openTreeTagId == Edge.TargetTag.Id)"
-                                        OnClick="@(() => _openTreeTagId = null)" AutoClose="true" DarkBackground="false" />
-                            <MudPopover Open="@(_openTreeTagId == Edge.TargetTag.Id)" AnchorOrigin="Origin.BottomLeft"
+                                           Class="pa-0 ml-1" Title="タグツリーを表示" OnClick="@(() => ViewModel.ToggleTree(Edge.TargetTag.Id))" />
+                            <MudOverlay Visible="@(ViewModel.OpenTreeTagId == Edge.TargetTag.Id)"
+                                        OnClick="@(() => ViewModel.CloseTree())" AutoClose="true" DarkBackground="false" />
+                            <MudPopover Open="@(ViewModel.OpenTreeTagId == Edge.TargetTag.Id)" AnchorOrigin="Origin.BottomLeft"
                                         TransformOrigin="Origin.TopLeft" OverflowBehavior="OverflowBehavior.FlipAlways"
                                         Class="tree-popover" Paper="false">
                                 <TagTreePopoverContent TargetTag="@Edge.TargetTag" AllTags="@AllTags" EnableSwap="false"
@@ -77,7 +77,7 @@
                            Size="Size.Small"
                            StartIcon="@Icons.Material.Filled.Delete"
                            OnClick="@(() => OnDeleteEdge.InvokeAsync(Edge))"
-                           Disabled="@(!CanManageEdge)">
+                           Disabled="@(!ViewModel.CanManageEdge)">
                     Edge を削除
                 </MudButton>
             </MudCardActions>
@@ -120,10 +120,10 @@
                                     @if (attachment.Tag != null)
                                     {
                                         <MudIconButton Icon="@Icons.Material.Filled.AccountTree" Size="Size.Small" Color="Color.Default"
-                                                       Class="pa-0 ml-1" Title="タグツリーを表示" OnClick="@(() => ToggleTree(attachment.Tag.Id))" />
-                                        <MudOverlay Visible="@(_openTreeTagId == attachment.Tag.Id)"
-                                                    OnClick="@(() => _openTreeTagId = null)" AutoClose="true" DarkBackground="false" />
-                                        <MudPopover Open="@(_openTreeTagId == attachment.Tag.Id)" AnchorOrigin="Origin.BottomLeft"
+                                                       Class="pa-0 ml-1" Title="タグツリーを表示" OnClick="@(() => ViewModel.ToggleTree(attachment.Tag.Id))" />
+                                        <MudOverlay Visible="@(ViewModel.OpenTreeTagId == attachment.Tag.Id)"
+                                                    OnClick="@(() => ViewModel.CloseTree())" AutoClose="true" DarkBackground="false" />
+                                        <MudPopover Open="@(ViewModel.OpenTreeTagId == attachment.Tag.Id)" AnchorOrigin="Origin.BottomLeft"
                                                     TransformOrigin="Origin.TopLeft" OverflowBehavior="OverflowBehavior.FlipAlways"
                                                     Class="tree-popover" Paper="false">
                                             <TagTreePopoverContent TargetTag="@attachment.Tag" AllTags="@AllTags" EnableSwap="false"
@@ -136,7 +136,7 @@
                                     紐付け者: @attachment.OwnerId
                                 </MudText>
                             </div>
-                            @if (CanManageAttachment(attachment))
+                            @if (ViewModel.CanManageAttachment(attachment))
                             {
                                 <MudIconButton Icon="@Icons.Material.Filled.RemoveCircleOutline"
                                                Color="Color.Error"
@@ -152,53 +152,3 @@
     }
 </MudPaper>
 
-@code {
-    [Parameter]
-    public TagEdge? Edge { get; set; }
-
-    [Parameter]
-    public string CurrentUserId { get; set; } = "";
-
-    [Parameter]
-    public IReadOnlyList<Tag> AllTags { get; set; } = [];
-
-    [Parameter]
-    public EventCallback OnClose { get; set; }
-
-    [Parameter]
-    public EventCallback<TagEdge> OnDeleteEdge { get; set; }
-
-    [Parameter]
-    public EventCallback<TagEdge> OnAttachTag { get; set; }
-
-    [Parameter]
-    public EventCallback<TagEdgeTagAttachment> OnDetachTag { get; set; }
-
-    [Parameter]
-    public EventCallback<Tag> OnAddChildTag { get; set; }
-
-    private int? _openTreeTagId;
-
-    private void ToggleTree(int tagId)
-    {
-        _openTreeTagId = _openTreeTagId == tagId ? null : tagId;
-    }
-
-    private async Task HandleAddChildTag(Tag targetTag)
-    {
-        _openTreeTagId = null;
-        if (OnAddChildTag.HasDelegate)
-        {
-            await OnAddChildTag.InvokeAsync(targetTag);
-        }
-    }
-
-    private bool CanManageEdge =>
-        Edge != null &&
-        !string.IsNullOrEmpty(CurrentUserId) &&
-        Edge.OwnerId == CurrentUserId;
-
-    private bool CanManageAttachment(TagEdgeTagAttachment attachment) =>
-        !string.IsNullOrEmpty(CurrentUserId) &&
-        attachment.OwnerId == CurrentUserId;
-}

@@ -62,6 +62,25 @@ public record TagRelationCommentNotification(
     int TagRelationId, int TargetItemId, string TagName,
     string Comment, string ActorName);
 
+public record TagPermissionRequestNotification(
+    int ItemId,
+    int RequestedTagId,
+    string RequestedTagName,
+    int RequestedAmount,
+    int? OfferedRightAssetId,
+    string? OfferedTagName,
+    int OfferedAmount,
+    string RequesterName,
+    string? Message,
+    TradeStatus Status,
+    string? RejectReason = null);
+
+public record TagPermissionApprovedNotification(
+    int ItemId, int RequestedTagId, string RequestedTagName, int RequestedAmount);
+
+public record TagPermissionRejectedNotification(
+    int ItemId, int RequestedTagId, string RequestedTagName, string? RejectReason);
+
 [SuppressMessage("Performance", "CA1815:Override equals and operator equals on value types", Justification = "Union type handled by C# compiler")]
 public readonly union NotificationType(
     TagRequestNotification,
@@ -79,7 +98,10 @@ public readonly union NotificationType(
     TagNameProposalNotification,
     TagNameProposalApprovedNotification,
     TagNameProposalRejectedNotification,
-    TagRelationCommentNotification)
+    TagRelationCommentNotification,
+    TagPermissionRequestNotification,
+    TagPermissionApprovedNotification,
+    TagPermissionRejectedNotification)
 {
     public readonly string Icon => this switch
     {
@@ -99,6 +121,9 @@ public readonly union NotificationType(
         TagNameProposalApprovedNotification => Icons.Material.Filled.CheckCircle,
         TagNameProposalRejectedNotification => Icons.Material.Filled.Cancel,
         TagRelationCommentNotification => Icons.Material.Filled.Comment,
+        TagPermissionRequestNotification => Icons.Material.Filled.Key,
+        TagPermissionApprovedNotification => Icons.Material.Filled.CheckCircle,
+        TagPermissionRejectedNotification => Icons.Material.Filled.Cancel,
         _ => throw new UnreachableException()
     };
 
@@ -120,6 +145,9 @@ public readonly union NotificationType(
         TagNameProposalApprovedNotification => "Success",
         TagNameProposalRejectedNotification => "Error",
         TagRelationCommentNotification => "Primary",
+        TagPermissionRequestNotification => "Primary",
+        TagPermissionApprovedNotification => "Success",
+        TagPermissionRejectedNotification => "Error",
         _ => throw new UnreachableException()
     };
 
@@ -141,6 +169,9 @@ public readonly union NotificationType(
         TagNameProposalApprovedNotification => "TagNameProposalApproved",
         TagNameProposalRejectedNotification => "TagNameProposalRejected",
         TagRelationCommentNotification => "TagRelationComment",
+        TagPermissionRequestNotification => "TagPermissionRequest",
+        TagPermissionApprovedNotification => "TagPermissionApproved",
+        TagPermissionRejectedNotification => "TagPermissionRejected",
         _ => throw new UnreachableException()
     };
 }

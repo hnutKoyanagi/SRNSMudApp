@@ -14,6 +14,7 @@ using MudBlazor.Services;
 
 using SRNSMudApp.Components.Contract;
 using SRNSMudApp.Data;
+using SRNSMudApp.Models.Unions;
 using SRNSMudApp.Services;
 using SRNSMudApp.Tests.TestSupport;
 
@@ -35,6 +36,7 @@ public sealed class ProposeContractDialogTests : IAsyncLifetime
         _ = _ctx.Services.AddMudServices();
         _ = _ctx.Services.AddScoped(_ => _contractDataMock.Object);
         _ = _ctx.Services.AddScoped(_ => _contractServiceMock.Object);
+        _ = _ctx.Services.AddScoped(_ => new ProposeContractViewModel(_contractServiceMock.Object, _contractDataMock.Object));
         _ = _ctx.Services.AddScoped(_ => _snackbarMock.Object);
         _ = _ctx.Services.AddAuthorizationCore();
         _ = _ctx.Services.AddAuth("user-1");
@@ -42,6 +44,10 @@ public sealed class ProposeContractDialogTests : IAsyncLifetime
 
         _contractDataMock.Setup(d => d.GetAvailableRightAssetsAsync(It.IsAny<string>()))
             .ReturnsAsync([]);
+        _contractServiceMock.Setup(s => s.ProposeGratisContractAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(),
+                It.IsAny<TaggingRequestType>(), It.IsAny<int>(), It.IsAny<string?>()))
+            .ReturnsAsync(new Success<TaggingRequestEntity>(new TaggingRequestEntity { OwnerId = "user-1" }));
     }
 
     public Task InitializeAsync() => Task.CompletedTask;

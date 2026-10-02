@@ -14,7 +14,7 @@ namespace SRNSMudApp.Tests.Components.UI;
 
 /// <summary>
 /// <see cref="ReactionCommentDialog"/> の単体テスト。
-/// 10秒タイマー、マウスホバーによるタイマー停止、コメント保存およびキャンセルを検証する。
+/// 10秒タイマー、マウスホバーによるタイマー停止、コメント保存およびキャンセルボタン非表示を検証する。
 /// </summary>
 public sealed class ReactionCommentDialogTests : IAsyncLifetime
 {
@@ -114,7 +114,7 @@ public sealed class ReactionCommentDialogTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ReactionCommentDialog_Cancel_ReturnsCanceledResult()
+    public async Task ReactionCommentDialog_DoesNotRenderCancelButton()
     {
         // Arrange
         IRenderedComponent<DialogHost> host = _ctx.Render<DialogHost>();
@@ -126,21 +126,11 @@ public sealed class ReactionCommentDialogTests : IAsyncLifetime
         };
 
         // Act
-        IDialogReference dialogRef = await dialogService.ShowAsync<ReactionCommentDialog>("リアクションを追加", parameters);
+        _ = await dialogService.ShowAsync<ReactionCommentDialog>("リアクションを追加", parameters);
         host.WaitForState(() => host.Markup.Contains("真実 リアクションにコメントを追加"));
 
-        // キャンセルボタンをクリック
-        var cancelButton = host.FindAll("button").First(b => b.TextContent.Contains("キャンセル"));
-        cancelButton.Click();
-
-        DialogResult? result = await dialogRef.Result;
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.IsType<ReactionCommentDialogResult>(result.Data);
-        var dialogResult = (ReactionCommentDialogResult)result.Data!;
-        Assert.False(dialogResult.Saved);
-        Assert.Null(dialogResult.Comment);
+        // Assert: キャンセルボタンが存在しないことを検証
+        Assert.DoesNotContain(host.FindAll("button"), b => b.TextContent.Contains("キャンセル"));
     }
 
     private sealed class DialogHost : ComponentBase

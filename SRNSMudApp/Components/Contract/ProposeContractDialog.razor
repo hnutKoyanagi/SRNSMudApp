@@ -1,12 +1,12 @@
+@namespace SRNSMudApp.Components.Contract
 @using System.Security.Claims
 @using SRNSMudApp.Services
-@inject IContractLookupDataProvider ContractData
-@inject ITaggingContractService ContractService
-@inject ISnackbar Snackbar
+@using ItemEntity = SRNSMudApp.Data.Item
+@using TagEntity = SRNSMudApp.Data.Tag
 
 <MudDialog>
     <DialogContent>
-        <MudForm @ref="_form" @bind-IsValid="@_isValid">
+        <MudForm @bind-IsValid="@_isValid">
             <MudText Typo="Typo.body1" Class="mb-4">
                 あなたはこのタグの操作権限を持っていません。<br />
                 タグの作成者に@(IsRemovalRequest ? "タグの削除" : "タグ付け")のリクエスト（コントラクト）を提案しますか？
@@ -18,7 +18,7 @@
             }
             else
             {
-                <MudAutocomplete T="Item" Label="対象のアイテム" @bind-Value="_selectedTargetItem" SearchFunc="@SearchItems"
+                <MudAutocomplete T="ItemEntity" Label="対象のアイテム" @bind-Value="_selectedTargetItem" SearchFunc="@SearchItems"
                                  ToStringFunc="@(i => i?.Content ?? "")" Required="true" RequiredError="対象のアイテムを選択してください"
                                  ResetValueOnEmptyText="true" CoerceText="true" CoerceValue="true" />
             }
@@ -53,12 +53,12 @@
                             代わりにあなたが提供するタグとアイテムを選択してください。
                         </MudText>
 
-                        <MudAutocomplete T="Item" Label="提供するアイテム" @bind-Value="_offeredItem" SearchFunc="@SearchItems"
+                        <MudAutocomplete T="ItemEntity" Label="提供するアイテム" @bind-Value="_offeredItem" SearchFunc="@SearchItems"
                                          ToStringFunc="@(i => i?.Content ?? "")" Required="@(_activeTabIndex == 1)"
                                          RequiredError="アイテムを選択してください" ResetValueOnEmptyText="true" CoerceText="true"
                                          CoerceValue="true" />
 
-                        <MudAutocomplete T="Tag" Label="提供するタグ" @bind-Value="_offeredTag" SearchFunc="@SearchTags"
+                        <MudAutocomplete T="TagEntity" Label="提供するタグ" @bind-Value="_offeredTag" SearchFunc="@SearchTags"
                                          ToStringFunc="@(t => t?.Name ?? "")" Required="@(_activeTabIndex == 1)"
                                          RequiredError="タグを選択してください" ResetValueOnEmptyText="true" CoerceText="true"
                                          CoerceValue="true" />
@@ -83,121 +83,3 @@
         </MudButton>
     </DialogActions>
 </MudDialog>
-
-@code {
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
-    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
-
-    [Parameter] public Item? TargetItem { get; set; }
-    [Parameter] public Tag RequestedTag { get; set; } = null!;
-    [Parameter] public int WeightDelta { get; set; }
-    [Parameter] public bool IsRemovalRequest { get; set; }
-
-    private MudForm? _form;
-    private bool _isValid = true;
-    private int _activeTabIndex;
-    private string _currentUserId = string.Empty;
-    private int ProposedWeightInput { get; set; } = 1;
-    private Item? _selectedTargetItem;
-
-    // Gratis fields
-    private string? _gratisMessage;
-
-    // Mutual fields
-    private Item? _offeredItem;
-    private Tag? _offeredTag;
-    private RightAsset? _selectedRightAsset;
-    private List<RightAsset> _myAssets = [];
-
-    protected override async Task OnInitializedAsync()
-    {
-        var authState = await AuthStateTask;
-        _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
-
-        ProposedWeightInput = WeightDelta != 0 ? WeightDelta : 1;
-        _selectedTargetItem = TargetItem;
-
-        await LoadMyAssetsAsync();
-    }
-
-    private async Task LoadMyAssetsAsync()
-    {
-        _myAssets = await ContractData.GetAvailableRightAssetsAsync(_currentUserId);
-    }
-
-    private async Task<IEnumerable<Item>> SearchItems(string? value, CancellationToken token)
-    {
-        return await ContractData.SearchItemsAsync(value, token);
-    }
-
-    private async Task<IEnumerable<Tag>> SearchTags(string? value, CancellationToken token)
-    {
-        return await ContractData.SearchTagsByNameAsync(value, token);
-    }
-
-    private async Task Submit()
-    {
-        var effectiveTargetItem = TargetItem ?? _selectedTargetItem;
-        if (effectiveTargetItem is null)
-        {
-            Snackbar.Add("対象のアイテムを選択してください。", Severity.Error);
-            return;
-        }
-
-        if (ProposedWeightInput == 0 && !IsRemovalRequest)
-        {
-            Snackbar.Add("0以外のWeight変更値を入力してください。", Severity.Error);
-            return;
-        }
-
-        var isMutual = _activeTabIndex == 1;
-        if (isMutual && (_offeredItem is null || _offeredTag is null || _selectedRightAsset is null))
-        {
-            Snackbar.Add("相互タグ付けに必要な項目を入力してください。", Severity.Error);
-            return;
-        }
-
-        var requestType = IsRemovalRequest
-            ? TaggingRequestType.Remove
-            : ProposedWeightInput > 0
-                ? TaggingRequestType.Add
-                : TaggingRequestType.DecreaseWeight;
-
-        var absoluteWeight = Math.Abs(ProposedWeightInput);
-
-        if (isMutual)
-        {
-            await ContractService.ProposeMutualContractAsync(
-                _currentUserId,
-                RequestedTag.OwnerId,
-                effectiveTargetItem.Id,
-                RequestedTag.Id,
-                _offeredItem!.Id,
-                _offeredTag!.Id,
-                _selectedRightAsset!.Id,
-                requestType,
-                absoluteWeight
-            );
-        }
-        else
-        {
-            await ContractService.ProposeGratisContractAsync(
-                _currentUserId,
-                RequestedTag.OwnerId,
-                effectiveTargetItem.Id,
-                RequestedTag.Id,
-                requestType,
-                absoluteWeight,
-                _gratisMessage
-            );
-        }
-
-        Snackbar.Add("コントラクトを提案しました。", Severity.Success);
-        MudDialog.Close(DialogResult.Ok(true));
-    }
-
-    private void Cancel()
-    {
-        MudDialog.Cancel();
-    }
-}

@@ -38,12 +38,13 @@ public class TaggingRequestListDialogLauncherTests : IAsyncDisposable
         // IDialogService ではなく IDialogLauncher のモックを注入して起動を検証する
         _ctx.Services.RemoveAll<IDialogLauncher>();
         _ctx.Services.AddSingleton(_ => _launcherMock.Object);
-        _ctx.Services.AddSingleton<ITaggingRequestActions>(
-            new TaggingRequestActions(
-                new Mock<ICommandHandler<ApproveTaggingRequestCommand, Result<string>>>().Object,
-                new Mock<ICommandHandler<RejectTaggingRequestCommand, Result<bool>>>().Object,
-                _launcherMock.Object,
-                new Mock<ISnackbar>().Object));
+        var actions = new TaggingRequestActions(
+            new Mock<ICommandHandler<ApproveTaggingRequestCommand, Result<string>>>().Object,
+            new Mock<ICommandHandler<RejectTaggingRequestCommand, Result<bool>>>().Object,
+            _launcherMock.Object,
+            new Mock<ISnackbar>().Object);
+        _ctx.Services.AddSingleton<ITaggingRequestActions>(actions);
+        _ctx.Services.AddSingleton(new TaggingRequestActionViewModel(actions, new Mock<ITaggingContractService>().Object));
     }
 
     [Fact]

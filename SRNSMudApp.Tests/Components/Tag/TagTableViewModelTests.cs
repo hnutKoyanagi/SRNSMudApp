@@ -1,5 +1,10 @@
+using Moq;
+
 using SRNSMudApp.Components.Tag;
+using SRNSMudApp.Components.UI;
 using SRNSMudApp.Data;
+using SRNSMudApp.Models;
+using SRNSMudApp.Services;
 
 namespace SRNSMudApp.Tests.Components.Tag;
 
@@ -207,4 +212,235 @@ public class TagTableViewModelTests
     [InlineData("user-1", true)]
     [InlineData("user-2", false)]
     public void CanRemoveRelation_OnlyForRelationOwner(string userId, bool expected) => Assert.Equal(expected, TagTableViewModel.CanRemoveRelation(CreateRelation(1), userId));
+
+    // --- インスタンスメソッドのテスト ---
+
+    [Fact]
+    public async Task InitializeAsync_LoadsAllTagsAndLockStatus()
+    {
+        var dataMock = new Mock<ITagTableDataProvider>();
+        var lockMock = new Mock<ITagLockService>();
+
+        dataMock.Setup(d => d.GetAllTagsAsync())
+            .ReturnsAsync([CreateTag(1, "Tag1"), CreateTag(2, "Tag2")]);
+        lockMock.Setup(l => l.GetAllTagsWithLockStatusAsync(default))
+            .ReturnsAsync([new TagLockItemDto(1, "Tag1", 1, null, null, "u1", true, false, false, true)]);
+
+        var vm = new TagTableViewModel(dataMock.Object, lockMock.Object);
+        await vm.InitializeAsync();
+
+        Assert.Equal(2, vm.AllTagsCache.Count);
+        Assert.True(vm.IsTagLocked(1));
+        Assert.False(vm.IsTagLocked(2));
+    }
+
+    [Fact]
+    public async Task AddRelationAsync_AlreadyExists_ReturnsWarning()
+    {
+        var dataMock = new Mock<ITagTableDataProvider>();
+        var lockMock = new Mock<ITagLockService>();
+        dataMock.Setup(d => d.AddRelationAsync(1, 2, "u1"))
+            .ReturnsAsync(TagCardOperationResult.AlreadyExists);
+
+        var vm = new TagTableViewModel(dataMock.Object, lockMock.Object);
+        vm.SetUser("u1", false);
+
+        TagCardActionResult result = await vm.AddRelationAsync(1, 2);
+
+        Assert.Equal(TagCardActionResultType.Warning, result.Type);
+        Assert.Equal("このタグは既に追加されています。", result.Message);
+    }
+
+    [Fact]
+    public async Task AddRelationAsync_Success_ReturnsSuccess()
+    {
+        var dataMock = new Mock<ITagTableDataProvider>();
+        var lockMock = new Mock<ITagLockService>();
+        dataMock.Setup(d => d.AddRelationAsync(1, 2, "u1"))
+            .ReturnsAsync(TagCardOperationResult.Success);
+
+        var vm = new TagTableViewModel(dataMock.Object, lockMock.Object);
+        vm.SetUser("u1", false);
+
+        TagCardActionResult result = await vm.AddRelationAsync(1, 2);
+
+        Assert.Equal(TagCardActionResultType.Success, result.Type);
+        Assert.Equal("タグを追加しました。", result.Message);
+        Assert.True(result.ShouldNotifyChanged);
+    }
+
+    [Fact]
+    public async Task RemoveRelationAsync_NotOwner_ReturnsError()
+    {
+        var dataMock = new Mock<ITagTableDataProvider>();
+        var lockMock = new Mock<ITagLockService>();
+
+        var vm = new TagTableViewModel(dataMock.Object, lockMock.Object);
+        vm.SetUser("u1", false);
+
+        TagCardActionResult result = await vm.RemoveRelationAsync(CreateRelation(1, ownerId: "other"));
+
+        Assert.Equal(TagCardActionResultType.Error, result.Type);
+        Assert.Equal("関連付けの作成者本人ではないため、解除する権限がありません。", result.Message);
+    }
+
+    [Fact]
+    public async Task RemoveRelationAsync_NotFound_ReturnsWarning()
+    {
+        var dataMock = new Mock<ITagTableDataProvider>();
+        var lockMock = new Mock<ITagLockService>();
+        dataMock.Setup(d => d.RemoveRelationAsync(1))
+            .ReturnsAsync(TagCardOperationResult.NotFound);
+
+        var vm = new TagTableViewModel(dataMock.Object, lockMock.Object);
+        vm.SetUser("u1", false);
+
+        TagCardActionResult result = await vm.RemoveRelationAsync(CreateRelation(1, ownerId: "u1"));
+
+        Assert.Equal(TagCardActionResultType.Warning, result.Type);
+        Assert.Equal("対象の関連付けが見つかりません。", result.Message);
+    }
+
+    [Fact]
+    public async Task RemoveRelationAsync_Success_ReturnsSuccess()
+    {
+        var dataMock = new Mock<ITagTableDataProvider>();
+        var lockMock = new Mock<ITagLockService>();
+        dataMock.Setup(d => d.RemoveRelationAsync(1))
+            .ReturnsAsync(TagCardOperationResult.Success);
+
+        var vm = new TagTableViewModel(dataMock.Object, lockMock.Object);
+        vm.SetUser("u1", false);
+
+        TagCardActionResult result = await vm.RemoveRelationAsync(CreateRelation(1, ownerId: "u1"));
+
+        Assert.Equal(TagCardActionResultType.Success, result.Type);
+        Assert.Equal("タグの関連付けを解除しました。", result.Message);
+        Assert.True(result.ShouldNotifyChanged);
+    }
+
+    [Fact]
+    public async Task CheckCanEditTag_LockedAndNotAdmin_ReturnsWarning()
+    {
+        var dataMock = new Mock<ITagTableDataProvider>();
+        var lockMock = new Mock<ITagLockService>();
+        lockMock.Setup(l => l.GetAllTagsWithLockStatusAsync(default))
+            .ReturnsAsync([new TagLockItemDto(1, "Tag1", 1, null, null, "u1", true, false, false, true)]);
+
+        var vm = new TagTableViewModel(dataMock.Object, lockMock.Object);
+        await vm.ReloadLockStatusAsync();
+        vm.SetUser("u1", false);
+
+        TagCardActionResult result = vm.CheckCanEditTag(CreateTag(1, ownerId: "u1"));
+
+        Assert.Equal(TagCardActionResultType.Warning, result.Type);
+    }
+
+    [Fact]
+    public void CheckCanEditTag_NotOwner_ReturnsError()
+    {
+        var dataMock = new Mock<ITagTableDataProvider>();
+        var lockMock = new Mock<ITagLockService>();
+
+        var vm = new TagTableViewModel(dataMock.Object, lockMock.Object);
+        vm.SetUser("u1", false);
+
+        TagCardActionResult result = vm.CheckCanEditTag(CreateTag(1, ownerId: "other"));
+
+        Assert.Equal(TagCardActionResultType.Error, result.Type);
+    }
+
+    [Fact]
+    public void CheckCanEditTag_OwnerNotLocked_ReturnsSuccess()
+    {
+        var dataMock = new Mock<ITagTableDataProvider>();
+        var lockMock = new Mock<ITagLockService>();
+
+        var vm = new TagTableViewModel(dataMock.Object, lockMock.Object);
+        vm.SetUser("u1", false);
+
+        TagCardActionResult result = vm.CheckCanEditTag(CreateTag(1, ownerId: "u1"));
+
+        Assert.Equal(TagCardActionResultType.Success, result.Type);
+    }
+
+    [Fact]
+    public async Task DeleteTagAsync_LockedAndNotAdmin_ReturnsWarning()
+    {
+        var dataMock = new Mock<ITagTableDataProvider>();
+        var lockMock = new Mock<ITagLockService>();
+        lockMock.Setup(l => l.GetAllTagsWithLockStatusAsync(default))
+            .ReturnsAsync([new TagLockItemDto(1, "Tag1", 1, null, null, "u1", true, false, false, true)]);
+
+        var vm = new TagTableViewModel(dataMock.Object, lockMock.Object);
+        await vm.ReloadLockStatusAsync();
+        vm.SetUser("u1", false);
+
+        TagCardActionResult result = await vm.DeleteTagAsync(CreateTag(1, ownerId: "u1"));
+
+        Assert.Equal(TagCardActionResultType.Warning, result.Type);
+    }
+
+    [Fact]
+    public async Task DeleteTagAsync_SystemTag_ReturnsError()
+    {
+        var dataMock = new Mock<ITagTableDataProvider>();
+        var lockMock = new Mock<ITagLockService>();
+
+        var vm = new TagTableViewModel(dataMock.Object, lockMock.Object);
+        vm.SetUser("u1", false);
+
+        TagCardActionResult result = await vm.DeleteTagAsync(CreateTag(1, isSystem: true, ownerId: "u1"));
+
+        Assert.Equal(TagCardActionResultType.Error, result.Type);
+        Assert.Equal("システムタグは削除できません。", result.Message);
+    }
+
+    [Fact]
+    public async Task DeleteTagAsync_NotOwner_ReturnsError()
+    {
+        var dataMock = new Mock<ITagTableDataProvider>();
+        var lockMock = new Mock<ITagLockService>();
+
+        var vm = new TagTableViewModel(dataMock.Object, lockMock.Object);
+        vm.SetUser("u1", false);
+
+        TagCardActionResult result = await vm.DeleteTagAsync(CreateTag(1, ownerId: "other"));
+
+        Assert.Equal(TagCardActionResultType.Error, result.Type);
+        Assert.Equal("タグの作成者本人ではないため、削除する権限がありません。", result.Message);
+    }
+
+    [Fact]
+    public async Task DeleteTagAsync_Success_ReturnsSuccess()
+    {
+        var dataMock = new Mock<ITagTableDataProvider>();
+        var lockMock = new Mock<ITagLockService>();
+        dataMock.Setup(d => d.DeleteTagAsync(1, false)).ReturnsAsync(true);
+
+        var vm = new TagTableViewModel(dataMock.Object, lockMock.Object);
+        vm.SetUser("u1", false);
+
+        TagCardActionResult result = await vm.DeleteTagAsync(CreateTag(1, ownerId: "u1"));
+
+        Assert.Equal(TagCardActionResultType.Success, result.Type);
+        Assert.Equal("タグを削除しました。", result.Message);
+        Assert.True(result.ShouldNotifyChanged);
+    }
+
+    [Fact]
+    public async Task DeleteTagAsync_NotFound_ReturnsWarning()
+    {
+        var dataMock = new Mock<ITagTableDataProvider>();
+        var lockMock = new Mock<ITagLockService>();
+        dataMock.Setup(d => d.DeleteTagAsync(1, false)).ReturnsAsync(false);
+
+        var vm = new TagTableViewModel(dataMock.Object, lockMock.Object);
+        vm.SetUser("u1", false);
+
+        TagCardActionResult result = await vm.DeleteTagAsync(CreateTag(1, ownerId: "u1"));
+
+        Assert.Equal(TagCardActionResultType.Warning, result.Type);
+        Assert.Equal("対象のタグが既に削除されているか、見つかりません。", result.Message);
+    }
 }

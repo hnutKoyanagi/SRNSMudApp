@@ -1,28 +1,26 @@
 @page "/"
 @using System.Security.Claims
 @using SRNSMudApp.Components.UI
-@using SRNSMudApp.Services
 
 @rendermode InteractiveServer
-@inject IHomeDataProvider HomeData
-@inject ISystemTagEnsurer SystemTagEnsurer
+@inject HomeViewModel ViewModel
 @inject NavigationManager NavigationManager
 
 <PageTitle>Home</PageTitle>
 
 <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-4">
-    @if (_isLoggedIn)
+    @if (ViewModel.IsLoggedIn)
     {
         <PushNotificationPrompt ShowWhenSubscribed="false" />
         <MudText Typo="Typo.h5" GutterBottom="true" Class="mb-4">タイムライン</MudText>
 
-        @if (_followedTagIds is { Count: 0 })
+        @if (ViewModel.FollowedTagIds is { Count: 0 })
         {
             <MudAlert Severity="Severity.Info" Class="mb-4">
                 まだタグをフォローしていません。タグをフォローすると、ここにタイムラインが表示されます。
             </MudAlert>
         }
-        else if (_followedTagIds is not null)
+        else if (ViewModel.FollowedTagIds is not null)
         {
             <div style="height: 80vh; overflow-y: auto;">
                 <Virtualize ItemsProvider="LoadTimeline" Context="group" ItemComparer="new TimelineFeedGroupComparer()">
@@ -34,18 +32,18 @@
                             }
                             @if (target is SRNSMudApp.Models.Unions.ItemTarget && group.Item is not null)
                             {
-                                <SRNSMudApp.Components.UI.ItemCard Item="@group.Item" AllTags="@_allTags"
-                                                                   AllTagRelationsToTags="@_allTagRelationsToTags" CurrentUserId="@_currentUserId"
-                                                                   CurrentUserGoodTagId="@_currentUserGoodTagId" CurrentUserBadTagId="@_currentUserBadTagId"
-                                                                   CurrentUserShinjiTagId="@_currentUserShinjiTagId" CurrentUserZenTagId="@_currentUserZenTagId"
-                                                                   CurrentUserBiTagId="@_currentUserBiTagId" OnEnsureSystemTags="EnsureSystemTagsExistAsync"
+                                <SRNSMudApp.Components.UI.ItemCard Item="@group.Item" AllTags="@ViewModel.AllTags"
+                                                                   AllTagRelationsToTags="@ViewModel.AllTagRelationsToTags" CurrentUserId="@ViewModel.CurrentUserId"
+                                                                   CurrentUserGoodTagId="@ViewModel.CurrentUserGoodTagId" CurrentUserBadTagId="@ViewModel.CurrentUserBadTagId"
+                                                                   CurrentUserShinjiTagId="@ViewModel.CurrentUserShinjiTagId" CurrentUserZenTagId="@ViewModel.CurrentUserZenTagId"
+                                                                   CurrentUserBiTagId="@ViewModel.CurrentUserBiTagId" OnEnsureSystemTags="ViewModel.EnsureSystemTagsExistAsync"
                                                                    HighlightEvents="@group.Events" IsFocused="false" />
                             }
                             else if (target is SRNSMudApp.Models.Unions.TagTarget && group.Tag is not null)
                             {
-                                <SRNSMudApp.Components.UI.TagCard Tag="@group.Tag" AllTags="@_allTags"
-                                                                  CurrentUserId="@_currentUserId" CurrentUserGoodTagId="@_currentUserGoodTagId"
-                                                                  CurrentUserBadTagId="@_currentUserBadTagId" OnEnsureSystemTags="EnsureSystemTagsExistAsync"
+                                <SRNSMudApp.Components.UI.TagCard Tag="@group.Tag" AllTags="@ViewModel.AllTags"
+                                                                  CurrentUserId="@ViewModel.CurrentUserId" CurrentUserGoodTagId="@ViewModel.CurrentUserGoodTagId"
+                                                                  CurrentUserBadTagId="@ViewModel.CurrentUserBadTagId" OnEnsureSystemTags="ViewModel.EnsureSystemTagsExistAsync"
                                                                   HighlightEvents="@group.Events" IsFocused="false" />
                             }
                         </div>
@@ -80,119 +78,15 @@
 @code {
     [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
 
-    private bool _isLoggedIn;
-    private string _currentUserId = "";
-    private List<int>? _followedTagIds;
-
-    private List<Tag> _allTags = [];
-    private List<TagRelationToTag> _allTagRelationsToTags = [];
-    private int? _currentUserGoodTagId;
-    private int? _currentUserBadTagId;
-    private int? _currentUserShinjiTagId;
-    private int? _currentUserZenTagId;
-    private int? _currentUserBiTagId;
-
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthStateTask;
-        var user = authState.User;
-        _isLoggedIn = user.Identity?.IsAuthenticated ?? false;
-
-        if (_isLoggedIn)
-        {
-            await HandleLoggedInUserAsync(user);
-        }
-    }
-
-    private async Task HandleLoggedInUserAsync(ClaimsPrincipal user)
-    {
-        _currentUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
-
-        if (!string.IsNullOrEmpty(_currentUserId))
-        {
-            await LoadUserDataAsync();
-        }
-    }
-
-    private async Task LoadUserDataAsync()
-    {
-        _followedTagIds = await HomeData.GetFollowedTagIdsAsync(_currentUserId);
-
-        await FetchTagsAsync();
-    }
-
-    private async Task FetchTagsAsync()
-    {
-        (List<Tag> tags, List<TagRelationToTag> relations) = await HomeData.GetTagsAndRelationsAsync();
-        _allTags = tags;
-        _allTagRelationsToTags = relations;
-
-        if (!string.IsNullOrEmpty(_currentUserId))
-        {
-            AssignSystemTags();
-        }
-    }
-
-    private void AssignSystemTags()
-    {
-        var goodTag = _allTags.FirstOrDefault(t => t.OwnerId == _currentUserId && t.Name == "good" && t.IsSystem);
-        var badTag = _allTags.FirstOrDefault(t => t.OwnerId == _currentUserId && t.Name == "bad" && t.IsSystem);
-        _currentUserGoodTagId = goodTag?.Id;
-        _currentUserBadTagId = badTag?.Id;
-
-        ReactionTagIds reactionIds = ResourceListViewModel.FindReactionTags(_allTags, _currentUserId);
-        _currentUserShinjiTagId = reactionIds.ShinjiTagId;
-        _currentUserZenTagId = reactionIds.ZenTagId;
-        _currentUserBiTagId = reactionIds.BiTagId;
-    }
-
-    public async Task EnsureSystemTagsExistAsync()
-    {
-        (SystemTagIds voteIds, ReactionTagIds reactionIds, bool refetch) = await SystemTagEnsurer.EnsureAllAsync(
-            _currentUserId,
-            new SystemTagIds(_currentUserGoodTagId, _currentUserBadTagId),
-            new ReactionTagIds(_currentUserShinjiTagId, _currentUserZenTagId, _currentUserBiTagId));
-
-        _currentUserGoodTagId = voteIds.GoodTagId;
-        _currentUserBadTagId = voteIds.BadTagId;
-        _currentUserShinjiTagId = reactionIds.ShinjiTagId;
-        _currentUserZenTagId = reactionIds.ZenTagId;
-        _currentUserBiTagId = reactionIds.BiTagId;
-
-        if (refetch)
-        {
-            await FetchTagsAsync(); // Reload all tags list
-        }
+        await ViewModel.InitializeAsync(authState.User);
     }
 
     private async ValueTask<ItemsProviderResult<TimelineFeedGroup>> LoadTimeline(ItemsProviderRequest request)
     {
-        if (_followedTagIds is null or { Count: 0 })
-        {
-            return new ItemsProviderResult<TimelineFeedGroup>([], 0);
-        }
-
-        return await LoadTimelineDataAsync(request);
+        var (groups, totalCount) = await ViewModel.LoadTimelineAsync(request.StartIndex, request.Count);
+        return new ItemsProviderResult<TimelineFeedGroup>(groups, totalCount);
     }
-
-    private async ValueTask<ItemsProviderResult<TimelineFeedGroup>> LoadTimelineDataAsync(ItemsProviderRequest request)
-    {
-        HomeTimelinePage page =
-            await HomeData.LoadTimelineAsync(_followedTagIds!, request.StartIndex, request.Count, _currentUserId);
-        return new ItemsProviderResult<TimelineFeedGroup>(page.Groups, page.TotalCount);
-    }
-
-    private class TimelineFeedGroupComparer : IEqualityComparer<TimelineFeedGroup>
-    {
-        public bool Equals(TimelineFeedGroup? x, TimelineFeedGroup? y)
-        {
-            return x?.TimelineTargetJson == y?.TimelineTargetJson;
-        }
-
-        public int GetHashCode(TimelineFeedGroup obj)
-        {
-            return HashCode.Combine(obj.TimelineTargetJson);
-        }
-    }
-
 }

@@ -51,15 +51,11 @@ public partial class ItemDetail
 
     [Parameter] public int ItemId { get; set; }
 
-    [Inject] private IItemDetailDataProvider DetailData { get; set; } = null!;
     [Inject] private NavigationManager NavigationManager { get; set; } = null!;
     [Inject] private ISnackbar Snackbar { get; set; } = null!;
-    [Inject] private ITaggingContractService TaggingContractService { get; set; } = null!;
-    [Inject] private ITaggingService TaggingService { get; set; } = null!;
-    [Inject] private IItemReplyService ItemReplyService { get; set; } = null!;
-    [Inject] private ISystemTagEnsurer SystemTagEnsurer { get; set; } = null!;
     [Inject] private IDialogLauncher DialogLauncher { get; set; } = null!;
     [Inject] private IJSRuntime JS { get; set; } = null!;
+    [Inject] private ItemDetailViewModel ViewModel { get; set; } = null!;
 
     private readonly ItemDetailThreadViewModel _threadViewModel = new();
 
@@ -68,7 +64,6 @@ public partial class ItemDetail
     private AsyncPageState<ItemDetailData> _pageState = new Loading();
 
     private string _currentUserId = "";
-    private bool _isAdmin;
     private IReadOnlyList<Data.Tag> _allTags = [];
     private IReadOnlyList<TagRelationToTag> _allTagRelationsToTags = [];
 
@@ -148,102 +143,55 @@ public partial class ItemDetail
         }
     }
 
-    [SuppressMessage("Design", "CA1031:Do not catch general exception types",
-        Justification = "データ取得時に発生した例外をエラー状態として画面表示するために広く捕捉する")]
     private async Task LoadDataAsync()
     {
-        try
-        {
-            _hasScrolledToFocus = false;
-            _threadViewModel.ResetExpansion();
+        _hasScrolledToFocus = false;
+        _threadViewModel.ResetExpansion();
 
-            _pageState = new Loading();
+        _pageState = new Loading();
 #pragma warning disable BL0012
-            // ローディングスピナーを即座に描画させるため意図的に呼び出す
-            StateHasChanged();
+        StateHasChanged();
 #pragma warning restore BL0012
 
-            ItemDetailPageData? data;
-            if (AuthState is not null)
-            {
-                AuthenticationState authState = await AuthState;
-                _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
-                _isAdmin = authState.User.IsInRole("Admin");
-            }
-
-            string? currentUserId = string.IsNullOrEmpty(_currentUserId) ? null : _currentUserId;
-            data = _isAdmin
-                ? await DetailData.GetItemDetailAsync(ItemId, currentUserId, _isAdmin)
-                : await DetailData.GetItemDetailAsync(ItemId, currentUserId);
-
-            // 単体テストで 1 引数の GetItemDetailAsync(itemId) のみがモック設定されている場合の互換性維持
-            data ??= await DetailData.GetItemDetailAsync(ItemId);
-
-            if (data is null)
-            {
-                _pageState = new Empty("アイテムが見つかりません。");
-                return;
-            }
-
-            List<TaggingRequestEntity>? requests = (await TaggingContractService.GetRequestsByItemIdAsync(ItemId))?.ToList();
-
-            if (SelectedRequestIdQuery.HasValue && requests != null)
-            {
-                _selectedRequest = requests.FirstOrDefault(r => r.Id == SelectedRequestIdQuery.Value);
-            }
-
-            _allTags = data.AllTags;
-            _allTagRelationsToTags = data.AllTagRelationsToTags;
-
-            if (!string.IsNullOrEmpty(_currentUserId))
-            {
-                SystemTagIds systemTags = ResourceListViewModel.FindSystemTags(_allTags, _currentUserId);
-                _currentUserGoodTagId = systemTags.GoodTagId;
-                _currentUserBadTagId = systemTags.BadTagId;
-
-                ReactionTagIds reactionTags = ResourceListViewModel.FindReactionTags(_allTags, _currentUserId);
-                _currentUserShinjiTagId = reactionTags.ShinjiTagId;
-                _currentUserZenTagId = reactionTags.ZenTagId;
-                _currentUserBiTagId = reactionTags.BiTagId;
-            }
-
-            // タグ一覧取得後に TagId ベースのフィルタ文字列を解決する
-            var state = ItemDetailQueryStateFactory.ParseFromUri(new Uri(NavigationManager.Uri));
-            _searchQuery = ItemDetailQueryStateFactory.ToSearchQuery(state, _allTags);
-
-            if (_lastReplyItemId != data.Item.Id)
-            {
-                _lastReplyItemId = data.Item.Id;
-                _isReplyPrivate = data.Item.IsPrivate;
-            }
-
-            _pageState = new Loaded<ItemDetailData>(new ItemDetailData(
-                data.Item,
-                requests ?? [],
-                data.Ledgers,
-                data.Ancestors,
-                data.Replies,
-                data.Siblings,
-                data.Quotes));
-        }
-        catch (Exception ex)
+        if (AuthState is not null)
         {
-            _pageState = new Failed(ex);
+            AuthenticationState authState = await AuthState;
+            ViewModel.SetUserContext(authState.User);
         }
+
+        await ViewModel.LoadDataAsync(ItemId, SelectedRequestIdQuery);
+        _pageState = ViewModel.PageState;
+        _currentUserId = ViewModel.CurrentUserId;
+        _allTags = ViewModel.AllTags;
+        _allTagRelationsToTags = ViewModel.AllTagRelationsToTags;
+        _currentUserGoodTagId = ViewModel.CurrentUserGoodTagId;
+        _currentUserBadTagId = ViewModel.CurrentUserBadTagId;
+        _currentUserShinjiTagId = ViewModel.CurrentUserShinjiTagId;
+        _currentUserZenTagId = ViewModel.CurrentUserZenTagId;
+        _currentUserBiTagId = ViewModel.CurrentUserBiTagId;
+        _selectedRequest = ViewModel.SelectedRequest;
+
+        if (_pageState is Loaded<ItemDetailData> loaded)
+        {
+            if (_lastReplyItemId != loaded.Data.Item.Id)
+            {
+                _lastReplyItemId = loaded.Data.Item.Id;
+                _isReplyPrivate = loaded.Data.Item.IsPrivate;
+            }
+        }
+
+        var state = ItemDetailQueryStateFactory.ParseFromUri(new Uri(NavigationManager.Uri));
+        _searchQuery = ItemDetailQueryStateFactory.ToSearchQuery(state, _allTags);
     }
 
     public async Task EnsureSystemTagsExistAsync()
     {
-        (SystemTagIds voteIds, ReactionTagIds reactionIds, var refetch) = await SystemTagEnsurer.EnsureAllAsync(
-            _currentUserId,
-            new SystemTagIds(_currentUserGoodTagId, _currentUserBadTagId),
-            new ReactionTagIds(_currentUserShinjiTagId, _currentUserZenTagId, _currentUserBiTagId));
-
-        _currentUserGoodTagId = voteIds.GoodTagId;
-        _currentUserBadTagId = voteIds.BadTagId;
-        _currentUserShinjiTagId = reactionIds.ShinjiTagId;
-        _currentUserZenTagId = reactionIds.ZenTagId;
-        _currentUserBiTagId = reactionIds.BiTagId;
+        bool refetch = await ViewModel.EnsureSystemTagsExistAsync();
+        _currentUserGoodTagId = ViewModel.CurrentUserGoodTagId;
+        _currentUserBadTagId = ViewModel.CurrentUserBadTagId;
+        _currentUserShinjiTagId = ViewModel.CurrentUserShinjiTagId;
+        _currentUserZenTagId = ViewModel.CurrentUserZenTagId;
+        _currentUserBiTagId = ViewModel.CurrentUserBiTagId;
 
         if (refetch)
         {
@@ -263,17 +211,11 @@ public partial class ItemDetail
         _isSubmittingReply = true;
         try
         {
-            var currentItem = _pageState is Loaded<ItemDetailData> loaded ? loaded.Data.Item : null;
-            (bool isPrivate, int? targetGroupId) = ItemDetailThreadViewModel.ResolveReplyPrivacy(_isReplyPrivate, currentItem);
-            Data.Item? addedReply = await ItemReplyService.AddItemReplyAsync(
-                ItemId,
-                _newReplyText,
-                _currentUserId,
-                isPrivate: isPrivate,
-                targetUserGroupId: targetGroupId);
+            Data.Item? addedReply = await ViewModel.SubmitReplyAsync(ItemId, _newReplyText, _isReplyPrivate);
             if (addedReply is not null)
             {
                 _newReplyText = "";
+                var currentItem = _pageState is Loaded<ItemDetailData> loaded ? loaded.Data.Item : null;
                 _isReplyPrivate = currentItem?.IsPrivate ?? false;
                 _ = Snackbar.Add("リプライを送信しました。", Severity.Success);
                 await LoadDataAsync();
@@ -296,20 +238,10 @@ public partial class ItemDetail
         UpdateUrlQuery();
     }
 
-    // Removed RemoveItemTagAsync as it's now handled inside ItemTagChip
-
     [SuppressMessage("Design", "CA1031:Do not catch general exception types",
         Justification = "UI 層で発生した例外の内容をユーザーへ通知するために広く捕捉する")]
     private async Task OpenRejectDialogAsync(TaggingRequestEntity request)
     {
-        AuthenticationState authState = await AuthState;
-        var currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-        if (currentUserId is null)
-        {
-            return;
-        }
-
         var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
         IDialogReference dialog = await DialogLauncher.ShowAsync<RejectRequestDialog>("リクエストを却下", options);
         DialogResult? result = await dialog.Result;
@@ -319,12 +251,11 @@ public partial class ItemDetail
             try
             {
                 var comment = result.Data as string;
-                await TaggingService.RejectRequestAsync(request.Id, currentUserId, comment);
-                _ = Snackbar.Add("リクエストを却下しました。", Severity.Success);
-
-                if (_pageState is Loaded<ItemDetailData> loaded)
+                bool success = await ViewModel.RejectRequestAsync(request, comment);
+                if (success)
                 {
-                    _ = loaded.Data.Requests.Remove(request);
+                    _ = Snackbar.Add("リクエストを却下しました。", Severity.Success);
+                    _pageState = ViewModel.PageState;
                     StateHasChanged();
                 }
             }

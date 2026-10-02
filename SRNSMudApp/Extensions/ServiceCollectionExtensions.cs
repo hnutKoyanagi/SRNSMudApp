@@ -1,5 +1,18 @@
 using Microsoft.Extensions.DependencyInjection;
 
+using SRNSMudApp.Components.Account.Pages.Debug;
+using SRNSMudApp.Components.Admin;
+using SRNSMudApp.Components.Bounty;
+using SRNSMudApp.Components.Contract;
+using SRNSMudApp.Components.Diagram;
+using SRNSMudApp.Components.Item;
+using SRNSMudApp.Components.Layout;
+using SRNSMudApp.Components.Pages;
+using SRNSMudApp.Components.PublicOffer;
+using SRNSMudApp.Components.Tag;
+using SRNSMudApp.Components.UI;
+using SRNSMudApp.Components.User;
+using SRNSMudApp.Components.UserGroup;
 using SRNSMudApp.Models.Unions;
 using SRNSMudApp.Services;
 using SRNSMudApp.Services.Auth;
@@ -148,6 +161,87 @@ public static class ServiceCollectionExtensions
 
         // 初回デプロイ後の最初の登録ユーザーを Admin に自動昇格するサービス
         services.AddScoped<IFirstUserAdminService, FirstUserAdminService>();
+
+        return services;
+    }
+
+    /// <summary>
+    ///     Blazor コンポーネント用の ViewModel 群を登録する。
+    ///     コンポーネントからビジネスロジックを分離し、単体テストを可能にする。
+    /// </summary>
+    public static IServiceCollection AddViewModels(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.AddScoped<ItemDetailViewModel>();
+        services.AddScoped<AddItemViewModel>();
+        services.AddScoped<ItemImportViewModel>();
+        services.AddScoped<ContractManagementViewModel>();
+        services.AddScoped<ItemEditViewModel>();
+        services.AddScoped<ItemTagChipActionViewModel>();
+        services.AddScoped<TaggingRequestActionViewModel>();
+        services.AddScoped<ItemCardActionViewModel>();
+        services.AddScoped(sp => new UserDetailViewModel(
+            sp.GetRequiredService<IUserDataProvider>(),
+            sp.GetService<Microsoft.AspNetCore.Identity.UserManager<Data.ApplicationUser>>()));
+        services.AddScoped(sp => new UserDetailActionViewModel(
+            sp.GetRequiredService<IUserDataProvider>(),
+            sp.GetService<Microsoft.AspNetCore.Identity.UserManager<Data.ApplicationUser>>()));
+        services.AddScoped<ProposeContractViewModel>();
+        services.AddScoped<TagDiagramCanvasViewModel>();
+        services.AddScoped<RequestTagPermissionViewModel>();
+        services.AddScoped<TagAddViewModel>();
+        services.AddScoped<UserManagementViewModel>();
+        services.AddScoped<UserSearchViewModel>();
+        services.AddScoped<ReportDetailActionViewModel>();
+        services.AddScoped<TagDetailViewModel>();
+        services.AddScoped<ReportManagerViewModel>();
+        services.AddScoped<TriggerPublicOfferViewModel>();
+        services.AddScoped<CreatePublicOfferViewModel>();
+        services.AddScoped<PublicOfferBoardViewModel>();
+        services.AddScoped<QuoteItemViewModel>();
+        services.AddScoped<QuotedItemListViewModel>();
+        services.AddScoped<TagResolutionViewModel>();
+        services.AddScoped<TagLinkReplaceViewModel>();
+        services.AddScoped<TagEditViewModel>();
+        services.AddScoped<PurchaseRightAssetViewModel>();
+        services.AddScoped<TagContentProposalViewModel>();
+        services.AddScoped<TagNameProposalViewModel>();
+        services.AddScoped<ReportContentViewModel>();
+        services.AddScoped<UserGroupCreateEditViewModel>();
+        services.AddScoped<UserGroupMembersViewModel>();
+        services.AddScoped<BountyCreateViewModel>();
+        services.AddScoped<FulfillBountyViewModel>();
+        services.AddScoped<BountyBoardViewModel>();
+        services.AddScoped<AttachTagToEdgeViewModel>();
+        services.AddScoped<RightAssetOverviewViewModel>();
+        services.AddScoped<NotificationBadgeViewModel>();
+        services.AddScoped<TaggingRequestThreadViewModel>();
+        services.AddScoped<PushNotificationPromptViewModel>();
+        services.AddTransient<ReactionCommentViewModel>();
+        services.AddTransient<TagEdgeInspectorViewModel>();
+        services.AddTransient<MakeMeAdminViewModel>();
+        services.AddTransient<AddTagPageViewModel>();
+        services.AddTransient<ImportTagViewModel>();
+        services.AddTransient<GenericTagEditorViewModel>();
+        services.AddTransient<ImportTaggingViewModel>();
+        services.AddTransient<TagListViewModel>();
+        services.AddTransient<TagSearchPageViewModel>();
+        services.AddTransient<TagManagementViewModel>();
+        services.AddTransient<InvitationManagerViewModel>();
+        services.AddTransient<RequireConfirmedAccountViewModel>();
+        services.AddTransient<HomeViewModel>();
+        services.AddTransient<QuotedItemPreviewViewModel>();
+        services.AddTransient<ResourceListViewModel>();
+        services.AddTransient<TagAutocompleteViewModel>();
+        services.AddTransient<ItemTagTableViewModel>();
+        services.AddTransient<TagCardViewModel>();
+        services.AddTransient<ItemListViewModel>();
+        services.AddTransient<TagTableViewModel>();
+        services.AddTransient<TagTreeViewModel>();
+        services.AddTransient<NotificationsViewModel>();
+        services.AddTransient<TagDiagramPageViewModel>();
+        services.AddTransient<NavMenuViewModel>();
 
         return services;
     }

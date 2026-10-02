@@ -1,8 +1,17 @@
 namespace SRNSMudApp.Tests.Components.Item;
 
+using System.Security.Claims;
+
+using Moq;
+
 using SRNSMudApp.Components.Item;
 using SRNSMudApp.Data;
 using SRNSMudApp.Models;
+using SRNSMudApp.Services;
+
+using Item = SRNSMudApp.Data.Item;
+using Tag = SRNSMudApp.Data.Tag;
+using UserGroup = SRNSMudApp.Data.UserGroup;
 
 /// <summary>
 ///     AddItemViewModel の純粋な単体テスト。
@@ -386,5 +395,308 @@ public class AddItemViewModelTests
         ItemVisibility nullUserResult = AddItemViewModel.DetermineInitialVisibility(null, null);
         Assert.False(nullUserResult.IsPrivate);
         Assert.IsType<PublicItemScope>(nullUserResult);
+    }
+
+    // --- インスタンス版 AddItemViewModel のテスト ---
+
+    private readonly Mock<IItemCardDataProvider> _itemCardDataMock = new();
+    private readonly Mock<IUserGroupDataProvider> _userGroupDataMock = new();
+    private readonly Mock<IUserDataProvider> _userDataProviderMock = new();
+    private readonly Mock<ILinkPreviewService> _linkPreviewServiceMock = new();
+    private readonly Mock<ITagSearchQueryService> _tagSearchQueryServiceMock = new();
+    private readonly Mock<ITagSuggestionService> _tagSuggestionServiceMock = new();
+    private readonly Mock<IInternalLinkConversionService> _linkConversionServiceMock = new();
+
+    private AddItemViewModel CreateSut() =>
+        new(
+            _itemCardDataMock.Object,
+            _userGroupDataMock.Object,
+            _userDataProviderMock.Object,
+            _linkPreviewServiceMock.Object,
+            _tagSearchQueryServiceMock.Object,
+            _tagSuggestionServiceMock.Object,
+            _linkConversionServiceMock.Object);
+
+    private static ClaimsPrincipal CreatePrincipal(string? userId)
+    {
+        if (string.IsNullOrEmpty(userId))
+        {
+            return new ClaimsPrincipal(new ClaimsIdentity());
+        }
+
+        var identity = new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, userId)], "TestAuth");
+        return new ClaimsPrincipal(identity);
+    }
+
+    [Fact]
+    public async Task InitializeAsync_WhenAuthenticatedUser_LoadsGroupsAndSettings()
+    {
+        var sut = CreateSut();
+        var user = CreatePrincipal("user-1");
+        var groups = new List<UserGroup> { new() { Id = 1, Name = "Group1", OwnerId = "user-1" } };
+        var appUser = new ApplicationUser
+        {
+            Id = "user-1",
+            IsPrivateModeDefault = true,
+            DefaultPrivateUserGroupId = 1,
+            TagSuggestionStrongThreshold = 0.85f,
+            TagSuggestionCandidateThreshold = 0.65f,
+            IsLinkConversionEnabled = true,
+            LinkConversionThreshold = 0.75f
+        };
+
+        _userGroupDataMock.Setup(m => m.GetUserGroupsForUserAsync("user-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(groups);
+        _userDataProviderMock.Setup(m => m.FindUserByIdAsync("user-1"))
+            .ReturnsAsync(appUser);
+
+        await sut.InitializeAsync(user);
+
+        Assert.Equal("user-1", sut.CurrentUserId);
+        Assert.Equal(groups, sut.UserGroups);
+        Assert.True(sut.IsPrivate);
+        Assert.Equal(1, sut.SelectedGroupId);
+        Assert.Equal(0.85f, sut.UserStrongThreshold);
+        Assert.Equal(0.65f, sut.UserCandidateThreshold);
+        Assert.Equal(0.65f, sut.CurrentCandidateThreshold);
+        Assert.True(sut.IsLinkConversionEnabled);
+        Assert.Equal(0.75f, sut.LinkConversionThreshold);
+        Assert.NotNull(sut.NewItem);
+        Assert.Equal("user-1", sut.NewItem.OwnerId);
+    }
+
+    [Fact]
+    public async Task InitializeAsync_WhenUnauthenticated_SetsEmptyDefaults()
+    {
+        var sut = CreateSut();
+        var user = CreatePrincipal(null);
+
+        await sut.InitializeAsync(user);
+
+        Assert.Equal(string.Empty, sut.CurrentUserId);
+        Assert.Empty(sut.UserGroups);
+        Assert.False(sut.IsPrivate);
+        Assert.NotNull(sut.NewItem);
+        Assert.Equal(string.Empty, sut.NewItem.OwnerId);
+    }
+
+    [Fact]
+    public async Task LoadParentItemIfNeededAsync_WhenParentIdProvided_LoadsParentAndInheritsPrivate()
+    {
+        var sut = CreateSut();
+        var parentItem = new Item
+        {
+            Id = 99,
+            Content = "Parent content",
+            OwnerId = "other-user",
+            IsPrivate = true,
+            TargetUserGroupId = 5
+        };
+
+        _itemCardDataMock.Setup(m => m.GetItemByIdAsync(99))
+            .ReturnsAsync(parentItem);
+
+        sut.ParentItemId = 99;
+        await sut.LoadParentItemIfNeededAsync();
+
+        Assert.Equal(parentItem, sut.LoadedParentItem);
+        Assert.Equal(parentItem, sut.EffectiveParentItem);
+        Assert.True(sut.IsPrivate);
+        Assert.Equal(5, sut.SelectedGroupId);
+    }
+
+    [Fact]
+    public async Task UpdateTargetCandidatesAsync_ExtractsMentionsAndResolvesUsers()
+    {
+        var sut = CreateSut();
+        await sut.InitializeAsync(CreatePrincipal("me"));
+        sut.NewItem!.Content = "Hello /User/UserDetail/target-1 and /User/UserDetail/me";
+
+        var targetUser = new ApplicationUser { Id = "target-1", UserName = "target_user" };
+        _userDataProviderMock.Setup(m => m.GetUsersByIdsAsync(It.Is<IEnumerable<string>>(ids => ids.Contains("target-1"))))
+            .ReturnsAsync([targetUser]);
+
+        await sut.UpdateTargetCandidatesAsync();
+
+        Assert.Single(sut.TargetCandidates);
+        Assert.Equal("target-1", sut.TargetCandidates[0].Id);
+        Assert.Contains("target-1", sut.SelectedTargetUserIds);
+        Assert.DoesNotContain("me", sut.SelectedTargetUserIds);
+    }
+
+    [Fact]
+    public async Task UpdateTargetCandidatesAsync_WhenContentEmpty_ClearsCandidates()
+    {
+        var sut = CreateSut();
+        await sut.InitializeAsync(CreatePrincipal("me"));
+        sut.NewItem!.Content = string.Empty;
+
+        await sut.UpdateTargetCandidatesAsync();
+
+        Assert.Empty(sut.TargetCandidates);
+        Assert.Empty(sut.SelectedTargetUserIds);
+    }
+
+    [Fact]
+    public void ApplyTargetToggle_UpdatesSelectionAndManualFlag()
+    {
+        var sut = CreateSut();
+        Assert.False(sut.HasManuallyModifiedTargets);
+
+        sut.ApplyTargetToggle("u1", true);
+        Assert.True(sut.HasManuallyModifiedTargets);
+        Assert.Contains("u1", sut.SelectedTargetUserIds);
+        Assert.DoesNotContain("u1", sut.UnselectedTargetUserIds);
+
+        sut.ApplyTargetToggle("u1", false);
+        Assert.DoesNotContain("u1", sut.SelectedTargetUserIds);
+        Assert.Contains("u1", sut.UnselectedTargetUserIds);
+    }
+
+    [Fact]
+    public async Task UpdateTagSuggestionThresholdsAsync_UpdatesPropertiesAndCallsProvider()
+    {
+        var sut = CreateSut();
+        await sut.InitializeAsync(CreatePrincipal("user-1"));
+
+        await sut.UpdateTagSuggestionThresholdsAsync(0.9f, 0.7f);
+
+        Assert.Equal(0.9f, sut.UserStrongThreshold);
+        Assert.Equal(0.7f, sut.UserCandidateThreshold);
+        Assert.Equal(0.7f, sut.CurrentCandidateThreshold);
+        _userDataProviderMock.Verify(m => m.UpdateTagSuggestionThresholdsAsync("user-1", 0.9f, 0.7f), Times.Once);
+    }
+
+    [Fact]
+    public async Task SuggestTagsAsync_DelegatesToService()
+    {
+        var sut = CreateSut();
+        var expected = new List<SuggestedTag> { new(1, "Tag1", 0.8f) };
+        _tagSuggestionServiceMock.Setup(s => s.SuggestTagsAsync("test", 0.5f, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expected);
+
+        var result = await sut.SuggestTagsAsync("test", 0.5f, CancellationToken.None);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public async Task DetectLinkCandidatesAsync_DelegatesToService()
+    {
+        var sut = CreateSut();
+        var expected = new InternalLinkConversionResult([], []);
+        _linkConversionServiceMock.Setup(s => s.DetectLinkCandidatesAsync("content", 0.8f, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expected);
+
+        var result = await sut.DetectLinkCandidatesAsync("content", 0.8f, CancellationToken.None);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public async Task UpdateLinkConversionSettingsAsync_UpdatesPropertyAndCallsProvider()
+    {
+        var sut = CreateSut();
+        await sut.InitializeAsync(CreatePrincipal("user-1"));
+        sut.IsLinkConversionEnabled = true;
+
+        await sut.UpdateLinkConversionSettingsAsync(0.85f);
+
+        Assert.Equal(0.85f, sut.LinkConversionThreshold);
+        _userDataProviderMock.Verify(m => m.UpdateLinkConversionSettingsAsync("user-1", true, 0.85f), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetPreviewAsync_DelegatesToService()
+    {
+        var sut = CreateSut();
+        var preview = new LinkPreviewData { Url = "https://example.com", Title = "Example" };
+        _linkPreviewServiceMock.Setup(p => p.GetPreviewAsync("https://example.com"))
+            .ReturnsAsync(preview);
+
+        var result = await sut.GetPreviewAsync("https://example.com");
+
+        Assert.Equal(preview, result);
+    }
+
+    [Fact]
+    public async Task SearchTagsAsync_ReturnsFormattedMentionItems()
+    {
+        var sut = CreateSut();
+        var tags = new List<Tag> { new() { Id = 10, Name = "TestTag", OwnerId = "system", IsSystem = true } };
+        _tagSearchQueryServiceMock.Setup(s => s.SearchTagsWithFallbackAsync("query"))
+            .ReturnsAsync(tags);
+
+        var result = (await sut.SearchTagsAsync("query")).ToList();
+
+        Assert.Single(result);
+        Assert.Equal("TestTag : system", result[0].Name);
+        Assert.Equal("/TagDetail/10", result[0].Replacement);
+    }
+
+    [Fact]
+    public async Task SearchUsersAsync_ReturnsFormattedMentionItems()
+    {
+        var sut = CreateSut();
+        var users = new List<ApplicationUser> { new() { Id = "u1", UserName = "alice" } };
+        _userDataProviderMock.Setup(u => u.SearchUsersAsync("al"))
+            .ReturnsAsync(users);
+
+        var result = (await sut.SearchUsersAsync("al")).ToList();
+
+        Assert.Single(result);
+        Assert.Equal("@alice", result[0].Name);
+        Assert.Equal("/User/UserDetail/u1", result[0].Replacement);
+    }
+
+    [Fact]
+    public async Task SaveItemAsync_WhenValid_CallsCreateItemAndReturnsSuccess()
+    {
+        var sut = CreateSut();
+        await sut.InitializeAsync(CreatePrincipal("user-1"));
+        sut.NewItem!.Content = "Valid content";
+
+        var initialTags = new List<Tag> { new() { Id = 101, Name = "Tag101", OwnerId = "user-1" } };
+        sut.ConfirmedSuggestedTagIds.Add(202);
+
+        var (success, errorMessage) = await sut.SaveItemAsync(initialTags);
+
+        Assert.True(success);
+        Assert.Null(errorMessage);
+        _itemCardDataMock.Verify(m => m.CreateItemAsync(
+            It.Is<Item>(i => i.Content == "Valid content" && i.OwnerId == "user-1"),
+            It.Is<IReadOnlyList<int>>(tags => tags.Contains(101) && tags.Contains(202))),
+            Times.Once);
+        Assert.Equal(string.Empty, sut.NewItem.Content);
+    }
+
+    [Fact]
+    public async Task SaveItemAsync_WhenContentEmpty_ReturnsFalse()
+    {
+        var sut = CreateSut();
+        await sut.InitializeAsync(CreatePrincipal("user-1"));
+        sut.NewItem!.Content = string.Empty;
+
+        var (success, errorMessage) = await sut.SaveItemAsync(null);
+
+        Assert.False(success);
+        Assert.NotNull(errorMessage);
+        _itemCardDataMock.Verify(m => m.CreateItemAsync(It.IsAny<Item>(), It.IsAny<IReadOnlyList<int>>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SaveItemAsync_WhenProviderThrows_ReturnsFalseWithExceptionMessage()
+    {
+        var sut = CreateSut();
+        await sut.InitializeAsync(CreatePrincipal("user-1"));
+        sut.NewItem!.Content = "Valid content";
+
+        _itemCardDataMock.Setup(m => m.CreateItemAsync(It.IsAny<Item>(), It.IsAny<IReadOnlyList<int>>()))
+            .ThrowsAsync(new InvalidOperationException("DB error"));
+
+        var (success, errorMessage) = await sut.SaveItemAsync(null);
+
+        Assert.False(success);
+        Assert.Equal("DB error", errorMessage);
     }
 }

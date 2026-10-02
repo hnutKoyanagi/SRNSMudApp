@@ -23,7 +23,7 @@
                 <MudText Typo="Typo.body1"><strong>@TagName</strong></MudText>
             </MudPaper>
 
-            <MudRadioGroup T="TagLinkReplaceAction" @bind-Value="_action">
+            <MudRadioGroup T="TagLinkReplaceAction" @bind-Value="ViewModel.Action">
                 <MudRadio Value="TagLinkReplaceAction.ReplaceWithFirstCandidate" Color="Color.Primary"
                           Disabled="@(FirstCandidateTag == null)">
                     サジェストの第1候補通りに置き換え
@@ -44,10 +44,10 @@
                 </MudRadio>
             </MudRadioGroup>
 
-            @if (_action == TagLinkReplaceAction.ReplaceWithSelectedCandidate)
+            @if (ViewModel.Action == TagLinkReplaceAction.ReplaceWithSelectedCandidate)
             {
                 <MudPaper Class="pa-3" Outlined="true">
-                    <MudAutocomplete T="Tag" Label="置き換え先タグを検索・選択" @bind-Value="_selectedCustomTag"
+                    <MudAutocomplete T="Tag" Label="置き換え先タグを検索・選択" @bind-Value="ViewModel.SelectedCustomTag"
                                      SearchFunc="SearchTagsAsync" ToStringFunc="@(t => t == null ? "" : $"{t.Name} (ID: {t.Id})")"
                                      Placeholder="タグ名を入力..." ResetValueOnEmptyText="true" Clearable="true" Dense="true"
                                      Variant="Variant.Outlined" />
@@ -62,75 +62,10 @@
         </MudButton>
         <MudButton Color="@(FirstCandidateTag == null ? Color.Default : Color.Primary)"
                    Variant="@(FirstCandidateTag == null ? Variant.Outlined : Variant.Filled)" OnClick="Submit"
-                   Disabled="@(!CanSubmit)">
+                   Disabled="@(!ViewModel.CanSubmit)">
             適用
         </MudButton>
     </DialogActions>
 </MudDialog>
 
-@code {
-    [CascadingParameter]
-    private IMudDialogInstance MudDialog { get; set; } = null!;
-
-    [Parameter]
-    public string OriginalMatchText { get; set; } = string.Empty;
-
-    [Parameter]
-    public string TagName { get; set; } = string.Empty;
-
-    [Parameter]
-    public Tag? FirstCandidateTag { get; set; }
-
-    [Inject]
-    private ITaggingImportDataProvider DataProvider { get; set; } = null!;
-
-    private TagLinkReplaceAction _action = TagLinkReplaceAction.ReplaceWithFirstCandidate;
-    private Tag? _selectedCustomTag;
-
-    protected override void OnParametersSet()
-    {
-        if (FirstCandidateTag == null)
-        {
-            // 候補がなければスキップをデフォルトとする
-            _action = TagLinkReplaceAction.DoNotReplace;
-        }
-        else
-        {
-            _action = TagLinkReplaceAction.ReplaceWithFirstCandidate;
-        }
-    }
-
-    private bool CanSubmit
-    {
-        get
-        {
-            if (_action == TagLinkReplaceAction.DoNotReplace) return true;
-            if (_action == TagLinkReplaceAction.ReplaceWithFirstCandidate) return FirstCandidateTag != null;
-            if (_action == TagLinkReplaceAction.ReplaceWithSelectedCandidate) return _selectedCustomTag != null;
-            return false;
-        }
-    }
-
-    private async Task<IEnumerable<Tag>> SearchTagsAsync(string? value, CancellationToken token)
-    {
-        return await DataProvider.SearchTagsAsync(value, token);
-    }
-
-    private void Skip()
-    {
-        MudDialog.Close(DialogResult.Ok(new TagLinkReplaceDecision(TagLinkReplaceAction.DoNotReplace, null)));
-    }
-
-    private void Submit()
-    {
-        int? tagId = _action switch
-        {
-            TagLinkReplaceAction.ReplaceWithFirstCandidate => FirstCandidateTag?.Id,
-            TagLinkReplaceAction.ReplaceWithSelectedCandidate => _selectedCustomTag?.Id,
-            _ => null
-        };
-
-        MudDialog.Close(DialogResult.Ok(new TagLinkReplaceDecision(_action, tagId)));
-    }
-}
 

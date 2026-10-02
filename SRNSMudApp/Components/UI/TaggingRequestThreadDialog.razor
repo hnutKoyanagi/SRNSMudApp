@@ -1,16 +1,12 @@
 @using System.Security.Claims
+@using SRNSMudApp.Data
 @using SRNSMudApp.Services
-@inject IItemReplyService ItemReplyService
-@inject IHomeDataProvider HomeData
-@inject ITaggingRequestActions RequestActions
-@inject IDialogLauncher DialogLauncher
-
 
 <MudDialog>
     <DialogContent>
         <div class="d-flex flex-column pa-2" style="max-height: 50vh; overflow-y: auto;">
 
-            @if (CanApprove(TaggingRequest))
+            @if (ViewModel.CanApprove)
             {
                 <div class="d-flex justify-end mb-2">
                     <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
@@ -28,8 +24,8 @@
             @if (TaggingRequest.RequestItem is not null)
             {
                 <div class="mb-4">
-                    <ItemCard Item="TaggingRequest.RequestItem" CurrentUserId="@_currentUserId" AllTags="_allTags"
-                              AllTagRelationsToTags="_allTagRelationsToTags" />
+                    <ItemCard Item="TaggingRequest.RequestItem" CurrentUserId="@ViewModel.CurrentUserId" AllTags="ViewModel.AllTags"
+                              AllTagRelationsToTags="ViewModel.AllTagRelationsToTags" />
                 </div>
             }
             else
@@ -63,9 +59,9 @@
 
             <!-- リプライツリー -->
             <div class="ml-5 pl-5" style="border-left: 2px solid var(--mud-palette-lines-default);">
-                @if (Replies.Count > 0)
+                @if (ViewModel.Replies.Count > 0)
                 {
-                    @foreach (var reply in Replies)
+                    @foreach (var reply in ViewModel.Replies)
                     {
                         <div class="mb-4 mt-3 position-relative">
                             <div class="position-absolute" style="left: -30px; top: 10px; z-index: 1;">
@@ -75,8 +71,8 @@
                                 </MudAvatar>
                             </div>
                             <div class="flex-grow-1">
-                                <ItemCard Item="reply" CurrentUserId="@_currentUserId" AllTags="_allTags"
-                                          AllTagRelationsToTags="_allTagRelationsToTags" />
+                                <ItemCard Item="reply" CurrentUserId="@ViewModel.CurrentUserId" AllTags="ViewModel.AllTags"
+                                          AllTagRelationsToTags="ViewModel.AllTagRelationsToTags" />
                             </div>
                         </div>
                     }
@@ -89,103 +85,10 @@
     <DialogActions>
         <!-- 新規リプライ投稿フィールド -->
         <div class="d-flex w-100 px-4 pb-2 align-center">
-            <MudTextField @bind-Value="_newReplyMessage" Placeholder="返信を投稿..." Variant="Variant.Outlined"
+            <MudTextField @bind-Value="ViewModel.NewReplyMessage" Placeholder="返信を投稿..." Variant="Variant.Outlined"
                           Margin="Margin.Dense" Class="mr-2" Immediate="true" Lines="1" MaxLines="3" />
             <MudIconButton Icon="@Icons.Material.Filled.Send" Color="Color.Primary" AriaLabel="Send"
-                           OnClick="SubmitReplyAsync" Disabled="@(string.IsNullOrWhiteSpace(_newReplyMessage) || _isSubmitting)" />
+                           OnClick="SubmitReplyAsync" Disabled="@(!ViewModel.CanSubmitReply)" />
         </div>
     </DialogActions>
 </MudDialog>
-
-@code {
-    [CascadingParameter] public IMudDialogInstance MudDialog { get; set; } = null!;
-
-    [Parameter] public TaggingRequestEntity TaggingRequest { get; set; } = null!;
-
-    private List<Item> Replies { get; set; } = [];
-    private string _newReplyMessage = string.Empty;
-    private bool _isSubmitting;
-    private string? _currentUserId;
-    private List<Tag> _allTags = [];
-    private List<TagRelationToTag> _allTagRelationsToTags = [];
-
-    [CascadingParameter] private Task<AuthenticationState> AuthenticationStateTask { get; set; } = default!;
-
-    protected override async Task OnInitializedAsync()
-    {
-        // パラメータとして渡されたリクエストの既存リプライをセット
-        Replies = TaggingRequest.Replies?.OrderBy(r => r.CreatedDate).ToList() ?? [];
-
-        var authState = await AuthenticationStateTask;
-        var user = authState.User;
-        if (user.Identity?.IsAuthenticated == true)
-        {
-            _currentUserId = user.FindFirst(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
-        }
-
-        (List<Tag> allTags, List<TagRelationToTag> relations) = await HomeData.GetTagsAndRelationsAsync();
-        _allTags = allTags;
-        _allTagRelationsToTags = relations;
-    }
-
-    private async Task SubmitReplyAsync()
-    {
-        if (string.IsNullOrWhiteSpace(_newReplyMessage) || string.IsNullOrEmpty(_currentUserId))
-        {
-            return;
-        }
-
-        _isSubmitting = true;
-
-        try
-        {
-            var newReply = await ItemReplyService.AddReplyToRequestAsync(TaggingRequest.Id, _currentUserId, _newReplyMessage);
-            if (newReply is not null)
-            {
-                Replies.Add(newReply);
-                _newReplyMessage = string.Empty;
-
-                if (!TaggingRequest.Replies.Contains(newReply))
-                {
-                    TaggingRequest.Replies.Add(newReply);
-                }
-            }
-        }
-        finally
-        {
-            _isSubmitting = false;
-        }
-    }
-
-    private bool CanApprove(TaggingRequestEntity request)
-    {
-        return RequestActions.CanApprove(request, _currentUserId);
-    }
-
-    private async Task ApproveRequestAsync()
-    {
-        if (_currentUserId is null)
-        {
-            return;
-        }
-
-        if (await RequestActions.ApproveAsync(TaggingRequest.Id, _currentUserId))
-        {
-            MudDialog.Close(DialogResult.Ok(true));
-        }
-    }
-
-    private async Task RejectRequestAsync()
-    {
-        if (_currentUserId is null)
-        {
-            return;
-        }
-
-        if (await RequestActions.RejectViaDialogAsync(TaggingRequest.Id, _currentUserId))
-        {
-            MudDialog.Close(DialogResult.Ok(true));
-        }
-    }
-
-}

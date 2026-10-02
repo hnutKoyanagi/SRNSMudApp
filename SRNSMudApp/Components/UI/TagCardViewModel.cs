@@ -1,9 +1,13 @@
 
+// IDE0010 / IDE0072: union 型・enum の網羅的 switch に対する「Populate switch」抑制
+#pragma warning disable IDE0010, IDE0072
+
 using System.Globalization;
 
 using MudBlazor;
 
 using SRNSMudApp.Data;
+using SRNSMudApp.Services;
 
 namespace SRNSMudApp.Components.UI;
 
@@ -31,16 +35,206 @@ public record TagCardDisplayList(
     int HiddenCount);
 
 /// <summary>
-///     TagCard コンポーネントに含まれる純粋な表示ロジックを切り出した ViewModel。
+///     TagCard の操作結果種別。
+/// </summary>
+public enum TagCardActionResultType
+{
+    Success,
+    Warning,
+    Error,
+    NoOp
+}
+
+/// <summary>
+///     TagCard の操作結果。UI (Snackbar や NotifyChanged) への通知制御を行う。
+/// </summary>
+public sealed record TagCardActionResult(
+    TagCardActionResultType Type,
+    string? Message = null,
+    bool ShouldNotifyChanged = false)
+{
+    public static TagCardActionResult Success(string? message = null, bool shouldNotifyChanged = true) =>
+        new(TagCardActionResultType.Success, message, shouldNotifyChanged);
+
+    public static TagCardActionResult Warning(string message) =>
+        new(TagCardActionResultType.Warning, message);
+
+    public static TagCardActionResult Error(string message) =>
+        new(TagCardActionResultType.Error, message);
+
+    public static TagCardActionResult NoOp() =>
+        new(TagCardActionResultType.NoOp);
+}
+
+/// <summary>
+///     TagCard コンポーネントに含まれる表示ロジックおよびデータ操作ロジックを集約する ViewModel。
 ///     UI への依存を持たないため、bUnit を使わずに xUnit で直接単体テストできる。
 /// </summary>
-public static class TagCardViewModel
+public class TagCardViewModel
 {
     public const int DisplayLimit = 4;
     private const int HasManyThreshold = 5;
 
     private static readonly string[] ChipBackgrounds = ["#EEEDFE"];
     private static readonly string[] ChipTextColors = ["#26215C"];
+
+    private readonly Services.ITagCardDataProvider _tagCardData;
+
+    public TagCardViewModel(Services.ITagCardDataProvider tagCardData)
+    {
+        _tagCardData = tagCardData;
+    }
+
+    /// <summary>
+    ///     タグへの投票 (good / bad) を切り替える。
+    /// </summary>
+    public async Task<TagCardActionResult> ToggleTagVoteAsync(
+        int tagId,
+        string? currentUserId,
+        int? currentUserGoodTagId,
+        int? currentUserBadTagId,
+        bool isUpvote)
+    {
+        if (string.IsNullOrEmpty(currentUserId))
+        {
+            return TagCardActionResult.Warning("ログインが必要です。");
+        }
+
+        if (!currentUserGoodTagId.HasValue || !currentUserBadTagId.HasValue)
+        {
+            return TagCardActionResult.Error("システムタグの取得に失敗しました。");
+        }
+
+        var targetSystemTagId = isUpvote ? currentUserGoodTagId.Value : currentUserBadTagId.Value;
+        var oppositeSystemTagId = isUpvote ? currentUserBadTagId.Value : currentUserGoodTagId.Value;
+
+        await _tagCardData.ToggleTagVoteAsync(tagId, currentUserId, targetSystemTagId, oppositeSystemTagId);
+        return TagCardActionResult.Success();
+    }
+
+    /// <summary>
+    ///     タグに関連タグを追加する。
+    /// </summary>
+    public async Task<TagCardActionResult> AddTagToTagAsync(int targetTagId, int selectedTagId, string currentUserId)
+    {
+        Services.TagCardOperationResult result =
+            await _tagCardData.AddTagToTagAsync(targetTagId, selectedTagId, currentUserId);
+
+        return result switch
+        {
+            Services.TagCardOperationResult.AlreadyExists =>
+                TagCardActionResult.Warning("このタグは既に追加されています。"),
+            Services.TagCardOperationResult.Success =>
+                TagCardActionResult.Success("タグを追加しました。"),
+            _ => TagCardActionResult.NoOp()
+        };
+    }
+
+    /// <summary>
+    ///     タグ間の関連付けを解除する。本人権限チェック付き。
+    /// </summary>
+    public async Task<TagCardActionResult> RemoveRelationAsync(TagRelationToTag relation, string currentUserId)
+    {
+        if (!IsRelationOwner(relation.OwnerId, currentUserId))
+        {
+            return TagCardActionResult.Error("関連付けた本人ではないため、解除する権限がありません。");
+        }
+
+        Services.TagCardOperationResult result =
+            await _tagCardData.RemoveRelationAsync(relation.Id, currentUserId);
+
+        return result switch
+        {
+            Services.TagCardOperationResult.Success =>
+                TagCardActionResult.Success("タグの関連付けを解除しました。"),
+            _ => TagCardActionResult.NoOp()
+        };
+    }
+
+    /// <summary>
+    ///     タグ間の関連付けの Weight を変更する。本人権限チェック付き。
+    /// </summary>
+    public async Task<TagCardActionResult> UpdateRelationWeightAsync(
+        TagRelationToTag relation,
+        int delta,
+        string currentUserId)
+    {
+        if (!IsRelationOwner(relation.OwnerId, currentUserId))
+        {
+            return TagCardActionResult.Error("関連付けた本人ではないため、Weightを変更する権限がありません。");
+        }
+
+        Services.TagCardOperationResult result =
+            await _tagCardData.UpdateRelationWeightAsync(relation.Id, delta, currentUserId);
+
+        return result switch
+        {
+            Services.TagCardOperationResult.Success =>
+                TagCardActionResult.Success(),
+            _ => TagCardActionResult.NoOp()
+        };
+    }
+
+    /// <summary>
+    ///     タグ間の関連付けの Weight を絶対値で設定する。本人権限チェック付き。
+    /// </summary>
+    public async Task<TagCardActionResult> SetRelationWeightAsync(
+        TagRelationToTag relation,
+        int newWeight,
+        string currentUserId)
+    {
+        if (!IsRelationOwner(relation.OwnerId, currentUserId))
+        {
+            return TagCardActionResult.Error("関連付けた本人ではないため、Weightを変更する権限がありません。");
+        }
+
+        if (!HasWeightChange(relation.Weight, newWeight))
+        {
+            return TagCardActionResult.NoOp();
+        }
+
+        Services.TagCardOperationResult result =
+            await _tagCardData.SetRelationWeightAsync(relation.Id, newWeight, currentUserId);
+
+        return result switch
+        {
+            Services.TagCardOperationResult.Success =>
+                TagCardActionResult.Success(),
+            _ => TagCardActionResult.NoOp()
+        };
+    }
+
+    /// <summary>
+    ///     タグ間の関連付け先タグを変更する。本人権限チェック付き。
+    /// </summary>
+    public async Task<TagCardActionResult> ChangeRelationTagAsync(
+        TagRelationToTag relation,
+        int tagId,
+        int newTagId,
+        string currentUserId)
+    {
+        if (IsSameTagChange(relation.TagId, newTagId))
+        {
+            return TagCardActionResult.NoOp();
+        }
+
+        if (!IsRelationOwner(relation.OwnerId, currentUserId))
+        {
+            return TagCardActionResult.Error("関連付けた本人ではないため、変更する権限がありません。");
+        }
+
+        Services.TagCardOperationResult result =
+            await _tagCardData.ChangeRelationTagAsync(relation.Id, tagId, newTagId, currentUserId);
+
+        return result switch
+        {
+            Services.TagCardOperationResult.AlreadyExists =>
+                TagCardActionResult.Warning("変更先のタグは既に追加されています。"),
+            Services.TagCardOperationResult.Success =>
+                TagCardActionResult.Success("タグを変更しました。"),
+            _ => TagCardActionResult.NoOp()
+        };
+    }
 
     /// <summary>good / bad システムタグへのリレーション数からスコアを計算する。</summary>
     public static int GetTagScore(Data.Tag tag)

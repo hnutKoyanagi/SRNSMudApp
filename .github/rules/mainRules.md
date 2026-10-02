@@ -7,7 +7,7 @@ trigger: always_on
 ## 1. プロジェクト概要 (Project Overview)
 - **Framework**: .NET (11.0), ASP.NET Core Blazor Web App
 - **UI Library**: MudBlazor (v9.7)
-- **Interactivity**: Blazor Server (InteractiveServer モード)
+- **Interactivity**: Blazor Server (InteractiveWebAssembly モード)
 - **Authentication**: Individual Accounts (ASP.NET Core Identity)
 - **AI Integration**: Gemini API
 - **C# 15
@@ -24,7 +24,7 @@ trigger: always_on
 ## 再代入撲滅
 イミュータブルなデータ構造や純粋関数　宣言的および関数型パラダイム　を優先する
 
-## 3. Blazor Server (InteractiveServer) のル－ル
+## 3. Blazor Server のル－ル
 - **SignalRの意識**: Blazor ServerはSignalR接続上で動作するため、メモリリークに注意する。イベントハンドラの購読解除 (`IDisposable` の実装) を徹底すること。
 - **UIの更新**: 非同期処理（Gemini APIのストリーミング応答など）のコールバック内でUIを更新する場合は、必ず `InvokeAsync(StateHasChanged)` を呼び出すこと。
 - **ライフサイクルの競合防止 (Race Condition Prevention)**: 

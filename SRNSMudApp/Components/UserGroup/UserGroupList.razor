@@ -1,14 +1,6 @@
 @page "/UserGroup/List"
-@using System.Security.Claims
-@using Microsoft.AspNetCore.Authorization
-@using SRNSMudApp.Data
-@using SRNSMudApp.Services
-@using SRNSMudApp.Services.Dialogs
-@rendermode InteractiveServer
-@attribute [Authorize]
-@inject IUserGroupDataProvider UserGroupData
-@inject IDialogLauncher DialogLauncher
-@inject ISnackbar Snackbar
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@namespace SRNSMudApp.Components.UserGroup
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-6">
     <div class="d-flex align-center mb-6">
@@ -28,13 +20,13 @@
         </MudButton>
     </div>
 
-    @if (_isLoading)
+    @if (IsLoading)
     {
         <div class="d-flex justify-center my-8">
             <MudProgressCircular Indeterminate="true" />
         </div>
     }
-    else if (_groups.Count == 0)
+    else if (Groups.Count == 0)
     {
         <MudPaper Elevation="0" Outlined="true" Class="pa-8 text-center rounded-xl">
             <MudIcon Icon="@Icons.Material.Filled.GroupOff" Size="Size.Large" Color="Color.Secondary" Class="mb-3" />
@@ -50,7 +42,7 @@
     }
     else
     {
-        <MudTable Items="@_groups" Hover="true" Elevation="2" Class="rounded-xl">
+        <MudTable Items="@Groups" Hover="true" Elevation="2" Class="rounded-xl">
             <HeaderContent>
                 <MudTh>グループ名</MudTh>
                 <MudTh>説明</MudTh>
@@ -66,7 +58,7 @@
                             @(context.Name.FirstOrDefault().ToString().ToUpperInvariant())
                         </MudAvatar>
                         <strong>@context.Name</strong>
-                        @if (context.OwnerId == _currentUserId)
+                        @if (context.OwnerId == CurrentUserId)
                         {
                             <MudChip T="string" Color="Color.Info" Size="Size.Small">管理者</MudChip>
                         }
@@ -95,7 +87,7 @@
                                    StartIcon="@Icons.Material.Filled.People" OnClick="@(() => OpenMembersDialogAsync(context))">
                             メンバー
                         </MudButton>
-                        @if (context.OwnerId == _currentUserId)
+                        @if (context.OwnerId == CurrentUserId)
                         {
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Default" Size="Size.Small" Title="編集"
                                            OnClick="@(() => OpenEditDialogAsync(context))" />
@@ -108,121 +100,3 @@
         </MudTable>
     }
 </MudContainer>
-
-@code {
-    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
-
-    private List<UserGroup> _groups = [];
-    private string? _currentUserId;
-    private bool _isLoading = true;
-
-    protected override async Task OnInitializedAsync()
-    {
-        if (AuthState is not null)
-        {
-            var auth = await AuthState;
-            _currentUserId = auth.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        }
-
-        await LoadGroupsAsync();
-    }
-
-    private async Task LoadGroupsAsync()
-    {
-        _isLoading = true;
-        if (!string.IsNullOrEmpty(_currentUserId))
-        {
-            var groups = await UserGroupData.GetUserGroupsForUserAsync(_currentUserId);
-            _groups = groups.ToList();
-        }
-        _isLoading = false;
-    }
-
-    private async Task OpenCreateDialogAsync()
-    {
-        if (string.IsNullOrEmpty(_currentUserId))
-        {
-            return;
-        }
-
-        var parameters = new DialogParameters
-        {
-            { nameof(UserGroupCreateEditDialog.CurrentUserId), _currentUserId }
-        };
-
-        var dialog = await DialogLauncher.ShowAsync<UserGroupCreateEditDialog>("新規グループ作成", parameters);
-        var result = await dialog.Result;
-        if (result is { Canceled: false })
-        {
-            await LoadGroupsAsync();
-        }
-    }
-
-    private async Task OpenEditDialogAsync(UserGroup group)
-    {
-        if (string.IsNullOrEmpty(_currentUserId))
-        {
-            return;
-        }
-
-        var parameters = new DialogParameters
-        {
-            { nameof(UserGroupCreateEditDialog.Group), group },
-            { nameof(UserGroupCreateEditDialog.CurrentUserId), _currentUserId }
-        };
-
-        var dialog = await DialogLauncher.ShowAsync<UserGroupCreateEditDialog>("グループを編集", parameters);
-        var result = await dialog.Result;
-        if (result is { Canceled: false })
-        {
-            await LoadGroupsAsync();
-        }
-    }
-
-    private async Task OpenMembersDialogAsync(UserGroup group)
-    {
-        if (string.IsNullOrEmpty(_currentUserId))
-        {
-            return;
-        }
-
-        var parameters = new DialogParameters
-        {
-            { nameof(UserGroupMembersDialog.Group), group },
-            { nameof(UserGroupMembersDialog.CurrentUserId), _currentUserId }
-        };
-
-        var dialog = await DialogLauncher.ShowAsync<UserGroupMembersDialog>("メンバー管理", parameters);
-        var result = await dialog.Result;
-        if (result is { Canceled: false })
-        {
-            await LoadGroupsAsync();
-        }
-    }
-
-    private async Task DeleteGroupAsync(UserGroup group)
-    {
-        if (string.IsNullOrEmpty(_currentUserId))
-        {
-            return;
-        }
-
-        try
-        {
-            bool deleted = await UserGroupData.DeleteUserGroupAsync(group.Id, _currentUserId);
-            if (deleted)
-            {
-                Snackbar.Add($"グループ「{group.Name}」を削除しました。", Severity.Success);
-                await LoadGroupsAsync();
-            }
-            else
-            {
-                Snackbar.Add("グループの削除に失敗しました。", Severity.Error);
-            }
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"エラーが発生しました: {ex.Message}", Severity.Error);
-        }
-    }
-}

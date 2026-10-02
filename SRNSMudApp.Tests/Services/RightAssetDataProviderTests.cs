@@ -273,6 +273,360 @@ public class RightAssetDataProviderTests : IAsyncLifetime
         Assert.True(result is Failure fail && fail.ErrorMessage.Contains("自分自身"));
     }
 
+    [Fact]
+    public async Task ApprovePermissionRequestAsync_WhenValidWithoutOfferedAsset_TransfersRightAssetAndMarksExecuted()
+    {
+        var (db, sut, userA, userB, tagId, _) = await CreateScopeAsync();
+        await using (db)
+        {
+            // userA が tagId に対する権限を 10 保持
+            db.RightAssets.Add(new RightAsset { TargetTagId = tagId, OwnerId = userA, Amount = 10, IsBurned = false });
+            await db.SaveChangesAsync();
+
+            // userB が userA に 3 の権限をリクエスト
+            var request = new TagPermissionRequestDto(
+                RequestedTagId: tagId,
+                TargetUserId: userA,
+                RequestedAmount: 3,
+                Message: "承認テスト"
+            );
+            var submitResult = await sut.SubmitPermissionRequestAsync(userB, request);
+            Assert.True(submitResult is Success<bool>);
+
+            var requestItem = await db.Items.FirstOrDefaultAsync(i => i.OwnerId == userB);
+            Assert.NotNull(requestItem);
+
+            // Act: userA が承認
+            var approveResult = await sut.ApprovePermissionRequestAsync(requestItem.Id, userA);
+
+            // Assert
+            Assert.True(approveResult is Success<bool>);
+
+            // 権限保有量の検証（別コンテキストでコミット済みデータを読み込む）
+            await using (var verifyDb = new ApplicationDbContext(_sharedDb.Options))
+            {
+                var userAAssets = await verifyDb.RightAssets.AsNoTracking().Where(a => a.OwnerId == userA && a.TargetTagId == tagId && !a.IsBurned).ToListAsync();
+                var userBAssets = await verifyDb.RightAssets.AsNoTracking().Where(a => a.OwnerId == userB && a.TargetTagId == tagId && !a.IsBurned).ToListAsync();
+
+                Assert.Equal(7, userAAssets.Sum(a => a.Amount));
+                Assert.Equal(3, userBAssets.Sum(a => a.Amount));
+
+                // ItemKindJson のステータスが Executed に更新されていること
+                var updatedItem = await verifyDb.Items.AsNoTracking().FirstOrDefaultAsync(i => i.Id == requestItem.Id);
+                Assert.NotNull(updatedItem);
+                Assert.NotNull(updatedItem.ItemKindJson);
+                var payload = System.Text.Json.JsonSerializer.Deserialize<TagPermissionRequestPayload>(updatedItem.ItemKindJson);
+                Assert.NotNull(payload);
+                Assert.Equal(TradeStatus.Executed, payload.Status);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ApprovePermissionRequestAsync_WhenTagOwnerHasInsufficientBalance_MintsNeededAssetAndApproves()
+    {
+        var (db, sut, userA, userB, tagId, _) = await CreateScopeAsync();
+        await using (db)
+        {
+            // userA はタグオーナーだが 2 しか持っていない
+            db.RightAssets.Add(new RightAsset { TargetTagId = tagId, OwnerId = userA, Amount = 2, IsBurned = false, Status = new NotBurned() });
+            await db.SaveChangesAsync();
+
+            // userB が 5 をリクエスト
+            var request = new TagPermissionRequestDto(
+                RequestedTagId: tagId,
+                TargetUserId: userA,
+                RequestedAmount: 5
+            );
+            var submitResult = await sut.SubmitPermissionRequestAsync(userB, request);
+            Assert.True(submitResult is Success<bool>);
+
+            var requestItem = await db.Items.FirstOrDefaultAsync(i => i.OwnerId == userB);
+            Assert.NotNull(requestItem);
+
+            // Act: userA (タグオーナー) が承認 -> 不足分の 3 が新規発行されて承認完了する
+            var approveResult = await sut.ApprovePermissionRequestAsync(requestItem.Id, userA);
+
+            // Assert
+            Assert.True(approveResult is Success<bool>);
+
+            await using (var verifyDb = new ApplicationDbContext(_sharedDb.Options))
+            {
+                var userAAssets = await verifyDb.RightAssets.AsNoTracking().Where(a => a.OwnerId == userA && a.TargetTagId == tagId && !a.IsBurned).ToListAsync();
+                var userBAssets = await verifyDb.RightAssets.AsNoTracking().Where(a => a.OwnerId == userB && a.TargetTagId == tagId && !a.IsBurned).ToListAsync();
+
+                // userA の有効残高は 0 (2 と新規発行された 3 の計 5 がリクエスタへ移転)
+                Assert.Equal(0, userAAssets.Sum(a => a.Amount));
+                // userB の有効残高は 5
+                Assert.Equal(5, userBAssets.Sum(a => a.Amount));
+
+                var updatedItem = await verifyDb.Items.AsNoTracking().FirstOrDefaultAsync(i => i.Id == requestItem.Id);
+                Assert.NotNull(updatedItem);
+                var payload = System.Text.Json.JsonSerializer.Deserialize<TagPermissionRequestPayload>(updatedItem.ItemKindJson!);
+                Assert.NotNull(payload);
+                Assert.Equal(TradeStatus.Executed, payload.Status);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ApprovePermissionRequestAsync_WhenNonOwnerHasInsufficientBalance_ReturnsFailure()
+    {
+        var (db, sut, userA, userB, tagId, tid) = await CreateScopeAsync();
+        await using (db)
+        {
+            // tagId のオーナーは userA。userB は非オーナー。
+            var userC = $"userC_{tid}";
+            await db.SeedUsersAsync(userC);
+
+            // userB は 2 しか持っていない
+            db.RightAssets.Add(new RightAsset { TargetTagId = tagId, OwnerId = userB, Amount = 2, IsBurned = false, Status = new NotBurned() });
+            await db.SaveChangesAsync();
+
+            // userC が userB に 5 をリクエスト
+            var request = new TagPermissionRequestDto(
+                RequestedTagId: tagId,
+                TargetUserId: userB,
+                RequestedAmount: 5
+            );
+            await sut.SubmitPermissionRequestAsync(userC, request);
+            var requestItem = await db.Items.FirstOrDefaultAsync(i => i.OwnerId == userC);
+            Assert.NotNull(requestItem);
+
+            // Act: userB (非オーナー) が承認しようとする
+            var approveResult = await sut.ApprovePermissionRequestAsync(requestItem.Id, userB);
+
+            // Assert: 非オーナーのため自動発行されず、残高不足エラーとなる
+            Assert.True(approveResult is Failure fail && fail.ErrorMessage.Contains("残高"));
+        }
+    }
+
+    [Fact]
+    public async Task RejectPermissionRequestAsync_WhenCalled_UpdatesStatusToRejected()
+    {
+        var (db, sut, userA, userB, tagId, _) = await CreateScopeAsync();
+        await using (db)
+        {
+            db.RightAssets.Add(new RightAsset { TargetTagId = tagId, OwnerId = userA, Amount = 10, IsBurned = false });
+            await db.SaveChangesAsync();
+
+            var request = new TagPermissionRequestDto(
+                RequestedTagId: tagId,
+                TargetUserId: userA,
+                RequestedAmount: 3
+            );
+            await sut.SubmitPermissionRequestAsync(userB, request);
+            var requestItem = await db.Items.FirstOrDefaultAsync(i => i.OwnerId == userB);
+            Assert.NotNull(requestItem);
+
+            // Act: userA が却下
+            var rejectResult = await sut.RejectPermissionRequestAsync(requestItem.Id, userA, "余剰権限がありません");
+
+            // Assert
+            Assert.True(rejectResult is Success<bool>);
+
+            await using (var verifyDb = new ApplicationDbContext(_sharedDb.Options))
+            {
+                var updatedItem = await verifyDb.Items.AsNoTracking().FirstOrDefaultAsync(i => i.Id == requestItem.Id);
+                Assert.NotNull(updatedItem);
+                Assert.NotNull(updatedItem.ItemKindJson);
+                var payload = System.Text.Json.JsonSerializer.Deserialize<TagPermissionRequestPayload>(updatedItem.ItemKindJson);
+                Assert.NotNull(payload);
+                Assert.Equal(TradeStatus.Rejected, payload.Status);
+                Assert.Equal("余剰権限がありません", payload.RejectReason);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ApprovePermissionRequestAsync_WhenTagOwnerHasZeroBalanceAndRequestedTagIdIsZeroWithDuplicateTags_MintsAssetAndApprovesSuccessfully()
+    {
+        var (db, sut, userA, userB, _, tid) = await CreateScopeAsync();
+        await using (db)
+        {
+            var userOther = $"userOther_{tid}";
+            await db.SeedUsersAsync(userOther);
+
+            var duplicateTagName = $"真実_{tid}";
+
+            // 先に別ユーザー所有の同名タグを作成
+            var tagOther = new Tag
+            {
+                Name = duplicateTagName,
+                Content = "Other user tag",
+                IsSystem = false,
+                OwnerId = userOther,
+                CachedWeight = 1
+            };
+            db.Tags.Add(tagOther);
+
+            // 承認者（userA）所有の同名タグを作成
+            var tagOwner = new Tag
+            {
+                Name = duplicateTagName,
+                Content = "Owner tag",
+                IsSystem = false,
+                OwnerId = userA,
+                CachedWeight = 2
+            };
+            db.Tags.Add(tagOwner);
+            await db.SaveChangesAsync();
+
+            // userB から userA 宛に、RequestedTagId=0（タグ名のみ）で操作権限リクエストを作成
+            var payload = new TagPermissionRequestPayload(
+                RequestedTagId: 0,
+                RequestedTagName: duplicateTagName,
+                RequestedAmount: 5,
+                OfferedRightAssetId: null,
+                OfferedTagName: null,
+                OfferedAmount: 0,
+                Message: "権限リクエスト",
+                Status: TradeStatus.Proposed);
+
+            var requestItem = new Item
+            {
+                OwnerId = userB,
+                Content = $"【タグ操作権限リクエスト】\nタグ「{duplicateTagName}」の操作権限 5 をリクエストしました。（無償リクエスト）",
+                ItemKindJson = System.Text.Json.JsonSerializer.Serialize(payload),
+                NotificationRecipients =
+                [
+                    new ItemReplyNotificationRecipient { RecipientUserId = userA }
+                ]
+            };
+            db.Items.Add(requestItem);
+            await db.SaveChangesAsync();
+
+            // Act: userA (タグオーナーだが初期残高0) が承認
+            var approveResult = await sut.ApprovePermissionRequestAsync(requestItem.Id, userA);
+
+            // Assert: 残高不足にならず、userA のタグとして自動発行されて承認完了する
+            Assert.True(approveResult is Success<bool>);
+
+            await using (var verifyDb = new ApplicationDbContext(_sharedDb.Options))
+            {
+                var userAAssets = await verifyDb.RightAssets.AsNoTracking()
+                    .Where(a => a.OwnerId == userA && a.TargetTagId == tagOwner.Id && !a.IsBurned).ToListAsync();
+                var userBAssets = await verifyDb.RightAssets.AsNoTracking()
+                    .Where(a => a.OwnerId == userB && a.TargetTagId == tagOwner.Id && !a.IsBurned).ToListAsync();
+
+                // userA の有効残高は 0 (発行された 5 が即座に移転)
+                Assert.Equal(0, userAAssets.Sum(a => a.Amount));
+                // userB の有効残高は 5 (tagOwner.Id に対するアセット)
+                Assert.Equal(5, userBAssets.Sum(a => a.Amount));
+
+                var updatedItem = await verifyDb.Items.AsNoTracking().FirstOrDefaultAsync(i => i.Id == requestItem.Id);
+                Assert.NotNull(updatedItem);
+                var updatedPayload = System.Text.Json.JsonSerializer.Deserialize<TagPermissionRequestPayload>(updatedItem.ItemKindJson!);
+                Assert.NotNull(updatedPayload);
+                Assert.Equal(TradeStatus.Executed, updatedPayload.Status);
+                Assert.Equal(tagOwner.Id, updatedPayload.RequestedTagId);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ApprovePermissionRequestAsync_WhenRequestedTagIdPointsToDifferentOwnerTagWithSameName_ResolvesApproverTagAndMintsAndApproves()
+    {
+        var (db, sut, userA, userB, _, tid) = await CreateScopeAsync();
+        await using (db)
+        {
+            var userOther = $"userOther_{tid}";
+            await db.SeedUsersAsync(userOther);
+
+            var duplicateTagName = $"真実_{tid}";
+
+            var tagOther = new Tag
+            {
+                Name = duplicateTagName,
+                Content = "Other user tag",
+                IsSystem = false,
+                OwnerId = userOther,
+                CachedWeight = 1
+            };
+            db.Tags.Add(tagOther);
+
+            var tagOwner = new Tag
+            {
+                Name = duplicateTagName,
+                Content = "Owner tag",
+                IsSystem = false,
+                OwnerId = userA,
+                CachedWeight = 2
+            };
+            db.Tags.Add(tagOwner);
+            await db.SaveChangesAsync();
+
+            // RequestedTagId が別ユーザーの tagOther.Id を指してしまっているが、リクエスト先は userA
+            var payload = new TagPermissionRequestPayload(
+                RequestedTagId: tagOther.Id,
+                RequestedTagName: duplicateTagName,
+                RequestedAmount: 3,
+                OfferedRightAssetId: null,
+                OfferedTagName: null,
+                OfferedAmount: 0,
+                Message: "権限リクエスト",
+                Status: TradeStatus.Proposed);
+
+            var requestItem = new Item
+            {
+                OwnerId = userB,
+                Content = $"【タグ操作権限リクエスト】\nタグ「{duplicateTagName}」の操作権限 3 をリクエストしました。（無償リクエスト）",
+                ItemKindJson = System.Text.Json.JsonSerializer.Serialize(payload),
+                NotificationRecipients =
+                [
+                    new ItemReplyNotificationRecipient { RecipientUserId = userA }
+                ]
+            };
+            db.Items.Add(requestItem);
+            await db.SaveChangesAsync();
+
+            // Act: userA (同名タグのオーナー) が承認
+            var approveResult = await sut.ApprovePermissionRequestAsync(requestItem.Id, userA);
+
+            // Assert: userA 所有の tagOwner.Id に解決されて自動発行・承認される
+            Assert.True(approveResult is Success<bool>);
+
+            await using (var verifyDb = new ApplicationDbContext(_sharedDb.Options))
+            {
+                var userBAssets = await verifyDb.RightAssets.AsNoTracking()
+                    .Where(a => a.OwnerId == userB && a.TargetTagId == tagOwner.Id && !a.IsBurned).ToListAsync();
+                Assert.Equal(3, userBAssets.Sum(a => a.Amount));
+
+                var updatedItem = await verifyDb.Items.AsNoTracking().FirstOrDefaultAsync(i => i.Id == requestItem.Id);
+                Assert.NotNull(updatedItem);
+                var updatedPayload = System.Text.Json.JsonSerializer.Deserialize<TagPermissionRequestPayload>(updatedItem.ItemKindJson!);
+                Assert.NotNull(updatedPayload);
+                Assert.Equal(TradeStatus.Executed, updatedPayload.Status);
+                Assert.Equal(tagOwner.Id, updatedPayload.RequestedTagId);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ApprovePermissionRequestAsync_WhenApproverUserIdCasingDiffersFromTagOwnerId_MintsAndApproves()
+    {
+        var (db, sut, userA, userB, tagId, _) = await CreateScopeAsync();
+        await using (db)
+        {
+            var request = new TagPermissionRequestDto(
+                RequestedTagId: tagId,
+                TargetUserId: userA,
+                RequestedAmount: 4
+            );
+            var submitResult = await sut.SubmitPermissionRequestAsync(userB, request);
+            Assert.True(submitResult is Success<bool>);
+
+            var requestItem = await db.Items.FirstOrDefaultAsync(i => i.OwnerId == userB);
+            Assert.NotNull(requestItem);
+
+            // Act: 大文字小文字が異なるユーザーIDで承認（GUID形式などで起こり得る差異）
+            var approveResult = await sut.ApprovePermissionRequestAsync(requestItem.Id, userA.ToUpperInvariant());
+
+            // Assert: 大文字小文字の違いでも正しく認識され、新規発行して承認成功する
+            Assert.True(approveResult is Success<bool>);
+        }
+    }
+
 
     private sealed class DbContextFactoryStub(DbContextOptions<ApplicationDbContext> options)
         : IDbContextFactory<ApplicationDbContext>

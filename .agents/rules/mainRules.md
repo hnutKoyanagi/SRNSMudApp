@@ -7,7 +7,7 @@ trigger: always_on
 ## 1. プロジェクト概要 (Project Overview)
 - **Framework**: .NET (11.0), ASP.NET Core Blazor Web App
 - **UI Library**: MudBlazor (v9.7)
-- **Interactivity**: Blazor Server (InteractiveServer モード)
+- **Interactivity**: Blazor Server (InteractiveWebAssembly モード)
 - **Authentication**: Individual Accounts (ASP.NET Core Identity)
 - **AI Integration**: Gemini API
 - **C# 15

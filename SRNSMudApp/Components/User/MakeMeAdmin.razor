@@ -1,8 +1,6 @@
 @page "/User/MakeMeAdmin"
 @attribute [Authorize]
 @rendermode InteractiveServer
-@inject IWebHostEnvironment Env
-@inject IJSRuntime JS
 
 <MudContainer MaxWidth="MaxWidth.Small" Class="mt-10">
     <MudText Typo="Typo.h5" GutterBottom="true">デバッグ: Admin権限の切り替え</MudText>
@@ -22,27 +20,27 @@
                 <MudStack Spacing="3">
                     <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                         <MudText Typo="Typo.subtitle1">現在の権限:</MudText>
-                        <MudChip T="string" Color="@(_isAdmin ? Color.Success : Color.Default)" Size="Size.Small">
-                            @(_isAdmin ? "管理者 (Admin)" : "一般ユーザー (User)")
+                        <MudChip T="string" Color="@(ViewModel.IsAdmin ? Color.Success : Color.Default)" Size="Size.Small">
+                            @(ViewModel.IsAdmin ? "管理者 (Admin)" : "一般ユーザー (User)")
                         </MudChip>
                     </MudStack>
 
                     <form id="toggleAdminForm" action="Account/MakeMeAdmin" method="post">
                         <AntiforgeryToken />
-                        <input type="hidden" name="enableAdmin" value="@_targetAdminState.ToString().ToLowerInvariant()" />
+                        <input type="hidden" name="enableAdmin" value="@ViewModel.TargetAdminState.ToString().ToLowerInvariant()" />
                         <input type="hidden" name="returnUrl" value="User/MakeMeAdmin" />
 
                         <MudSwitch T="bool"
-                                   Value="_isAdmin"
+                                   Value="ViewModel.IsAdmin"
                                    ValueChanged="OnToggleAdminChanged"
                                    Color="Color.Primary"
-                                   Disabled="_isProcessing"
-                                   Label="@(_isAdmin ? "Admin権限（ON: 管理者 / クリックで一般ユーザーに戻す）" : "Admin権限（OFF: 一般ユーザー / クリックでAdminにする）")" />
+                                   Disabled="ViewModel.IsProcessing"
+                                   Label="@(ViewModel.IsAdmin ? "Admin権限（ON: 管理者 / クリックで一般ユーザーに戻す）" : "Admin権限（OFF: 一般ユーザー / クリックでAdminにする）")" />
 
                         <button id="toggleAdminSubmitBtn" type="submit" style="display: none;"></button>
                     </form>
 
-                    @if (_isProcessing)
+                    @if (ViewModel.IsProcessing)
                     {
                         <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-2" />
                     }
@@ -51,39 +49,3 @@
         </MudCard>
     }
 </MudContainer>
-
-@code {
-    [CascadingParameter]
-    private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
-
-    private bool _isAdmin;
-    private bool _targetAdminState;
-    private bool _isProcessing;
-
-    protected override async Task OnInitializedAsync()
-    {
-        var auth = await AuthStateTask;
-        _isAdmin = auth.User.IsInRole("Admin");
-        _targetAdminState = !_isAdmin;
-    }
-
-    private async Task OnToggleAdminChanged(bool newValue)
-    {
-        if (_isProcessing)
-        {
-            return;
-        }
-
-        _isProcessing = true;
-        _targetAdminState = newValue;
-
-        try
-        {
-            await JS.InvokeVoidAsync("eval", "document.getElementById('toggleAdminSubmitBtn').click()");
-        }
-        catch
-        {
-            _isProcessing = false;
-        }
-    }
-}

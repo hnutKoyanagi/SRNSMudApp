@@ -76,7 +76,19 @@
                                                     <MudIcon Icon="@Icons.Material.Filled.EditNote" Size="Size.Small"
                                                              Color="Color.Primary" Class="mr-2" />
                                                     <MudText Typo="Typo.body2">
-                                                        タグ: <strong>@proposalNote.TagName</strong>
+                                                        タグ: @if (proposalNote.TagId > 0)
+                                                        {
+                                                            <MudLink Href="@($"/TagDetail/{proposalNote.TagId}")"
+                                                                     Typo="Typo.body2"
+                                                                     Color="Color.Primary"
+                                                                     Class="font-weight-bold">
+                                                                @proposalNote.TagName
+                                                            </MudLink>
+                                                        }
+                                                        else
+                                                        {
+                                                            <strong>@proposalNote.TagName</strong>
+                                                        }
                                                         @switch (proposalNote.Status)
                                                         {
                                                             case TradeStatus.Executed:
@@ -129,7 +141,19 @@
                                                             <MudIcon Icon="@Icons.Material.Filled.DriveFileRenameOutline" Size="Size.Small"
                                                                      Color="Color.Primary" Class="mr-2" />
                                                             <MudText Typo="Typo.body2">
-                                                                タグ: <strong>@nameProposalNote.CurrentTagName</strong>
+                                                                タグ: @if (nameProposalNote.TagId > 0)
+                                                                {
+                                                                    <MudLink Href="@($"/TagDetail/{nameProposalNote.TagId}")"
+                                                                             Typo="Typo.body2"
+                                                                             Color="Color.Primary"
+                                                                             Class="font-weight-bold">
+                                                                        @nameProposalNote.CurrentTagName
+                                                                    </MudLink>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <strong>@nameProposalNote.CurrentTagName</strong>
+                                                                }
                                                                 @switch (nameProposalNote.Status)
                                                                 {
                                                                     case TradeStatus.Executed:
@@ -184,6 +208,114 @@
                                                         <MudText Typo="Typo.body2" Class="mt-1">
                                                             コメント: <span class="font-italic ml-1">「@commentNote.Comment」</span>
                                                         </MudText>
+                                                    </MudAlert>
+                                                </div>
+                                            }
+
+                                            @if (notification.Kind is TagPermissionRequestNotification permNote)
+                                            {
+                                                var isPending = permNote.Status == TradeStatus.Proposed;
+                                                <div class="pl-11 mt-1">
+                                                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true"
+                                                              Class="mb-3 py-2 px-3" NoIcon="true">
+                                                        <div class="d-flex align-center justify-space-between flex-wrap" style="gap: 8px;">
+                                                            <div class="d-flex flex-column">
+                                                                <div class="d-flex align-center">
+                                                                    <MudIcon Icon="@Icons.Material.Filled.Key" Size="Size.Small"
+                                                                             Color="Color.Primary" Class="mr-2" />
+                                                                    <MudText Typo="Typo.body2">
+                                                                        @{
+                                                                            var tagId = permNote.RequestedTagId > 0
+                                                                                ? permNote.RequestedTagId
+                                                                                : ViewModel.AllTags.FirstOrDefault(t => t.Name == permNote.RequestedTagName)?.Id ?? 0;
+                                                                        }
+                                                                        タグ: @if (tagId > 0)
+                                                                        {
+                                                                            <MudLink Href="@($"/TagDetail/{tagId}")"
+                                                                                     Typo="Typo.body2"
+                                                                                     Color="Color.Primary"
+                                                                                     Class="font-weight-bold"
+                                                                                     data-testid="permission-request-tag-link">
+                                                                                @permNote.RequestedTagName
+                                                                            </MudLink>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            <MudLink OnClick="@(() => NavigateToTagDetailByNameAsync(permNote.RequestedTagName))"
+                                                                                     Typo="Typo.body2"
+                                                                                     Color="Color.Primary"
+                                                                                     Class="font-weight-bold cursor-pointer"
+                                                                                     data-testid="permission-request-tag-link">
+                                                                                @permNote.RequestedTagName
+                                                                            </MudLink>
+                                                                        }
+                                                                        <span class="ml-2 font-weight-bold">要求数量: @permNote.RequestedAmount</span>
+                                                                        @switch (permNote.Status)
+                                                                        {
+                                                                            case TradeStatus.Executed:
+                                                                                <MudChip T="string" Size="Size.Small" Color="Color.Success" Class="ml-2"
+                                                                                         data-testid="permission-request-approved-status">
+                                                                                    承認済み</MudChip>
+                                                                                break;
+                                                                            case TradeStatus.Rejected:
+                                                                                <MudChip T="string" Size="Size.Small" Color="Color.Error" Class="ml-2"
+                                                                                         data-testid="permission-request-rejected-status">
+                                                                                    却下済み</MudChip>
+                                                                                break;
+                                                                        }
+                                                                    </MudText>
+                                                                </div>
+                                                                @if (permNote.OfferedRightAssetId.HasValue && !string.IsNullOrEmpty(permNote.OfferedTagName))
+                                                                {
+                                                                    var offeredTagId = ViewModel.AllTags.FirstOrDefault(t => t.Name == permNote.OfferedTagName)?.Id ?? 0;
+                                                                    <MudText Typo="Typo.body2" Class="mt-1">
+                                                                        対価: @if (offeredTagId > 0)
+                                                                        {
+                                                                            <MudLink Href="@($"/TagDetail/{offeredTagId}")"
+                                                                                     Typo="Typo.body2"
+                                                                                     Color="Color.Primary"
+                                                                                     Class="font-weight-bold">
+                                                                                @permNote.OfferedTagName
+                                                                            </MudLink>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            <strong>@permNote.OfferedTagName</strong>
+                                                                        }
+                                                                        (数量: @permNote.OfferedAmount)
+                                                                    </MudText>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                                                                        対価: （無償リクエスト）
+                                                                    </MudText>
+                                                                }
+                                                                @if (!string.IsNullOrWhiteSpace(permNote.Message))
+                                                                {
+                                                                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                                                                        メッセージ: @permNote.Message
+                                                                    </MudText>
+                                                                }
+                                                                @if (permNote.Status == TradeStatus.Rejected && !string.IsNullOrWhiteSpace(permNote.RejectReason))
+                                                                {
+                                                                    <MudText Typo="Typo.caption" Color="Color.Error" Class="mt-1">
+                                                                        却下理由: @permNote.RejectReason
+                                                                    </MudText>
+                                                                }
+                                                            </div>
+                                                            @if (isPending)
+                                                            {
+                                                                <div class="d-flex align-center">
+                                                                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
+                                                                               OnClick="@(() => ApprovePermissionRequestAsync(notification))"
+                                                                               Class="mr-1 py-0 px-2" StartIcon="@Icons.Material.Filled.Check">承認</MudButton>
+                                                                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+                                                                               OnClick="@(() => RejectPermissionRequestAsync(notification))" Class="py-0 px-2"
+                                                                               StartIcon="@Icons.Material.Filled.Close">却下</MudButton>
+                                                                </div>
+                                                            }
+                                                        </div>
                                                     </MudAlert>
                                                 </div>
                                             }

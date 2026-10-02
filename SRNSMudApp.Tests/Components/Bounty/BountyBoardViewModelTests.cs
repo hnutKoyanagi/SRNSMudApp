@@ -1,9 +1,14 @@
 // Components/Bounty/BountyBoardViewModelTests.cs
 #region
 
+using Moq;
+
+using MudBlazor;
+
 using SRNSMudApp.Components.Bounty;
 using SRNSMudApp.Data;
 using SRNSMudApp.Models.Unions;
+using SRNSMudApp.Services;
 
 #endregion
 
@@ -14,6 +19,106 @@ namespace SRNSMudApp.Tests.Components.Bounty;
 /// </summary>
 public class BountyBoardViewModelTests
 {
+    private readonly Mock<IBountyDataProvider> _bountyDataMock = new();
+
+    private BountyBoardViewModel CreateViewModel() => new(_bountyDataMock.Object);
+
+    [Fact]
+    public void Constructor_WhenBountyDataIsNull_ThrowsArgumentNullException()
+    {
+        _ = Assert.Throws<ArgumentNullException>(() => new BountyBoardViewModel(null!));
+    }
+
+    [Fact]
+    public async Task LoadDataAsync_PopulatesBountiesAndRewardAssetsAndSetsIsLoadingFalse()
+    {
+        // Arrange
+        var bounty = new TaggingRequestEntity { Id = 1, OwnerId = "owner-1" };
+        var asset = new RightAsset { Id = 10, OwnerId = "owner-1" };
+        var boardData = new BountyBoardData([bounty], new Dictionary<int, RightAsset> { { 10, asset } });
+
+        _bountyDataMock.Setup(x => x.GetActiveBountiesAsync()).ReturnsAsync(boardData);
+
+        var vm = CreateViewModel();
+        Assert.True(vm.IsLoading);
+
+        // Act
+        await vm.LoadDataAsync();
+
+        // Assert
+        Assert.False(vm.IsLoading);
+        Assert.Single(vm.Bounties);
+        Assert.Equal(1, vm.Bounties[0].Id);
+        Assert.Single(vm.RewardAssets);
+        Assert.Equal(10, vm.RewardAssets[10].Id);
+        _bountyDataMock.Verify(x => x.GetActiveBountiesAsync(), Times.Once);
+    }
+
+    [Fact]
+    public void CanFulfillBounty_InstanceMethod_UsesCurrentUserId()
+    {
+        var vm = CreateViewModel();
+        vm.CurrentUserId = "user-1";
+
+        var foreignBounty = new TaggingRequestEntity { OwnerId = "owner-1", RequesterUserId = "user-2" };
+        var ownBounty = new TaggingRequestEntity { OwnerId = "owner-1", RequesterUserId = "user-1" };
+
+        Assert.True(vm.CanFulfillBounty(foreignBounty));
+        Assert.False(vm.CanFulfillBounty(ownBounty));
+    }
+
+    [Fact]
+    public void ResolveRewardAsset_InstanceMethod_UsesRewardAssetsProperty()
+    {
+        var asset = new RightAsset { Id = 42, OwnerId = "owner-1" };
+        var vm = CreateViewModel();
+        vm.RewardAssets[42] = asset;
+
+        var bountyWithReward = new TaggingRequestEntity { OwnerId = "owner-1", Payload = new BountyPayload(42) };
+        var bountyWithoutReward = new TaggingRequestEntity { OwnerId = "owner-1", Payload = new BountyPayload(99) };
+
+        var resolved = vm.ResolveRewardAsset(bountyWithReward);
+        var notResolved = vm.ResolveRewardAsset(bountyWithoutReward);
+
+        Assert.NotNull(resolved);
+        Assert.Equal(42, resolved.Id);
+        Assert.Null(notResolved);
+    }
+
+    [Fact]
+    public void CreateDialogOptions_ReturnsExpectedOptions()
+    {
+        var options = BountyBoardViewModel.CreateDialogOptions();
+        Assert.True(options.CloseOnEscapeKey);
+        Assert.Equal(MaxWidth.Small, options.MaxWidth);
+        Assert.True(options.FullWidth);
+    }
+
+    [Fact]
+    public void FulfillDialogParameters_ReturnsValidParameters()
+    {
+        var bounty = new TaggingRequestEntity { Id = 5, OwnerId = "owner-1" };
+        var parameters = BountyBoardViewModel.FulfillDialogParameters(bounty);
+
+        Assert.NotNull(parameters);
+        Assert.Same(bounty, parameters[nameof(FulfillBountyDialog.Bounty)]);
+    }
+
+    [Fact]
+    public void FulfillDialogParameters_WhenBountyIsNull_ThrowsArgumentNullException()
+    {
+        _ = Assert.Throws<ArgumentNullException>(() => BountyBoardViewModel.FulfillDialogParameters(null!));
+    }
+
+    [Fact]
+    public void FulfillDialogOptions_ReturnsExpectedOptions()
+    {
+        var options = BountyBoardViewModel.FulfillDialogOptions();
+        Assert.True(options.CloseOnEscapeKey);
+        Assert.Equal(MaxWidth.Small, options.MaxWidth);
+        Assert.True(options.FullWidth);
+    }
+
     [Fact]
     public void ResolveRewardAsset_WhenBountyHasRewardAssetIdAndExistsInDictionary_ReturnsAsset()
     {

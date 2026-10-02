@@ -65,11 +65,22 @@ public sealed record TagPermissionRequestDto(
     int OfferedAmount = 0,
     string? Message = null);
 
-/// <summary>
-///     対価として選択可能なユーザー所有の RightAsset 情報DTO。
-/// </summary>
 public sealed record UserAvailableRightAssetDto(
     int Id,
     int TargetTagId,
     string TargetTagName,
     int Amount);
+
+/// <summary>
+///     タグ操作権限リクエストの永続化データ（ItemKindJson用）。
+/// </summary>
+public sealed record TagPermissionRequestPayload(
+    int RequestedTagId,
+    string RequestedTagName,
+    int RequestedAmount,
+    int? OfferedRightAssetId = null,
+    string? OfferedTagName = null,
+    int OfferedAmount = 0,
+    string? Message = null,
+    TradeStatus Status = TradeStatus.Proposed,
+    string? RejectReason = null);

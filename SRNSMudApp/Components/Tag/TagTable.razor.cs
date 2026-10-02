@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Components.Authorization;
 
 using MudBlazor;
 
+using SRNSMudApp.Components.UI;
 using SRNSMudApp.Data;
 using SRNSMudApp.Services;
 using SRNSMudApp.Services.Dialogs;
@@ -28,38 +29,36 @@ public partial class TagTable
     [Parameter] public bool ShowHeader { get; set; } = true;
     [Parameter] public bool ShowCreateButton { get; set; } = true;
 
-    [Inject] private ITagTableDataProvider TagTableData { get; set; } = null!;
+    [Inject] private TagTableViewModel ViewModel { get; set; } = null!;
     [Inject] private NavigationManager NavigationManager { get; set; } = null!;
     [Inject] private IDialogLauncher DialogLauncher { get; set; } = null!;
     [Inject] private ISnackbar Snackbar { get; set; } = null!;
-    [Inject] private ITagLockService TagLockService { get; set; } = null!;
 
-    private string _currentUserId = "";
-    private bool _isAdmin;
+#pragma warning disable IDE1006 // Naming Styles for Blazor bindings
+    private string _currentUserId => ViewModel.CurrentUserId;
+    private bool _isAdmin => ViewModel.IsAdmin;
     private string _tagSearch = "";
-    private List<Data.Tag> _allTagsCache = [];
-    private HashSet<int> _lockedTagIds = [];
+    private List<Data.Tag> _allTagsCache => ViewModel.AllTagsCache;
+#pragma warning restore IDE1006
 
     protected override async Task OnInitializedAsync()
     {
+        string currentUserId = "";
+        var isAdmin = false;
         if (AuthState is not null)
         {
             AuthenticationState authState = await AuthState;
-            _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
-            _isAdmin = authState.User.IsInRole("Admin");
+            currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
+            isAdmin = authState.User.IsInRole("Admin");
         }
 
-        _allTagsCache = await TagTableData.GetAllTagsAsync();
-        await ReloadLockStatusAsync();
+        ViewModel.SetUser(currentUserId, isAdmin);
+        await ViewModel.InitializeAsync();
     }
 
-    private async Task ReloadLockStatusAsync()
-    {
-        var allStatus = await TagLockService.GetAllTagsWithLockStatusAsync();
-        _lockedTagIds = allStatus.Where(s => s.IsLockedEffective).Select(s => s.Id).ToHashSet();
-    }
+    private Task ReloadLockStatusAsync() => ViewModel.ReloadLockStatusAsync();
 
-    private bool IsTagLocked(int tagId) => _lockedTagIds.Contains(tagId);
+    private bool IsTagLocked(int tagId) => ViewModel.IsTagLocked(tagId);
 
     private bool FilterFunc(Data.Tag tag) => TagTableViewModel.FilterFunc(tag, _tagSearch);
 
@@ -100,70 +99,61 @@ public partial class TagTable
         });
     }
 
-    private async Task AddTagToTagAsync(Data.Tag targetTag, Data.Tag selectedTag)
+    private async Task ApplyResultAsync(TagCardActionResult result)
     {
-        TagCardOperationResult result =
-            await TagTableData.AddRelationAsync(targetTag.Id, selectedTag.Id, _currentUserId);
-        switch (result)
+        switch (result.Type)
         {
-            case TagCardOperationResult.AlreadyExists:
-                _ = Snackbar.Add("このタグは既に追加されています。", Severity.Warning);
+            case TagCardActionResultType.Warning:
+                if (result.Message != null)
+                {
+                    _ = Snackbar.Add(result.Message, Severity.Warning);
+                }
                 break;
-            case TagCardOperationResult.Success:
-                _ = Snackbar.Add("タグを追加しました。", Severity.Success);
-                await NotifyDataChangedAsync();
+            case TagCardActionResultType.Error:
+                if (result.Message != null)
+                {
+                    _ = Snackbar.Add(result.Message, Severity.Error);
+                }
                 break;
-            case TagCardOperationResult.NotFound:
-            case TagCardOperationResult.NotOwner:
+            case TagCardActionResultType.Success:
+                if (result.Message != null)
+                {
+                    _ = Snackbar.Add(result.Message, Severity.Success);
+                }
+                break;
+            case TagCardActionResultType.NoOp:
             default:
                 break;
         }
+
+        if (result.ShouldNotifyChanged)
+        {
+            await NotifyDataChangedAsync();
+        }
+    }
+
+    private async Task AddTagToTagAsync(Data.Tag targetTag, Data.Tag selectedTag)
+    {
+        TagCardActionResult result = await ViewModel.AddRelationAsync(targetTag.Id, selectedTag.Id);
+        await ApplyResultAsync(result);
     }
 
     private async Task RemoveTagToTagRelationAsync(TagRelationToTag relation)
     {
-        if (TagTableViewModel.CanRemoveRelation(relation, _currentUserId))
-        {
-            await ExecuteRemoveTagToTagRelationAsync(relation);
-        }
-        else
-        {
-            _ = Snackbar.Add("関連付けの作成者本人ではないため、解除する権限がありません。", Severity.Error);
-        }
-    }
-
-    private async Task ExecuteRemoveTagToTagRelationAsync(TagRelationToTag relation)
-    {
-        TagCardOperationResult result = await TagTableData.RemoveRelationAsync(relation.Id);
-        switch (result)
-        {
-            case TagCardOperationResult.Success:
-                await NotifyDataChangedAsync();
-                _ = Snackbar.Add("タグの関連付けを解除しました。", Severity.Success);
-                break;
-            case TagCardOperationResult.NotFound:
-                _ = Snackbar.Add("対象の関連付けが見つかりません。", Severity.Warning);
-                break;
-            case TagCardOperationResult.AlreadyExists:
-            case TagCardOperationResult.NotOwner:
-            default:
-                break;
-        }
+        TagCardActionResult result = await ViewModel.RemoveRelationAsync(relation);
+        await ApplyResultAsync(result);
     }
 
     private async Task EditTagAsync(Data.Tag tag)
     {
-        if (TagTableViewModel.CanEditTag(tag, _currentUserId, IsTagLocked(tag.Id), _isAdmin))
+        TagCardActionResult checkResult = ViewModel.CheckCanEditTag(tag);
+        if (checkResult.Type == TagCardActionResultType.Success)
         {
             await ShowTagEditDialogAsync(tag);
         }
-        else if (IsTagLocked(tag.Id) && !_isAdmin)
-        {
-            _ = Snackbar.Add("このタグまたはその兄弟タグはロックされているため編集できません。", Severity.Warning);
-        }
         else
         {
-            _ = Snackbar.Add("タグの作成者本人ではないため、編集する権限がありません。", Severity.Error);
+            await ApplyResultAsync(checkResult);
         }
     }
 
@@ -189,46 +179,8 @@ public partial class TagTable
 
     private async Task DeleteTagAsync(Data.Tag tag)
     {
-        if (IsTagLocked(tag.Id) && !_isAdmin)
-        {
-            _ = Snackbar.Add("このタグまたはその兄弟タグはロックされているため削除できません。", Severity.Warning);
-            return;
-        }
-
-        if (TagTableViewModel.CanDeleteTag(tag, _currentUserId, IsTagLocked(tag.Id), _isAdmin))
-        {
-            await ExecuteDeleteTagAsync(tag);
-        }
-        else if (tag.IsSystem)
-        {
-            _ = Snackbar.Add("システムタグは削除できません。", Severity.Error);
-        }
-        else
-        {
-            _ = Snackbar.Add("タグの作成者本人ではないため、削除する権限がありません。", Severity.Error);
-        }
-    }
-
-    [SuppressMessage("Design", "CA1031:Do not catch general exception types",
-        Justification = "UI 層で発生した例外の内容をユーザーへ通知するために広く捕捉する")]
-    private async Task ExecuteDeleteTagAsync(Data.Tag tag)
-    {
-        try
-        {
-            if (await TagTableData.DeleteTagAsync(tag.Id, _isAdmin))
-            {
-                await NotifyDataChangedAsync();
-                _ = Snackbar.Add("タグを削除しました。", Severity.Success);
-            }
-            else
-            {
-                _ = Snackbar.Add("対象のタグが既に削除されているか、見つかりません。", Severity.Warning);
-            }
-        }
-        catch (Exception ex)
-        {
-            _ = Snackbar.Add($"エラーが発生しました: {ex.Message}", Severity.Error);
-        }
+        TagCardActionResult result = await ViewModel.DeleteTagAsync(tag);
+        await ApplyResultAsync(result);
     }
 
     private async Task NotifyDataChangedAsync()

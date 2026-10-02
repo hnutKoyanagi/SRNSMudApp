@@ -1,12 +1,6 @@
 @page "/RightAsset/Overview"
-@rendermode InteractiveServer
-@using SRNSMudApp.Data
-@using SRNSMudApp.Models
-@using SRNSMudApp.Services
+@namespace SRNSMudApp.Components.Pages
 @using SRNSMudApp.Components.Tag
-@inject IRightAssetDataProvider RightAssetDataProvider
-@inject IDialogLauncher DialogLauncher
-@inject NavigationManager NavigationManager
 
 <PageTitle>RightAsset 状況一覧 - SRNS</PageTitle>
 
@@ -24,15 +18,15 @@
 
     <!-- 検索バー -->
     <MudPaper Class="pa-4 mb-6" Elevation="2">
-        <TagAutocomplete Value="@_selectedTag" ValueChanged="OnTagSelectedAsync" Label="タグを検索してRightAsset状況を表示"
+        <TagAutocomplete Value="@ViewModel.SelectedTag" ValueChanged="OnTagSelectedAsync" Label="タグを検索してRightAsset状況を表示"
                          Placeholder="タグ名または説明を入力..." Clearable="true" />
     </MudPaper>
 
-    @if (_isLoading)
+    @if (ViewModel.IsLoading)
     {
         <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-6" />
     }
-    else if (_overviewData != null)
+    else if (ViewModel.OverviewData != null)
     {
         <!-- タグ概要ヘッダーカード -->
         <MudCard Class="mb-6" Elevation="2">
@@ -41,20 +35,20 @@
                     <div>
                         <div class="d-flex align-center gap-2">
                             <MudIcon Icon="@Icons.Material.Filled.LocalOffer" Color="Color.Primary" />
-                            <MudText Typo="Typo.h5" Class="font-weight-bold">@_overviewData.Tag.Name</MudText>
+                            <MudText Typo="Typo.h5" Class="font-weight-bold">@ViewModel.OverviewData.Tag.Name</MudText>
                             <MudChip T="string" Color="Color.Secondary" Size="Size.Small" Variant="Variant.Outlined">
-                                Weight: @_overviewData.Tag.CachedWeight
+                                Weight: @ViewModel.OverviewData.Tag.CachedWeight
                             </MudChip>
-                            @if (_overviewData.Tag.IsSystem)
+                            @if (ViewModel.OverviewData.Tag.IsSystem)
                             {
                                 <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Filled">システムタグ
                                 </MudChip>
                             }
                         </div>
-                        @if (!string.IsNullOrWhiteSpace(_overviewData.Tag.Content))
+                        @if (!string.IsNullOrWhiteSpace(ViewModel.OverviewData.Tag.Content))
                         {
                             <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2">
-                                @_overviewData.Tag.Content
+                                @ViewModel.OverviewData.Tag.Content
                             </MudText>
                         }
                     </div>
@@ -65,7 +59,7 @@
                             JPYCで購入
                         </MudButton>
                         <MudButton Variant="Variant.Outlined" Color="Color.Primary"
-                                   StartIcon="@Icons.Material.Filled.OpenInNew" Href="@($"/TagDetail/{_overviewData.Tag.Id}")">
+                                   StartIcon="@Icons.Material.Filled.OpenInNew" Href="@($"/TagDetail/{ViewModel.OverviewData.Tag.Id}")">
                             タグ詳細を見る
                         </MudButton>
                     </div>
@@ -80,7 +74,7 @@
                     <div>
                         <MudText Typo="Typo.caption" Color="Color.Secondary">総有効保有量</MudText>
                         <MudText Typo="Typo.h5" Class="font-weight-bold" Color="Color.Primary">
-                            @_overviewData.TotalActiveAmount
+                            @ViewModel.OverviewData.TotalActiveAmount
                         </MudText>
                     </div>
                     <MudAvatar Color="Color.Primary" Variant="Variant.Outlined">
@@ -93,7 +87,7 @@
                     <div>
                         <MudText Typo="Typo.caption" Color="Color.Secondary">有効保有者数</MudText>
                         <MudText Typo="Typo.h5" Class="font-weight-bold">
-                            @_overviewData.TotalHoldersCount 人
+                            @ViewModel.OverviewData.TotalHoldersCount 人
                         </MudText>
                     </div>
                     <MudAvatar Color="Color.Success" Variant="Variant.Outlined">
@@ -106,7 +100,7 @@
                     <div>
                         <MudText Typo="Typo.caption" Color="Color.Secondary">有効アセット件数</MudText>
                         <MudText Typo="Typo.h5" Class="font-weight-bold">
-                            @_overviewData.TotalActiveAssetsCount 件
+                            @ViewModel.OverviewData.TotalActiveAssetsCount 件
                         </MudText>
                     </div>
                     <MudAvatar Color="Color.Info" Variant="Variant.Outlined">
@@ -119,7 +113,7 @@
                     <div>
                         <MudText Typo="Typo.caption" Color="Color.Secondary">燃焼済み量 (Burned)</MudText>
                         <MudText Typo="Typo.h5" Class="font-weight-bold" Color="Color.Dark">
-                            @_overviewData.TotalBurnedAmount
+                            @ViewModel.OverviewData.TotalBurnedAmount
                         </MudText>
                     </div>
                     <MudAvatar Color="Color.Default" Variant="Variant.Outlined">
@@ -132,8 +126,8 @@
         <!-- メインタブ: 保有者一覧 / アセット明細 -->
         <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-4">
             <MudTabPanel Text="保有者別サマリー" Icon="@Icons.Material.Filled.People">
-                <MudTable Items="@_overviewData.Holders" Dense="true" Hover="true" Striped="true" Breakpoint="Breakpoint.Sm"
-                          Loading="@_isLoading" LoadingProgressColor="Color.Info" data-testid="right-asset-holders-table">
+                <MudTable Items="@ViewModel.OverviewData.Holders" Dense="true" Hover="true" Striped="true" Breakpoint="Breakpoint.Sm"
+                          Loading="@ViewModel.IsLoading" LoadingProgressColor="Color.Info" data-testid="right-asset-holders-table">
                     <HeaderContent>
                         <MudTh>保有ユーザー</MudTh>
                         <MudTh Style="text-align: right;">有効保有量</MudTh>
@@ -169,9 +163,7 @@
                         </MudTd>
                         <MudTd DataLabel="保有シェア">
                             @{
-                                var share = _overviewData.TotalActiveAmount > 0
-                                    ? (double)context.TotalAmount / _overviewData.TotalActiveAmount * 100
-                                    : 0;
+                                var share = RightAssetOverviewViewModel.CalculateShare(context.TotalAmount, ViewModel.OverviewData.TotalActiveAmount);
                             }
                             <div class="d-flex align-center gap-2">
                                 <MudProgressLinear Color="Color.Primary" Value="@share" Rounded="true"
@@ -213,7 +205,7 @@
             </MudTabPanel>
 
             <MudTabPanel Text="個別 RightAsset 明細" Icon="@Icons.Material.Filled.ListAlt">
-                <MudTable Items="@_overviewData.Assets" Dense="true" Hover="true" Striped="true" Breakpoint="Breakpoint.Sm"
+                <MudTable Items="@ViewModel.OverviewData.Assets" Dense="true" Hover="true" Striped="true" Breakpoint="Breakpoint.Sm"
                           data-testid="right-asset-items-table">
                     <HeaderContent>
                         <MudTh>ID</MudTh>
@@ -276,7 +268,7 @@
             上の検索バーからタグを入力して検索・選択すると、そのタグの RightAsset 保有状況が表示されます。
         </MudAlert>
 
-        @if (_topTags.Count > 0)
+        @if (ViewModel.TopTags.Count > 0)
         {
             <MudPaper Class="pa-4" Elevation="1">
                 <div class="d-flex align-center mb-3">
@@ -284,7 +276,7 @@
                     <MudText Typo="Typo.subtitle1" Class="font-weight-bold">RightAsset 発行実績のあるタグ</MudText>
                 </div>
                 <div class="d-flex flex-wrap gap-2">
-                    @foreach (var tagSummary in _topTags)
+                    @foreach (var tagSummary in ViewModel.TopTags)
                     {
                         <MudChip T="string" Color="Color.Primary" Variant="Variant.Outlined"
                                  Icon="@Icons.Material.Filled.LocalOffer" OnClick="@(() => OnSelectTopTagAsync(tagSummary.TagId))">
@@ -297,95 +289,4 @@
     }
 </MudContainer>
 
-@code {
-    [SupplyParameterFromQuery]
-    public int? TagId { get; set; }
-
-    private Tag? _selectedTag;
-    private RightAssetOverviewData? _overviewData;
-    private IReadOnlyList<TagRightAssetSummary> _topTags = [];
-    private bool _isLoading;
-    private int? _loadedTagId;
-
-    protected override async Task OnInitializedAsync()
-    {
-        _topTags = await RightAssetDataProvider.GetTopTagsWithRightAssetsAsync(15);
-    }
-
-    protected override async Task OnParametersSetAsync()
-    {
-        if (TagId.HasValue && TagId.Value != _loadedTagId)
-        {
-            await LoadDataByTagIdAsync(TagId.Value);
-        }
-        else if (!TagId.HasValue && _loadedTagId.HasValue)
-        {
-            _selectedTag = null;
-            _overviewData = null;
-            _loadedTagId = null;
-        }
-    }
-
-    private async Task OnTagSelectedAsync(Tag? tag)
-    {
-        _selectedTag = tag;
-        if (tag != null)
-        {
-            NavigationManager.NavigateTo($"/RightAsset/Overview?tagId={tag.Id}", replace: false);
-            await LoadDataByTagIdAsync(tag.Id);
-        }
-        else
-        {
-            NavigationManager.NavigateTo("/RightAsset/Overview", replace: false);
-            _overviewData = null;
-            _loadedTagId = null;
-        }
-    }
-
-    private async Task OnSelectTopTagAsync(int tagId)
-    {
-        NavigationManager.NavigateTo($"/RightAsset/Overview?tagId={tagId}", replace: false);
-        await LoadDataByTagIdAsync(tagId);
-    }
-
-    private async Task LoadDataByTagIdAsync(int tagId)
-    {
-        _isLoading = true;
-        _loadedTagId = tagId;
-        try
-        {
-            _overviewData = await RightAssetDataProvider.GetRightAssetOverviewByTagIdAsync(tagId);
-            if (_overviewData != null)
-            {
-                _selectedTag = _overviewData.Tag;
-            }
-        }
-        finally
-        {
-            _isLoading = false;
-        }
-    }
-
-    private async Task OpenPurchaseDialogAsync()
-    {
-        if (_overviewData?.Tag is null)
-        {
-            return;
-        }
-
-        var parameters = new DialogParameters<PurchaseRightAssetDialog>
-        {
-            { x => x.RequestedTag, _overviewData.Tag }
-        };
-        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
-        IDialogReference dialog = await DialogLauncher.ShowAsync<PurchaseRightAssetDialog>("操作権限の購入 (JPYC)", parameters,
-options);
-        DialogResult? result = await dialog.Result;
-
-        if (result is { Canceled: false } && _loadedTagId.HasValue)
-        {
-            await LoadDataByTagIdAsync(_loadedTagId.Value);
-        }
-    }
-}
 
