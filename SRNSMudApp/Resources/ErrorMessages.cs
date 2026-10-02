@@ -58,4 +58,25 @@ public static class ErrorMessages
 
     public static string ContractApproveSuccess =>
         GetString(nameof(ContractApproveSuccess));
+
+    public static string RequestNotFound =>
+        GetString(nameof(RequestNotFound));
+
+    public static string NotAuthorizedToApprove =>
+        GetString(nameof(NotAuthorizedToApprove));
+
+    public static string NotAuthorizedToReject =>
+        GetString(nameof(NotAuthorizedToReject));
+
+    public static string RequestAlreadyProcessed =>
+        GetString(nameof(RequestAlreadyProcessed));
+
+    public static string TargetTagNotFound =>
+        GetString(nameof(TargetTagNotFound));
+
+    public static string InsufficientPermissionBalance =>
+        GetString(nameof(InsufficientPermissionBalance));
+
+    public static string FormatInsufficientPermissionBalance(object needed, object current) =>
+        string.Format(CultureInfo.CurrentCulture, InsufficientPermissionBalance, needed, current);
 }

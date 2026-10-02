@@ -95,4 +95,22 @@
   <data name="ContractApproveSuccess" xml:space="preserve">
     <value>リクエストを承認しました。</value>
   </data>
+  <data name="RequestNotFound" xml:space="preserve">
+    <value>リクエストが見つかりません。</value>
+  </data>
+  <data name="NotAuthorizedToApprove" xml:space="preserve">
+    <value>このリクエストを承認する権限がありません。</value>
+  </data>
+  <data name="NotAuthorizedToReject" xml:space="preserve">
+    <value>このリクエストを却下する権限がありません。</value>
+  </data>
+  <data name="RequestAlreadyProcessed" xml:space="preserve">
+    <value>このリクエストは既に処理されています。</value>
+  </data>
+  <data name="TargetTagNotFound" xml:space="preserve">
+    <value>対象のタグが見つかりません。</value>
+  </data>
+  <data name="InsufficientPermissionBalance" xml:space="preserve">
+    <value>操作権限の残高が不足しています（必要: {0}, 保有: {1}）。</value>
+  </data>
 </root>

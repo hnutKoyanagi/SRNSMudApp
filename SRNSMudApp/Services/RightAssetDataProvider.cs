@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using SRNSMudApp.Data;
 using SRNSMudApp.Models;
 using SRNSMudApp.Models.Unions;
+using SRNSMudApp.Resources;
 
 #endregion
 
@@ -192,31 +193,30 @@ public class RightAssetDataProvider(
                 return [];
             }
 
-            var fallbackIds = fallbackTagIds.Select(x => x.TagId).ToList();
-            var tagsMap = await dbContext.Tags
-                .AsNoTracking()
-                .Where(t => fallbackIds.Contains(t.Id))
-                .ToDictionaryAsync(t => t.Id, cancellationToken);
-
-            return fallbackTagIds
-                .Where(x => tagsMap.ContainsKey(x.TagId))
-                .Select(x => new TagRightAssetSummary(
-                    TagId: x.TagId,
-                    TagName: tagsMap[x.TagId].Name,
-                    TagContent: tagsMap[x.TagId].Content,
-                    TotalAmount: x.TotalAmount,
-                    HolderCount: x.HolderCount
-                ))
-                .ToList();
+            return await MapToTagRightAssetSummariesAsync(
+                dbContext,
+                fallbackTagIds.Select(x => (x.TagId, x.TotalAmount, x.HolderCount)).ToList(),
+                cancellationToken);
         }
 
-        var ids = topTagIds.Select(x => x.TagId).ToList();
+        return await MapToTagRightAssetSummariesAsync(
+            dbContext,
+            topTagIds.Select(x => (x.TagId, x.TotalAmount, x.HolderCount)).ToList(),
+            cancellationToken);
+    }
+
+    private static async Task<IReadOnlyList<TagRightAssetSummary>> MapToTagRightAssetSummariesAsync(
+        ApplicationDbContext dbContext,
+        List<(int TagId, int TotalAmount, int HolderCount)> aggregatedTags,
+        CancellationToken cancellationToken)
+    {
+        var ids = aggregatedTags.Select(x => x.TagId).ToList();
         var tags = await dbContext.Tags
             .AsNoTracking()
             .Where(t => ids.Contains(t.Id))
             .ToDictionaryAsync(t => t.Id, cancellationToken);
 
-        return topTagIds
+        return aggregatedTags
             .Where(x => tags.ContainsKey(x.TagId))
             .Select(x => new TagRightAssetSummary(
                 TagId: x.TagId,
@@ -374,14 +374,14 @@ public class RightAssetDataProvider(
 
         if (item is null)
         {
-            return Result.Fail<bool>("リクエストが見つかりません。");
+            return Result.Fail<bool>(ErrorMessages.RequestNotFound);
         }
 
         bool isTargetUser = item.NotificationRecipients.Any(r =>
             string.Equals(r.RecipientUserId, currentUserId, StringComparison.OrdinalIgnoreCase));
         if (!isTargetUser)
         {
-            return Result.Fail<bool>("このリクエストを承認する権限がありません。");
+            return Result.Fail<bool>(ErrorMessages.NotAuthorizedToApprove);
         }
 
         TagPermissionRequestPayload? payload = ParsePermissionPayload(item);
@@ -392,19 +392,19 @@ public class RightAssetDataProvider(
 
         if (payload.Status != TradeStatus.Proposed)
         {
-            return Result.Fail<bool>("このリクエストは既に処理されています。");
+            return Result.Fail<bool>(ErrorMessages.RequestAlreadyProcessed);
         }
 
         if (payload.RequestedTagId <= 0)
         {
-            return Result.Fail<bool>("対象のタグが見つかりません。");
+            return Result.Fail<bool>(ErrorMessages.TargetTagNotFound);
         }
 
         // TagId のみで対象タグを取得する
         Tag? tag = await dbContext.Tags.FirstOrDefaultAsync(t => t.Id == payload.RequestedTagId, cancellationToken);
         if (tag is null)
         {
-            return Result.Fail<bool>("対象のタグが見つかりません。");
+            return Result.Fail<bool>(ErrorMessages.TargetTagNotFound);
         }
 
         int targetTagId = tag.Id;
@@ -440,7 +440,7 @@ public class RightAssetDataProvider(
             }
             else
             {
-                return Result.Fail<bool>($"操作権限の残高が不足しています（必要: {payload.RequestedAmount}, 保有: {totalApproverAmount}）。");
+                return Result.Fail<bool>(ErrorMessages.FormatInsufficientPermissionBalance(payload.RequestedAmount, totalApproverAmount));
             }
         }
 
@@ -499,14 +499,14 @@ public class RightAssetDataProvider(
 
         if (item is null)
         {
-            return Result.Fail<bool>("リクエストが見つかりません。");
+            return Result.Fail<bool>(ErrorMessages.RequestNotFound);
         }
 
         bool isTargetUser = item.NotificationRecipients.Any(r =>
             string.Equals(r.RecipientUserId, currentUserId, StringComparison.OrdinalIgnoreCase));
         if (!isTargetUser)
         {
-            return Result.Fail<bool>("このリクエストを却下する権限がありません。");
+            return Result.Fail<bool>(ErrorMessages.NotAuthorizedToReject);
         }
 
         TagPermissionRequestPayload? payload = ParsePermissionPayload(item);
@@ -517,7 +517,7 @@ public class RightAssetDataProvider(
 
         if (payload.Status != TradeStatus.Proposed)
         {
-            return Result.Fail<bool>("このリクエストは既に処理されています。");
+            return Result.Fail<bool>(ErrorMessages.RequestAlreadyProcessed);
         }
 
         int targetTagId = payload.RequestedTagId;
@@ -616,9 +616,12 @@ public class RightAssetDataProvider(
     ///     通知アイテムから権限リクエストのメタデータを解析する。
     ///     ItemKindJson による構造化メタデータを優先し、未設定の場合は Content テキストから解析する。
     /// </summary>
+    /// <param name="item">解析対象のアイテムエンティティ。</param>
+    /// <returns>解析されたリクエストペイロード。権限リクエストに該当しない場合は null。</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="item"/> が null の場合にスローされます。</exception>
     public static TagPermissionRequestPayload? ParsePermissionPayload(Item item)
     {
-        if (item is null) return null;
+        ArgumentNullException.ThrowIfNull(item);
 
         if (!string.IsNullOrWhiteSpace(item.ItemKindJson))
         {

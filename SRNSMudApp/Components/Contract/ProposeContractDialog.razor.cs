@@ -44,6 +44,9 @@ public partial class ProposeContractDialog : ComponentBase
     /// </summary>
     [Parameter] public bool IsRemovalRequest { get; set; }
 
+    /// <summary>
+    ///     MudForm のバリデーション状態とのバインディング用フラグ。
+    /// </summary>
     private bool _isValid = true;
     private int _activeTabIndex;
     private string _currentUserId = string.Empty;
@@ -87,6 +90,12 @@ public partial class ProposeContractDialog : ComponentBase
 
     private async Task Submit()
     {
+        if (!_isValid)
+        {
+            Snackbar.Add("入力内容に誤りがあります。確認してください。", Severity.Warning);
+            return;
+        }
+
         var effectiveTargetItem = TargetItem ?? _selectedTargetItem;
         if (effectiveTargetItem is null)
         {

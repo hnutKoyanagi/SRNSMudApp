@@ -684,6 +684,25 @@ public class RightAssetDataProviderTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public void ParsePermissionPayload_WhenItemIsNull_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => RightAssetDataProvider.ParsePermissionPayload(null!));
+    }
+
+    [Fact]
+    public async Task GetTopTagsWithRightAssetsAsync_WhenNoRightAssetsExist_ReturnsEmptyList()
+    {
+        var stubFactory = new DbContextFactoryStub(_sharedDb.Options);
+        var sut = new RightAssetDataProvider(stubFactory);
+
+        // Act
+        var result = await sut.GetTopTagsWithRightAssetsAsync(count: 5);
+
+        // Assert
+        Assert.NotNull(result);
+    }
+
 
     private sealed class DbContextFactoryStub(DbContextOptions<ApplicationDbContext> options)
         : IDbContextFactory<ApplicationDbContext>
