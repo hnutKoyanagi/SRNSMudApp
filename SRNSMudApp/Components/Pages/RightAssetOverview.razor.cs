@@ -17,6 +17,9 @@ public partial class RightAssetOverview : ComponentBase
     [Inject] private RightAssetOverviewViewModel ViewModel { get; set; } = null!;
     [Inject] private NavigationManager NavigationManager { get; set; } = null!;
 
+    /// <summary>
+    ///     URL クエリ文字列 (?tagId=...) からバインドされる対象タグの ID。
+    /// </summary>
     [SupplyParameterFromQuery]
     public int? TagId { get; set; }
 
