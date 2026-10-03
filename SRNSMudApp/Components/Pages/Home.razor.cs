@@ -37,6 +37,8 @@ public partial class Home : ComponentBase
         return new ItemsProviderResult<TimelineFeedGroup>(groups, totalCount);
     }
 
+    protected internal Virtualize<TimelineFeedGroup>? TimelineVirtualize { get; set; }
+
     /// <summary>
     ///     モバイル表示時にフローティングボタンからアイテム追加ダイアログを表示する。
     /// </summary>
@@ -46,6 +48,10 @@ public partial class Home : ComponentBase
         var result = await dialog.Result;
         if (result is { Canceled: false })
         {
+            if (TimelineVirtualize is not null)
+            {
+                await TimelineVirtualize.RefreshDataAsync();
+            }
             await InvokeAsync(StateHasChanged);
         }
     }

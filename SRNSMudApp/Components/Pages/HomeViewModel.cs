@@ -127,13 +127,14 @@ public sealed class HomeViewModel
     /// </summary>
     public async Task<(IReadOnlyList<TimelineFeedGroup> Groups, int TotalCount)> LoadTimelineAsync(int startIndex, int count)
     {
-        if (FollowedTagIds is null or { Count: 0 })
+        if (string.IsNullOrEmpty(CurrentUserId) && (FollowedTagIds is null or { Count: 0 }))
         {
             return ([], 0);
         }
 
+        IReadOnlyList<int> followedTagIds = FollowedTagIds ?? [];
         HomeTimelinePage page = await _homeData.LoadTimelineAsync(
-            FollowedTagIds.ToList(),
+            followedTagIds,
             startIndex,
             count,
             CurrentUserId);

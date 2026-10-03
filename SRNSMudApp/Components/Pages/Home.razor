@@ -17,10 +17,11 @@
                 まだタグをフォローしていません。タグをフォローすると、ここにタイムラインが表示されます。
             </MudAlert>
         }
-        else if (ViewModel.FollowedTagIds is not null)
+
+        @if (ViewModel.FollowedTagIds is not null)
         {
             <div style="height: 80vh; overflow-y: auto;">
-                <Virtualize ItemsProvider="LoadTimeline" Context="group" ItemComparer="new TimelineFeedGroupComparer()">
+                <Virtualize @ref="TimelineVirtualize" ItemsProvider="LoadTimeline" Context="group" ItemComparer="new TimelineFeedGroupComparer()">
                     <ItemContent>
                         <div class="mb-4">
                             @{

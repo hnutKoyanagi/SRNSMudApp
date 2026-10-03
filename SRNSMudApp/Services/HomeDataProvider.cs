@@ -123,15 +123,51 @@ public class HomeDataProvider(IDbContextFactory<ApplicationDbContext> dbFactory)
     {
         await using ApplicationDbContext db = await _dbFactory.CreateDbContextAsync(cancellationToken);
 
-        IQueryable<TimelineEvent> query = db.TimelineEvents!
-            .Where(e => followedTagIds.Contains(e.FollowedTagId));
+        var hasFollowedTags = followedTagIds is { Count: > 0 };
+        var hasCurrentUser = !string.IsNullOrEmpty(currentUserId);
 
-        var groupedQuery = query
-            .GroupBy(e => e.TimelineTargetJson)
+        if (!hasFollowedTags && !hasCurrentUser)
+        {
+            return new HomeTimelinePage([], 0);
+        }
+
+        IQueryable<TimelineTargetDate>? targetQuery = null;
+
+        if (hasFollowedTags)
+        {
+            var followedEvents = db.TimelineEvents!
+                .Where(e => followedTagIds.Contains(e.FollowedTagId))
+                .Select(e => new TimelineTargetDate
+                {
+                    TimelineTargetJson = e.TimelineTargetJson,
+                    EventDate = e.CreatedDate
+                });
+
+            targetQuery = followedEvents;
+        }
+
+        if (hasCurrentUser)
+        {
+            var myItems = db.Items!
+                .Where(i => i.OwnerId == currentUserId)
+                .WhereVisibleToUser(db, currentUserId)
+                .Select(i => new TimelineTargetDate
+                {
+                    TimelineTargetJson = "{\"$type\":\"ItemTarget\",\"TargetItemId\":" + i.Id + "}",
+                    EventDate = i.CreatedDate
+                });
+
+            targetQuery = targetQuery == null
+                ? myItems
+                : targetQuery.Concat(myItems);
+        }
+
+        var groupedQuery = targetQuery!
+            .GroupBy(x => x.TimelineTargetJson)
             .Select(g => new
             {
                 TimelineTargetJson = g.Key,
-                LatestEventDate = g.Max(e => e.CreatedDate)
+                LatestEventDate = g.Max(x => x.EventDate)
             })
             .OrderByDescending(g => g.LatestEventDate);
 
@@ -149,15 +185,26 @@ public class HomeDataProvider(IDbContextFactory<ApplicationDbContext> dbFactory)
             {
                 TimelineTargetJson = pg.TimelineTargetJson,
                 LatestEventDate = pg.LatestEventDate,
-                Events = await db.TimelineEvents!
-                    .Where(e => followedTagIds.Contains(e.FollowedTagId) &&
-                                e.TimelineTargetJson == pg.TimelineTargetJson)
-                    .Include(e => e.FollowedTag)
-                    .AsNoTracking()
-                    .ToListAsync(cancellationToken)
+                Events = hasFollowedTags
+                    ? await db.TimelineEvents!
+                        .Where(e => followedTagIds.Contains(e.FollowedTagId) &&
+                                    e.TimelineTargetJson == pg.TimelineTargetJson)
+                        .Include(e => e.FollowedTag)
+                        .AsNoTracking()
+                        .ToListAsync(cancellationToken)
+                    : []
             };
 
-            TimelineTarget? target = (feedGroup.Events.Count > 0 ? feedGroup.Events[0] : null)?.Target;
+            TimelineTarget? target = null;
+            try
+            {
+                target = System.Text.Json.JsonSerializer.Deserialize<TimelineTarget>(pg.TimelineTargetJson);
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                target = (feedGroup.Events.Count > 0 ? feedGroup.Events[0] : null)?.Target;
+            }
+
             switch (target)
             {
                 case ItemTarget it:
@@ -190,5 +237,11 @@ public class HomeDataProvider(IDbContextFactory<ApplicationDbContext> dbFactory)
         }
 
         return new HomeTimelinePage(feedGroups, totalGroups);
+    }
+
+    private sealed class TimelineTargetDate
+    {
+        public string TimelineTargetJson { get; set; } = string.Empty;
+        public DateTime EventDate { get; set; }
     }
 }

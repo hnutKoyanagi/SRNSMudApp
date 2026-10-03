@@ -67,7 +67,7 @@ public sealed class PageRenderSmokeTests : IAsyncLifetime
             .ReturnsAsync(([], []));
         _ = _homeDataMock.Setup(d => d.EnsureSystemTagsAsync(UserId))
             .ReturnsAsync(new SystemTagsResult(GoodTagId: 1, BadTagId: 2, Created: false));
-        _ = _homeDataMock.Setup(d => d.LoadTimelineAsync(It.IsAny<System.Collections.Generic.IReadOnlyList<int>>(), It.IsAny<int>(), It.IsAny<int>()))
+        _ = _homeDataMock.Setup(d => d.LoadTimelineAsync(It.IsAny<System.Collections.Generic.IReadOnlyList<int>>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new HomeTimelinePage([], 0));
 
         RenderFragment home = builder =>
