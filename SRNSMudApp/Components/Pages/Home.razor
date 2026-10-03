@@ -1,10 +1,7 @@
 @page "/"
-@using System.Security.Claims
 @using SRNSMudApp.Components.UI
 
 @rendermode InteractiveServer
-@inject HomeViewModel ViewModel
-@inject NavigationManager NavigationManager
 
 <PageTitle>Home</PageTitle>
 
@@ -60,6 +57,15 @@
                 </Virtualize>
             </div>
         }
+
+        @* モバイル表示時の右下フローティング丸型鉛筆アイコン (Twitter風FAB) *@
+        <MudHidden Breakpoint="Breakpoint.MdAndUp">
+            <MudFab Color="Color.Primary"
+                    StartIcon="@Icons.Material.Filled.Edit"
+                    Style="position: fixed; right: 20px; bottom: 20px; z-index: 1000;"
+                    OnClick="OpenAddItemDialogAsync"
+                    aria-label="アイテムを追加" />
+        </MudHidden>
     }
     else
     {
@@ -74,19 +80,3 @@
         </div>
     }
 </MudContainer>
-
-@code {
-    [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
-
-    protected override async Task OnInitializedAsync()
-    {
-        var authState = await AuthStateTask;
-        await ViewModel.InitializeAsync(authState.User);
-    }
-
-    private async ValueTask<ItemsProviderResult<TimelineFeedGroup>> LoadTimeline(ItemsProviderRequest request)
-    {
-        var (groups, totalCount) = await ViewModel.LoadTimelineAsync(request.StartIndex, request.Count);
-        return new ItemsProviderResult<TimelineFeedGroup>(groups, totalCount);
-    }
-}

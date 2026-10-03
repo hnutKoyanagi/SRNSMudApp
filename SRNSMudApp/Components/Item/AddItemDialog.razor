@@ -1,0 +1,25 @@
+@namespace SRNSMudApp.Components.Item
+@rendermode InteractiveServer
+
+<MudDialog ContentClass="overflow-x-hidden">
+    <TitleContent>
+        <div class="d-flex align-center justify-space-between w-100">
+            <MudIconButton Icon="@Icons.Material.Filled.Close"
+                           aria-label="閉じる"
+                           OnClick="Cancel" />
+            <MudButton ButtonType="ButtonType.Submit"
+                       form="@FormId"
+                       Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       Size="Size.Small">
+                保存
+            </MudButton>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <AddItem TextareaId="add-item-textarea-dialog"
+                 FormId="@FormId"
+                 HideSubmitButton="true"
+                 OnItemAdded="HandleItemAdded" />
+    </DialogContent>
+</MudDialog>

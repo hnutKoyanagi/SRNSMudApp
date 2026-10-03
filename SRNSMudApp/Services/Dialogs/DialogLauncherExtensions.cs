@@ -22,4 +22,23 @@ public static class DialogLauncherExtensions
         string title,
         DialogOptions options)
         where TDialog : IComponent => launcher.ShowAsync(typeof(TDialog), title, null, options);
+
+    /// <summary>
+    ///     モバイル向けのアイテム追加ダイアログ（全画面）を表示する。
+    /// </summary>
+    /// <param name="launcher">ダイアログランチャー。</param>
+    /// <returns>起動したダイアログへの参照。</returns>
+    public static Task<IDialogReference> ShowAddItemDialogAsync(this IDialogLauncher launcher)
+    {
+        ArgumentNullException.ThrowIfNull(launcher);
+        return launcher.ShowAsync<Components.Item.AddItemDialog>(
+            string.Empty,
+            new DialogOptions
+            {
+                FullScreen = true,
+                CloseButton = false,
+                CloseOnEscapeKey = true,
+                MaxWidth = MaxWidth.False
+            });
+    }
 }

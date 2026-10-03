@@ -8,6 +8,9 @@
     padding: 12px 14px;
     min-height: 90px;
     cursor: text;
+    box-sizing: border-box;
+    max-width: 100%;
+    overflow-x: hidden;
 }
 
 .add-item-editor-container:hover {
@@ -28,7 +31,11 @@
     font-size: 1rem;
     line-height: 1.5;
     word-break: break-word;
+    overflow-wrap: break-word;
     white-space: pre-wrap;
+    box-sizing: border-box;
+    max-width: 100%;
+    overflow-x: hidden;
 }
 
 /* プレースホルダー表示 */
@@ -54,6 +61,13 @@
     user-select: all;
     line-height: 1.4;
     vertical-align: middle;
+    max-width: 100%;
+    word-break: break-word;
+}
+
+::deep .preview-card {
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 /* bUnit テストやフォーム検証用の同期用非表示 textarea */

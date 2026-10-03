@@ -60,6 +60,21 @@ public partial class AddItem : ComponentBase, IAsyncDisposable
     /// </summary>
     [Parameter] public int? ParentItemId { get; set; }
 
+    /// <summary>
+    ///     textarea 要素の DOM ID。複数インスタンスを同時描画する場合に一意にする。
+    /// </summary>
+    [Parameter] public string TextareaId { get; set; } = "add-item-textarea";
+
+    /// <summary>
+    ///     フォーム要素の id 属性（外部の送信ボタンから form 属性で submit する場合に使用）。
+    /// </summary>
+    [Parameter] public string? FormId { get; set; }
+
+    /// <summary>
+    ///     内部の保存ボタンを非表示にするかどうか（ダイアログヘッダーなど外部にボタンを配置する場合）。
+    /// </summary>
+    [Parameter] public bool HideSubmitButton { get; set; }
+
     [SupplyParameterFromForm] private ItemEntity? NewItem { get => ViewModel.NewItem; set => ViewModel.NewItem = value; }
 
     private bool IsPrivate { get => ViewModel.IsPrivate; set => ViewModel.IsPrivate = value; }
@@ -155,7 +170,7 @@ public partial class AddItem : ComponentBase, IAsyncDisposable
         {
             try
             {
-                await JS.InvokeVoidAsync("tributeInterop.clear", "add-item-textarea");
+                await JS.InvokeVoidAsync("tributeInterop.clear", TextareaId);
             }
             catch (Exception)
             {
@@ -310,7 +325,7 @@ public partial class AddItem : ComponentBase, IAsyncDisposable
             if (!token.IsCancellationRequested)
             {
                 var allCandidates = result.AutoReplaceCandidates.Concat(result.ManualCandidates).ToList();
-                await JS.InvokeVoidAsync("tributeInterop.applyLinkCandidates", "add-item-textarea", allCandidates);
+                await JS.InvokeVoidAsync("tributeInterop.applyLinkCandidates", TextareaId, allCandidates);
 
                 ViewModel.LinkAutoReplaceCandidates = result.AutoReplaceCandidates;
                 ViewModel.LinkManualCandidates = result.ManualCandidates;
@@ -359,7 +374,7 @@ public partial class AddItem : ComponentBase, IAsyncDisposable
             _objRef = DotNetObjectReference.Create(this);
             try
             {
-                await JS.InvokeVoidAsync("tributeInterop.init", "add-item-textarea", _objRef);
+                await JS.InvokeVoidAsync("tributeInterop.init", TextareaId, _objRef);
             }
             catch (Exception ex)
             {
@@ -418,7 +433,7 @@ public partial class AddItem : ComponentBase, IAsyncDisposable
         {
             try
             {
-                await JS.InvokeVoidAsync("tributeInterop.destroy", "add-item-textarea");
+                await JS.InvokeVoidAsync("tributeInterop.destroy", TextareaId);
             }
             catch
             {
