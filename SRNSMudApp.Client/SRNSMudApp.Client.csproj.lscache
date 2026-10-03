@@ -57,6 +57,7 @@ TemporaryDependencyNodeTargetIdentifier=net11.0
 /warnaserror+:NU1605,SYSLIB0011
 
 [sourceFiles]
+Components/ItemSearchView.razor.cs
 Models/
  Api/
   ItemListRequest.cs
@@ -138,7 +139,10 @@ Microsoft.NET.Sdk/codestyle/cs|AnalysisLevelSuffix=All
 obj/Debug/net11.0/SRNSMudApp.Client.GeneratedMSBuildEditorConfig.editorconfig
 
 [additionalFiles]
-Pages/Auth.razor
+Components/ItemSearchView.razor
+Pages/
+ Auth.razor
+ ItemSearchPage.razor
 RedirectToLogin.razor
 _Imports.razor
 

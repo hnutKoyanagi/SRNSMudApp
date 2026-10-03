@@ -169,6 +169,15 @@ builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSe
 
 // Register LinkPreview providers and services (Strategy Pattern)
 builder.Services.AddHttpClient();
+builder.Services.AddHttpClient<SRNSMudApp.Client.Services.IItemListApiClient, SRNSMudApp.Client.Services.ItemListApiClient>((sp, client) =>
+{
+    var httpContextAccessor = sp.GetService<IHttpContextAccessor>();
+    var request = httpContextAccessor?.HttpContext?.Request;
+    if (request != null)
+    {
+        client.BaseAddress = new Uri($"{request.Scheme}://{request.Host}");
+    }
+});
 builder.Services.AddSingleton<ILinkPreviewProvider, ItemLinkPreviewProvider>();
 builder.Services.AddSingleton<ILinkPreviewProvider, TagLinkPreviewProvider>();
 builder.Services.AddSingleton<ILinkPreviewProvider, UserLinkPreviewProvider>();
@@ -320,7 +329,8 @@ app.MapControllers();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode()
-    .AddInteractiveWebAssemblyRenderMode();
+    .AddInteractiveWebAssemblyRenderMode()
+    .AddAdditionalAssemblies(typeof(SRNSMudApp.Client._Imports).Assembly);
 
 // Add additional endpoints required by the Identity /Account Razor components.
 app.MapAdditionalIdentityEndpoints();
