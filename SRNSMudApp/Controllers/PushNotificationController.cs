@@ -120,13 +120,27 @@ public sealed class PushNotificationController(
             {
                 return Ok(new { message = "テスト通知を送信しました。", result = userResult });
             }
+
+            if (userResult.FailedCount > 0 || userResult.ExpiredCount > 0)
+            {
+                // ユーザー宛ての購読が存在するが送信失敗した場合
+                if (fallbackSubscription == null || string.IsNullOrWhiteSpace(fallbackSubscription.Endpoint))
+                {
+                    return BadRequest(new { message = "通知送信に失敗しました。サブスクリプションが失効しているか、サーバー設定を確認してください。" });
+                }
+            }
         }
 
         // ユーザーに紐づくサブスクリプションが無いか未ログインで fallbackSubscription がある場合
         if (fallbackSubscription != null && !string.IsNullOrWhiteSpace(fallbackSubscription.Endpoint))
         {
             bool directSuccess = await _pushService.SendNotificationAsync(fallbackSubscription, payload, cancellationToken);
-            return Ok(new { message = directSuccess ? "テスト通知を送信しました。" : "通知の送信に失敗しました。" });
+            if (directSuccess)
+            {
+                return Ok(new { message = "テスト通知を送信しました。" });
+            }
+
+            return BadRequest(new { message = "プッシュ通知の直接送信に失敗しました。VAPID鍵設定または端末の通知設定を確認してください。" });
         }
 
         return BadRequest(new { message = "送信先のサブスクリプションが見つかりません。通知を許可して購読してください。" });
