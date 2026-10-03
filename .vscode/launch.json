@@ -1,22 +1,48 @@
 {
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "name": "Debug SRNSMudApp (Server)",
-            "type": "coreclr",
-            "request": "launch",
-            "preLaunchTask": "kill-existing-server",
-            "program": "${workspaceFolder}/SRNSMudApp/bin/Debug/net11.0/SRNSMudApp.dll",
-            "args": [],
-            "cwd": "${workspaceFolder}/SRNSMudApp",
-            "stopAtEntry": false,
-            "env": {
-                "ASPNETCORE_ENVIRONMENT": "Development",
-                "ASPNETCORE_URLS": "http://localhost:5009"
-            },
-            "launchBrowser": {
-                "enabled": false
-            }
-        }
-    ]
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug SRNSMudApp (Server)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "kill-existing-server",
+      "program": "${workspaceFolder}/SRNSMudApp/bin/Debug/net11.0/SRNSMudApp.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/SRNSMudApp",
+      "stopAtEntry": false,
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "http://localhost:5009"
+      },
+      "launchBrowser": {
+        "enabled": false
+      }
+    },
+    {
+      "name": "Debug SRNSMudApp.Client",
+      "type": "blazorwasm",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/SRNSMudApp.Client",
+      "url": "http://localhost:5009",
+      "browser": "chrome"
+    },
+    {
+      "name": "Debug SRNSMudApp.Client (Chrome)",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://localhost:5009",
+      "webRoot": "${workspaceFolder}/SRNSMudApp.Client",
+      "inspectUri": "{wsProtocol}://{url.hostname}:{url.port}/_framework/debug/ws-proxy?browser={browserInspectUri}"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Debug Server and Client",
+      "configurations": [
+        "Debug SRNSMudApp (Server)",
+        "Debug SRNSMudApp.Client"
+      ],
+      "stopAll": true
+    }
+  ]
 }

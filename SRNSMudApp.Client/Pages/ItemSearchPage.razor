@@ -1,0 +1,22 @@
+@page "/Item/WasmList"
+@using SRNSMudApp.Client.Components
+
+@rendermode InteractiveWebAssembly
+
+<PageTitle>アイテム一覧 (WASM)</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.False" Class="mt-5">
+    <div class="d-flex align-center justify-space-between mb-4">
+        <div>
+            <MudText Typo="Typo.h5">アイテム一覧 & タグ検索 (WebAssembly)</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                ブラウザ側 WebAssembly (WASM) から API (/api/item/query) を直接呼び出して動作します。
+            </MudText>
+        </div>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Href="Item/ItemList" StartIcon="@Icons.Material.Filled.ArrowBack">
+            サーバー版 ItemList へ戻る
+        </MudButton>
+    </div>
+
+    <ItemSearchView />
+</MudContainer>

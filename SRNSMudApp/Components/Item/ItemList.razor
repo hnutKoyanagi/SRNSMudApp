@@ -4,6 +4,12 @@
 @using SRNSMudApp.Components.UI
 
 <MudContainer MaxWidth="MaxWidth.False" Class="mt-5">
+    <div class="d-flex justify-end mb-2">
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" Size="Size.Small" Href="Item/WasmList"
+                   StartIcon="@Icons.Material.Filled.Bolt">
+            WASM 版（表示・検索）を開く
+        </MudButton>
+    </div>
     <MudTabs Elevation="1" Rounded="true" ApplyEffectsToContainer="true" panelClass="pa-4" Class="mb-4">
         <MudTabPanel Text="アイテムの追加">
             <AddItem InitialTags="@(_tagSearchViewModel.SelectedFilters.Select(f => f.Tag))"
