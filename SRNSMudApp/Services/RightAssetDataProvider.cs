@@ -1,3 +1,5 @@
+#pragma warning disable CA1848, CA1873
+
 #region
 
 using System.Text.Json;
