@@ -194,4 +194,35 @@ public class FirebaseWebPushServiceTests
         Assert.True(result.SucceededCount + result.FailedCount + result.ExpiredCount == 1,
             $"user-123 のサブスクリプション 1 件のみが処理対象であること。実際: {result}");
     }
+
+    [Fact]
+    public void VapidOptions_GetEffectivePrivateKey_FallsBackToDefaultWhenPrivateKeyEmpty()
+    {
+        // 1. PrivateKey が明示設定されている場合はそれを優先
+        var explicitOptions = new VapidOptions
+        {
+            PublicKey = "custom-pub",
+            PrivateKey = "custom-priv"
+        };
+        Assert.Equal("custom-priv", explicitOptions.GetEffectivePrivateKey());
+        Assert.True(explicitOptions.IsValid);
+
+        // 2. PrivateKey が空で PublicKey がデフォルトの場合はデフォルト秘密鍵にフォールバック
+        var fallbackOptions = new VapidOptions
+        {
+            PublicKey = VapidOptions.DefaultPublicKey,
+            PrivateKey = ""
+        };
+        Assert.Equal(VapidOptions.DefaultPrivateKey, fallbackOptions.GetEffectivePrivateKey());
+        Assert.True(fallbackOptions.IsValid);
+
+        // 3. PublicKey が独自の値で PrivateKey が空の場合はフォールバック不可で空
+        var invalidOptions = new VapidOptions
+        {
+            PublicKey = "custom-unknown-pub",
+            PrivateKey = ""
+        };
+        Assert.Equal(string.Empty, invalidOptions.GetEffectivePrivateKey());
+        Assert.False(invalidOptions.IsValid);
+    }
 }

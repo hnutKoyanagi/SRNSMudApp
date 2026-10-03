@@ -1,5 +1,5 @@
 // Service Worker for SRNS PWA & Web Push
-const CACHE_NAME = 'srns-pwa-cache-v2';
+const CACHE_NAME = 'srns-pwa-cache-v3';
 
 // オフライン時に利用可能とする基本静的アセット
 const PRECACHE_ASSETS = [
@@ -76,19 +76,27 @@ self.addEventListener('push', (event) => {
 
     if (event.data) {
         try {
-            payload = Object.assign(payload, event.data.json());
+            const dataJson = event.data.json();
+            if (dataJson && typeof dataJson === 'object') {
+                payload = Object.assign(payload, dataJson);
+            }
         } catch (e) {
-            payload.body = event.data.text();
+            payload.body = event.data.text() || payload.body;
         }
     }
 
-    const title = payload.title || 'SRNS 通知';
+    // PascalCase / camelCase 両方のプロパティに対応
+    const title = payload.title || payload.Title || 'SRNS 通知';
+    const body = payload.body || payload.Body || '新しいメッセージが届きました。';
+    const icon = payload.icon || payload.Icon || '/images/icons/icon-192x192.png';
+    const targetUrl = (payload.data && payload.data.url) || payload.url || payload.Url || '/notifications';
+
     const options = {
-        body: payload.body,
-        icon: payload.icon || '/images/icons/icon-192x192.png',
+        body: body,
+        icon: icon,
         badge: '/images/icons/icon-192x192.png',
         data: {
-            url: payload.url || '/notifications'
+            url: targetUrl
         },
         vibrate: [100, 50, 100]
     };

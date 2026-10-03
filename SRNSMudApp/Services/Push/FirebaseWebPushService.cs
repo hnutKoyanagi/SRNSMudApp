@@ -18,12 +18,17 @@ using SRNSMudApp.Models.Push;
 using WebPush;
 
 /// <summary>
-/// Firebase Cloud Messaging (FCM v1 API) を利用して Web ブラウザ（W3C Web Push）へのプッシュ通知配信を行うサービス実装。
-/// Firebase の設定（ServiceAccountJson）が入力されている場合は FCM 経由で送信し、
-/// 未設定の場合はローカル VAPID/WebPushClient に透過的にフォールバックします。
+/// Web ブラウザ（W3C Web Push / RFC 8291 / RFC 8292 VAPID）および Firebase Cloud Messaging (FCM) へのプッシュ通知配信サービス実装。
+/// Chrome, Edge, Safari, Firefox を含むすべての Web ブラウザに対して、Google FCM サーバー経由で確実に Web Push を到達させます。
 /// </summary>
 public sealed class FirebaseWebPushService : IWebPushNotificationService
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = false
+    };
+
     private readonly IPushSubscriptionStore _subscriptionStore;
     private readonly FirebaseOptions _firebaseOptions;
     private readonly VapidOptions _vapidOptions;
@@ -32,7 +37,6 @@ public sealed class FirebaseWebPushService : IWebPushNotificationService
 
     /// <summary>
     /// コンストラクタ。DI コンテナから設定・ストア・ロガーを注入します。
-    /// テスト時は <paramref name="messaging"/> を直接渡してモック差し替え可能。
     /// </summary>
     public FirebaseWebPushService(
         IPushSubscriptionStore subscriptionStore,
@@ -48,7 +52,6 @@ public sealed class FirebaseWebPushService : IWebPushNotificationService
 
         if (messaging != null)
         {
-            // テスト用インジェクション
             _messaging = messaging;
         }
         else if (_firebaseOptions.IsConfigured)
@@ -57,13 +60,17 @@ public sealed class FirebaseWebPushService : IWebPushNotificationService
         }
         else
         {
-            _logger.LogInformation("Firebase の接続情報が未設定のため、直接 WebPush 送信モード（VAPID）で動作します。");
             _messaging = null;
+        }
+
+        if (!_vapidOptions.IsValid)
+        {
+            _logger.LogWarning("VAPIDキー（PublicKey / PrivateKey）が有効に設定されていません。Web Push 通知が失敗する可能性があります。");
         }
     }
 
     /// <summary>
-    /// Firebase Messaging 経由で送信しているかどうか。
+    /// Firebase Messaging が初期化済みかどうか。
     /// </summary>
     public bool IsUsingFirebase => _messaging != null;
 
@@ -134,12 +141,12 @@ public sealed class FirebaseWebPushService : IWebPushNotificationService
             catch (Exception ex)
             {
                 failed++;
-                _logger.LogError(ex, "プッシュ通知送信中にエラーが発生しました: {Endpoint}", sub.Endpoint);
+                _logger.LogError(ex, "プッシュ通知送信中に予期しないエラーが発生しました: {Endpoint}", sub.Endpoint);
             }
         }
 
-        _logger.LogInformation("プッシュ通知配信完了 (Firebase={IsFirebase}): 成功={Succeeded}, 失敗={Failed}, 失効削除={Expired}",
-            IsUsingFirebase, succeeded, failed, expired);
+        _logger.LogInformation("プッシュ通知配信完了: 成功={Succeeded}, 失敗={Failed}, 失効削除={Expired}",
+            succeeded, failed, expired);
         return new PushSendResult(succeeded, failed, expired);
     }
 
@@ -150,91 +157,45 @@ public sealed class FirebaseWebPushService : IWebPushNotificationService
         ArgumentNullException.ThrowIfNull(subscription);
         ArgumentNullException.ThrowIfNull(payload);
 
-        string jsonPayload = JsonSerializer.Serialize(payload);
+        string jsonPayload = JsonSerializer.Serialize(payload, JsonOptions);
 
-        // 1. Firebase FCM v1 API 経由での送信（WebPushConfig を使ってブラウザ Web Push）
-        if (_messaging != null)
+        // 1. ネイティブ FCM 登録トークン（URL ではない単一トークン文字列）が渡された場合のみ Firebase Admin SDK を利用
+        if (_messaging != null && IsNativeFcmToken(subscription.Endpoint))
         {
-            try
-            {
-                var message = new Message
-                {
-                    // FCM v1 の WebPushConfig でブラウザの W3C Web Push エンドポイントへ送信
-                    Webpush = new WebpushConfig
-                    {
-                        Headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                        {
-                            // 暗号化キー情報をヘッダーとして付与
-                            { "Encryption-Key", subscription.Keys.P256Dh },
-                            { "Auth", subscription.Keys.Auth }
-                        },
-                        Data = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                        {
-                            { "payload", jsonPayload }
-                        },
-                        Notification = new WebpushNotification
-                        {
-                            Title = payload.Title,
-                            Body = payload.Body,
-                            Icon = payload.Icon
-                        },
-                        FcmOptions = new WebpushFcmOptions
-                        {
-                            Link = payload.Url
-                        }
-                    },
-                    // ブラウザの PushSubscription.endpoint は FCM トークンを含む URL であるため、
-                    // エンドポイント URL から FCM トークン部分を抽出して Token に設定する。
-                    Token = ExtractFcmTokenFromEndpoint(subscription.Endpoint)
-                };
-
-                // FCM トークンが抽出できない（非 FCM エンドポイント）場合は VAPID フォールバックへ
-                if (string.IsNullOrWhiteSpace(message.Token))
-                {
-                    _logger.LogDebug("エンドポイントから FCM トークンを抽出できませんでした。VAPID フォールバックを使用します: {Endpoint}", subscription.Endpoint);
-                    return await SendViaVapidAsync(subscription, jsonPayload, cancellationToken);
-                }
-
-                string messageId = await _messaging.SendAsync(message, cancellationToken);
-                _logger.LogDebug("Firebase FCM 送信完了: MessageId={MessageId}, Endpoint={Endpoint}", messageId, subscription.Endpoint);
-                return true;
-            }
-            catch (FirebaseMessagingException ex) when (
-                ex.MessagingErrorCode is MessagingErrorCode.Unregistered or MessagingErrorCode.InvalidArgument)
-            {
-                // FCM トークンが無効・登録解除済みの場合は Gone 相当として上位で削除処理できるよう
-                // WebPushException (410 Gone) に変換してスローする
-                _logger.LogWarning("FCM トークンが無効化されています。サブスクリプションを削除します: {Endpoint}", subscription.Endpoint);
-                var pushSub = new PushSubscription(subscription.Endpoint, subscription.Keys.P256Dh, subscription.Keys.Auth);
-                throw new WebPushException("FCM token is unregistered.", pushSub, new HttpResponseMessage(HttpStatusCode.Gone));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Firebase FCM 経由のプッシュ通知送信に失敗しました: {Endpoint}", subscription.Endpoint);
-                return false;
-            }
+            return await SendViaFirebaseAdminAsync(subscription.Endpoint, payload, jsonPayload, cancellationToken);
         }
 
-        // 2. ローカル VAPID/WebPushClient へのフォールバック送信
-        return await SendViaVapidAsync(subscription, jsonPayload, cancellationToken);
+        // 2. ブラウザ W3C Web Push（Chrome/FCM, Edge, Safari, Firefox）への送信
+        // Google FCM も含め、すべてのブラウザ Web Push は RFC 8292 VAPID プロトコルで送信します。
+        return await SendViaWebPushClientAsync(subscription, jsonPayload, cancellationToken);
     }
 
     /// <summary>
-    /// VAPID 認証を使用して直接 Web Push エンドポイントへ通知を送信します。
+    /// VAPID（RFC 8292）認証を用いて各ブラウザのエンドポイント（fcm.googleapis.com 含む）へ Web Push を直接送信します。
     /// </summary>
     [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "Catching unexpected exceptions during WebPush send to log and return false")]
-    private async Task<bool> SendViaVapidAsync(PushSubscriptionDto subscription, string jsonPayload, CancellationToken cancellationToken)
+    private async Task<bool> SendViaWebPushClientAsync(PushSubscriptionDto subscription, string jsonPayload, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(_vapidOptions.PublicKey) || string.IsNullOrWhiteSpace(_vapidOptions.PrivateKey))
+        string privateKey = _vapidOptions.GetEffectivePrivateKey();
+        if (string.IsNullOrWhiteSpace(_vapidOptions.PublicKey) || string.IsNullOrWhiteSpace(privateKey))
         {
-            throw new InvalidOperationException("VAPIDキー（PublicKey / PrivateKey）が設定されていません。");
+            _logger.LogError("VAPIDキー（PublicKey または PrivateKey）が未設定です。プッシュ通知を送信できません。");
+            return false;
+        }
+
+        if (subscription.Keys == null ||
+            string.IsNullOrWhiteSpace(subscription.Keys.P256Dh) ||
+            string.IsNullOrWhiteSpace(subscription.Keys.Auth))
+        {
+            _logger.LogError("サブスクリプションの暗号化キー (P256Dh/Auth) が不足しています: {Endpoint}", subscription.Endpoint);
+            return false;
         }
 
         using var client = new WebPushClient();
         var vapidDetails = new VapidDetails(
             _vapidOptions.Subject,
             _vapidOptions.PublicKey,
-            _vapidOptions.PrivateKey);
+            privateKey);
 
         var pushSubscription = new PushSubscription(
             subscription.Endpoint,
@@ -244,50 +205,93 @@ public sealed class FirebaseWebPushService : IWebPushNotificationService
         try
         {
             await client.SendNotificationAsync(pushSubscription, jsonPayload, vapidDetails, cancellationToken);
-            _logger.LogDebug("VAPID WebPushClient でプッシュ通知を送信しました: {Endpoint}", subscription.Endpoint);
+            _logger.LogInformation("Web Push 通知送信成功: Endpoint={Endpoint}", subscription.Endpoint);
             return true;
         }
         catch (WebPushException ex) when (ex.StatusCode is HttpStatusCode.Gone or HttpStatusCode.NotFound)
         {
-            // 上位の一括配信処理でハンドリングできるようにリスロー
+            // 端末側で購読解除または失効済み (410 / 404) → 上位でストアから削除
+            _logger.LogWarning("Web Push エンドポイントが失効しています (HTTP {StatusCode}): {Endpoint}", ex.StatusCode, subscription.Endpoint);
             throw;
+        }
+        catch (WebPushException ex)
+        {
+            _logger.LogError(ex, "Web Push 送信エラー (HTTP {StatusCode}): Message={Message}, Endpoint={Endpoint}",
+                ex.StatusCode, ex.Message, subscription.Endpoint);
+            return false;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "プッシュ通知の個別送信に失敗しました: {Endpoint}", subscription.Endpoint);
+            _logger.LogError(ex, "Web Push 送信中にエラーが発生しました: {Endpoint}", subscription.Endpoint);
             return false;
         }
     }
 
     /// <summary>
-    /// W3C PushSubscription の endpoint URL から FCM 登録トークンを抽出します。
-    /// FCM エンドポイントは <c>https://fcm.googleapis.com/fcm/send/{token}</c> の形式です。
-    /// 非 FCM エンドポイントの場合は null を返します。
+    /// ネイティブ端末用 FCM トークン宛てに Firebase Admin SDK で送信します。
     /// </summary>
-    private static string? ExtractFcmTokenFromEndpoint(string endpoint)
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "Catching unexpected exceptions during FCM send")]
+    private async Task<bool> SendViaFirebaseAdminAsync(string fcmToken, PushNotificationPayload payload, string jsonPayload, CancellationToken cancellationToken)
     {
-        // FCM v1 Web Push エンドポイントの形式:
-        //   https://fcm.googleapis.com/fcm/send/<token>
-        const string fcmPrefix = "https://fcm.googleapis.com/fcm/send/";
-        if (endpoint.StartsWith(fcmPrefix, StringComparison.OrdinalIgnoreCase))
+        try
         {
-            string token = endpoint[fcmPrefix.Length..];
-            return string.IsNullOrWhiteSpace(token) ? null : token;
+            var message = new Message
+            {
+                Token = fcmToken,
+                Notification = new Notification
+                {
+                    Title = payload.Title,
+                    Body = payload.Body,
+                    ImageUrl = payload.Icon
+                },
+                Data = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    { "payload", jsonPayload },
+                    { "url", payload.Url ?? "/notifications" }
+                }
+            };
+
+            string messageId = await _messaging!.SendAsync(message, cancellationToken);
+            _logger.LogInformation("Firebase FCM 送信完了: MessageId={MessageId}", messageId);
+            return true;
+        }
+        catch (FirebaseMessagingException ex) when (
+            ex.MessagingErrorCode is MessagingErrorCode.Unregistered)
+        {
+            _logger.LogWarning("FCM トークンが無効化されています: {Token}", fcmToken);
+            throw new WebPushException("FCM token is unregistered.", null, new HttpResponseMessage(HttpStatusCode.Gone));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Firebase FCM 送信に失敗しました: {Token}", fcmToken);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 指定されたエンドポイントが W3C Web Push URL ではなく、ネイティブ FCM 登録トークンであるかを判定します。
+    /// </summary>
+    private static bool IsNativeFcmToken(string endpoint)
+    {
+        if (string.IsNullOrWhiteSpace(endpoint))
+        {
+            return false;
         }
 
-        return null;
+        // Web Push のエンドポイントは必ず http:// または https:// で始まります
+        return !endpoint.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+               !endpoint.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
     /// Firebase Admin SDK の FirebaseApp を初期化して FirebaseMessaging インスタンスを返します。
     /// </summary>
-    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "Firebase initialization failure should fall back to VAPID mode, not crash the app")]
-#pragma warning disable CS0618 // GoogleCredential.FromFile / FromJson は現時点で利用可能な標準 API のため使用
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "Firebase initialization failure should not crash the app")]
+#pragma warning disable CS0618
     private static FirebaseMessaging? InitializeFirebaseMessaging(FirebaseOptions options, ILogger logger)
     {
         try
         {
-            // FirebaseApp は Singleton のため、既存インスタンスが存在すれば再利用する
             FirebaseAdmin.FirebaseApp? existingApp = null;
             try
             {
@@ -295,25 +299,22 @@ public sealed class FirebaseWebPushService : IWebPushNotificationService
             }
             catch (Exception)
             {
-                // DefaultInstance が存在しない場合は例外が投げられる可能性があるため無視
+                // DefaultInstance が存在しない場合は無視
             }
 
             if (existingApp == null)
             {
                 GoogleCredential credential;
 
-                // ServiceAccountJson がファイルパスかどうかを判定
                 string serviceAccountValue = options.ServiceAccountJson!;
                 if (File.Exists(serviceAccountValue))
                 {
-                    // ファイルパスとして扱う
                     credential = GoogleCredential.FromFile(serviceAccountValue)
                         .CreateScoped("https://www.googleapis.com/auth/firebase.messaging");
                     logger.LogInformation("Firebase サービスアカウントをファイルから初期化します: {Path}", serviceAccountValue);
                 }
                 else
                 {
-                    // JSON 文字列として扱う
                     credential = GoogleCredential.FromJson(serviceAccountValue)
                         .CreateScoped("https://www.googleapis.com/auth/firebase.messaging");
                     logger.LogInformation("Firebase サービスアカウントを JSON 文字列から初期化します。");
@@ -328,19 +329,14 @@ public sealed class FirebaseWebPushService : IWebPushNotificationService
                 _ = FirebaseAdmin.FirebaseApp.Create(appOptions);
                 logger.LogInformation("Firebase アプリを初期化しました。");
             }
-            else
-            {
-                logger.LogInformation("既存の Firebase アプリ インスタンスを再利用します。");
-            }
 
             return FirebaseMessaging.DefaultInstance;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Firebase アプリの初期化に失敗しました。VAPID フォールバックモードで動作します。");
+            logger.LogError(ex, "Firebase アプリの初期化に失敗しました。VAPID 送信モードで動作します。");
             return null;
         }
     }
 #pragma warning restore CS0618
 }
-
