@@ -56,14 +56,21 @@ public class ExternalTokenVerificationService(HttpClient httpClient, ILogger<Ext
     {
         try
         {
-            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", idToken);
-            HttpResponseMessage response = await _httpClient.GetAsync(new Uri("https://api.line.me/v2/profile"), cancellationToken);
+            // THREAD-01: 共有 HttpClient の DefaultRequestHeaders を変更せず、リクエスト単位の HttpRequestMessage で認証ヘッダーを設定する
+            using var request = new HttpRequestMessage(HttpMethod.Get, new Uri("https://api.line.me/v2/profile"));
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", idToken);
+
+            HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken);
 
             return await (response.IsSuccessStatusCode switch
             {
                 false => Task.FromResult<Result<ExternalTokenPayload>>(LogAndReturnFailure("Invalid LINE token", null)),
                 true => ProcessLineResponseAsync(response, cancellationToken)
             });
+        }
+        catch (FormatException ex)
+        {
+            return LogAndReturnFailure("Invalid LINE token format", ex);
         }
         catch (HttpRequestException ex)
         {
@@ -98,6 +105,10 @@ public class ExternalTokenVerificationService(HttpClient httpClient, ILogger<Ext
                 false => Task.FromResult<Result<ExternalTokenPayload>>(LogAndReturnFailure("Invalid GitHub token", null)),
                 true => ProcessGithubResponseAsync(response, cancellationToken)
             });
+        }
+        catch (FormatException ex)
+        {
+            return LogAndReturnFailure("Invalid GitHub token format", ex);
         }
         catch (HttpRequestException ex)
         {

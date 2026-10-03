@@ -1,7 +1,11 @@
 namespace SRNSMudApp.Tests.Push;
 
+using System.Reflection;
+using System.Security.Claims;
 using System.Threading.Tasks;
 
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -163,5 +167,142 @@ public class PushNotificationTests
         Assert.Equal(0, result.SucceededCount);
         Assert.Equal(0, result.FailedCount);
         Assert.Equal(0, result.ExpiredCount);
+    }
+
+    [Fact]
+    public void PushNotificationController_SendNotification_HasAdminAuthorizeAttribute()
+    {
+        // Act: SEC-01 SendNotification に [Authorize(Roles = "Admin")] が付与されていることを確認
+        var method = typeof(PushNotificationController).GetMethod(nameof(PushNotificationController.SendNotification));
+        Assert.NotNull(method);
+
+        var authorizeAttr = method.GetCustomAttribute<AuthorizeAttribute>();
+        Assert.NotNull(authorizeAttr);
+        Assert.Equal("Admin", authorizeAttr.Roles);
+    }
+
+    [Fact]
+    public async Task PushNotificationController_Subscribe_WhenAuthenticated_UsesClaimUserId()
+    {
+        // Arrange: SEC-01 認証済みユーザーの場合、トークンの UserId（ClaimTypes.NameIdentifier）を使用する
+        var mockStore = new Mock<IPushSubscriptionStore>();
+        var mockPush = new Mock<IWebPushNotificationService>();
+        var options = Options.Create(new VapidOptions());
+        var controller = new PushNotificationController(mockStore.Object, mockPush.Object, options);
+
+        var claims = new[] { new Claim(ClaimTypes.NameIdentifier, "auth-user-123") };
+        var identity = new ClaimsIdentity(claims, "TestAuth");
+        var principal = new ClaimsPrincipal(identity);
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = principal }
+        };
+
+        var dto = new PushSubscriptionDto(
+            "https://example.com/push/auth1",
+            new PushSubscriptionKeysDto("p256", "auth"),
+            UserId: "spoofed-user-id" // クライアントが別の UserId を詐称送信
+        );
+
+        // Act
+        var result = await controller.Subscribe(dto, default) as OkObjectResult;
+
+        // Assert: 詐称された spoofed-user-id ではなく認証済みの auth-user-123 が渡される
+        Assert.NotNull(result);
+        var expectedDto = dto with { UserId = "auth-user-123" };
+        mockStore.Verify(s => s.AddOrUpdateAsync(expectedDto, "auth-user-123", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task PushNotificationController_Subscribe_WhenAuthenticatedWithSub_UsesSubClaimUserId()
+    {
+        // Arrange: SEC-01 sub クレームを持つ認証済みユーザー
+        var mockStore = new Mock<IPushSubscriptionStore>();
+        var mockPush = new Mock<IWebPushNotificationService>();
+        var options = Options.Create(new VapidOptions());
+        var controller = new PushNotificationController(mockStore.Object, mockPush.Object, options);
+
+        var claims = new[] { new Claim("sub", "sub-user-456") };
+        var identity = new ClaimsIdentity(claims, "TestAuth");
+        var principal = new ClaimsPrincipal(identity);
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = principal }
+        };
+
+        var dto = new PushSubscriptionDto(
+            "https://example.com/push/auth2",
+            new PushSubscriptionKeysDto("p256", "auth")
+        );
+
+        // Act
+        var result = await controller.Subscribe(dto, default) as OkObjectResult;
+
+        // Assert: sub クレームの値が使用される
+        Assert.NotNull(result);
+        var expectedDto = dto with { UserId = "sub-user-456" };
+        mockStore.Verify(s => s.AddOrUpdateAsync(expectedDto, "sub-user-456", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task PushNotificationController_Subscribe_WhenUnauthenticated_IgnoresRequestBodyUserIdAndStoresNull()
+    {
+        // Arrange: SEC-01 未認証ユーザーがリクエストボディで UserId を指定しても詐称を防止して null を保存する
+        var mockStore = new Mock<IPushSubscriptionStore>();
+        var mockPush = new Mock<IWebPushNotificationService>();
+        var options = Options.Create(new VapidOptions());
+        var controller = new PushNotificationController(mockStore.Object, mockPush.Object, options);
+
+        // 未認証 HttpContext
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity()) }
+        };
+
+        var dto = new PushSubscriptionDto(
+            "https://example.com/push/anon",
+            new PushSubscriptionKeysDto("p256", "auth"),
+            UserId: "victim-user-id" // 詐称
+        );
+
+        // Act
+        var result = await controller.Subscribe(dto, default) as OkObjectResult;
+
+        // Assert: 未認証時は null が渡されること
+        Assert.NotNull(result);
+        var expectedDto = dto with { UserId = null };
+        mockStore.Verify(s => s.AddOrUpdateAsync(expectedDto, null, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task PushNotificationController_Subscribe_WhenUnauthenticatedWithSpoofedUserId_RealStoreDoesNotIndexVictim()
+    {
+        // SEC-01: 実装のモック化による偽装パスを防ぐため、実ストア(InMemoryPushSubscriptionStore)を用いた結合ユニットテスト
+        var realStore = new InMemoryPushSubscriptionStore();
+        var mockPush = new Mock<IWebPushNotificationService>();
+        var options = Options.Create(new VapidOptions());
+        var controller = new PushNotificationController(realStore, mockPush.Object, options)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity()) }
+            }
+        };
+
+        var attackerDto = new PushSubscriptionDto(
+            "https://example.com/push/exploit-test",
+            new PushSubscriptionKeysDto("p256", "auth"),
+            UserId: "victim-account-id"
+        );
+
+        var result = await controller.Subscribe(attackerDto, default) as OkObjectResult;
+        Assert.NotNull(result);
+
+        var victimSubs = await realStore.GetByUserIdAsync("victim-account-id");
+        Assert.Empty(victimSubs);
+
+        var allSubs = await realStore.GetAllAsync();
+        var stored = Assert.Single(allSubs);
+        Assert.Null(stored.UserId);
     }
 }

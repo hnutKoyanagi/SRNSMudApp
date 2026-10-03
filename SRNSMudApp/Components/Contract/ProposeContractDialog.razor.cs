@@ -90,11 +90,6 @@ public partial class ProposeContractDialog : ComponentBase
 
     private async Task Submit()
     {
-        if (!_isValid)
-        {
-            Snackbar.Add("入力内容に誤りがあります。確認してください。", Severity.Warning);
-            return;
-        }
 
         var effectiveTargetItem = TargetItem ?? _selectedTargetItem;
         if (effectiveTargetItem is null)

@@ -76,7 +76,7 @@ public class TagNodeWidgetTests : IAsyncDisposable
         // Assert
         var chip = cut.Find($".{expectedClass}");
         Assert.NotNull(chip);
-        var markup = cut.Markup;
-        Assert.Contains(expectedTooltip, markup);
+        var tooltip = cut.FindComponents<MudTooltip>().FirstOrDefault(t => t.Instance.Text == expectedTooltip);
+        Assert.NotNull(tooltip);
     }
 }

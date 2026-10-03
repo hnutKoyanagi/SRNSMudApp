@@ -409,14 +409,31 @@ public class ItemListDataProvider(
                 }
             }
 
-            foundTags = await ApplyTagSort(tagQuery, sorts).ToListAsync();
+            try
+            {
+                foundTags = await ApplyTagSort(tagQuery, sorts).ToListAsync();
+            }
+            catch (DbQueryConcurrencyException)
+            {
+                // スプリットクエリ実行中の並行データ変更による相関不整合時は再試行する
+                foundTags = await ApplyTagSort(tagQuery, sorts).ToListAsync();
+            }
         }
         else
         {
             foundTags = [];
         }
 
-        List<Item> items = await ApplyItemSort(query, sorts).ToListAsync();
+        List<Item> items;
+        try
+        {
+            items = await ApplyItemSort(query, sorts).ToListAsync();
+        }
+        catch (DbQueryConcurrencyException)
+        {
+            // スプリットクエリ実行中の並行データ変更による相関不整合時は再試行する
+            items = await ApplyItemSort(query, sorts).ToListAsync();
+        }
         return new ItemListPageData(items, foundTags);
     }
 
