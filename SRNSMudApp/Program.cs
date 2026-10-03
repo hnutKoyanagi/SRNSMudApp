@@ -84,11 +84,11 @@ builder.Services.AddTaggingAndDomainServices();
 // コンポーネント用 ViewModel 群の登録 (MVVM パターン)
 builder.Services.AddViewModels();
 
-// Push Notification 関連サービスの登録 (Azure Notification Hubs & WebPush)
+// Push Notification 関連サービスの登録 (Firebase Cloud Messaging & WebPush)
 builder.Services.Configure<VapidOptions>(builder.Configuration.GetSection(VapidOptions.SectionName));
-builder.Services.Configure<AzureNotificationHubOptions>(builder.Configuration.GetSection(AzureNotificationHubOptions.SectionName));
+builder.Services.Configure<FirebaseOptions>(builder.Configuration.GetSection(FirebaseOptions.SectionName));
 builder.Services.AddSingleton<IPushSubscriptionStore, InMemoryPushSubscriptionStore>();
-builder.Services.AddScoped<IWebPushNotificationService, AzureNotificationHubPushService>();
+builder.Services.AddScoped<IWebPushNotificationService, FirebaseWebPushService>();
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
