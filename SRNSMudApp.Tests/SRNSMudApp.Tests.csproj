@@ -31,10 +31,12 @@
   <ItemGroup>
     <Using Include="Xunit" />
     <Using Include="SRNSMudApp.Tests.TestSupport" />
+    <Using Include="SRNSMudApp.Client.Models" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../SRNSMudApp/SRNSMudApp.csproj" />
+    <ProjectReference Include="../SRNSMudApp.Client/SRNSMudApp.Client.csproj" />
   </ItemGroup>
 
   <ItemGroup>

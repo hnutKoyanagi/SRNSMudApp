@@ -14,4 +14,10 @@ builder.Services.AddAuthorizationCore();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddAuthenticationStateDeserialization();
 
+// API クライアントサービスの登録
+builder.Services.AddHttpClient<SRNSMudApp.Client.Services.IItemListApiClient, SRNSMudApp.Client.Services.ItemListApiClient>(client =>
+{
+    client.BaseAddress = new Uri(builder.HostEnvironment.BaseAddress);
+});
+
 await builder.Build().RunAsync();

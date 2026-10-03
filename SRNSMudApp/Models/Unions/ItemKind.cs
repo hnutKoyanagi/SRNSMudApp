@@ -1,12 +1,7 @@
-using System.Diagnostics.CodeAnalysis;
-namespace SRNSMudApp.Models.Unions;
-
-public record StandaloneItem();
-public record ReplyItem(int ParentItemId);
-public record RequestReplyItem(int TaggingRequestEntityId);
-public record RequestBodyItem(int TaggingRequestEntityId);
-public record QuoteItem(int QuotedItemId);
-public record TagCommentItem(int TargetItemId, int TagId);
-
-[SuppressMessage("Performance", "CA1815:Override equals and operator equals on value types", Justification = "Union type handled by C# compiler")]
-public readonly union ItemKind(StandaloneItem, ReplyItem, RequestReplyItem, RequestBodyItem, QuoteItem, TagCommentItem);
+global using StandaloneItem = SRNSMudApp.Client.Models.StandaloneItem;
+global using ReplyItem = SRNSMudApp.Client.Models.ReplyItem;
+global using RequestReplyItem = SRNSMudApp.Client.Models.RequestReplyItem;
+global using RequestBodyItem = SRNSMudApp.Client.Models.RequestBodyItem;
+global using QuoteItem = SRNSMudApp.Client.Models.QuoteItem;
+global using TagCommentItem = SRNSMudApp.Client.Models.TagCommentItem;
+global using ItemKind = SRNSMudApp.Client.Models.ItemKind;
