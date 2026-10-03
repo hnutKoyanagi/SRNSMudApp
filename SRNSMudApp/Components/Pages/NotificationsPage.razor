@@ -224,14 +224,9 @@
                                                                     <MudIcon Icon="@Icons.Material.Filled.Key" Size="Size.Small"
                                                                              Color="Color.Primary" Class="mr-2" />
                                                                     <MudText Typo="Typo.body2">
-                                                                        @{
-                                                                            var tagId = permNote.RequestedTagId > 0
-                                                                                ? permNote.RequestedTagId
-                                                                                : ViewModel.AllTags.FirstOrDefault(t => t.Name == permNote.RequestedTagName)?.Id ?? 0;
-                                                                        }
-                                                                        タグ: @if (tagId > 0)
+                                                                        タグ: @if (permNote.RequestedTagId > 0)
                                                                         {
-                                                                            <MudLink Href="@($"/TagDetail/{tagId}")"
+                                                                            <MudLink Href="@($"/TagDetail/{permNote.RequestedTagId}")"
                                                                                      Typo="Typo.body2"
                                                                                      Color="Color.Primary"
                                                                                      Class="font-weight-bold"
@@ -241,13 +236,7 @@
                                                                         }
                                                                         else
                                                                         {
-                                                                            <MudLink OnClick="@(() => NavigateToTagDetailByNameAsync(permNote.RequestedTagName))"
-                                                                                     Typo="Typo.body2"
-                                                                                     Color="Color.Primary"
-                                                                                     Class="font-weight-bold cursor-pointer"
-                                                                                     data-testid="permission-request-tag-link">
-                                                                                @permNote.RequestedTagName
-                                                                            </MudLink>
+                                                                            <span class="font-weight-bold" data-testid="permission-request-tag-text">@permNote.RequestedTagName</span>
                                                                         }
                                                                         <span class="ml-2 font-weight-bold">要求数量: @permNote.RequestedAmount</span>
                                                                         @switch (permNote.Status)
@@ -267,21 +256,8 @@
                                                                 </div>
                                                                 @if (permNote.OfferedRightAssetId.HasValue && !string.IsNullOrEmpty(permNote.OfferedTagName))
                                                                 {
-                                                                    var offeredTagId = ViewModel.AllTags.FirstOrDefault(t => t.Name == permNote.OfferedTagName)?.Id ?? 0;
                                                                     <MudText Typo="Typo.body2" Class="mt-1">
-                                                                        対価: @if (offeredTagId > 0)
-                                                                        {
-                                                                            <MudLink Href="@($"/TagDetail/{offeredTagId}")"
-                                                                                     Typo="Typo.body2"
-                                                                                     Color="Color.Primary"
-                                                                                     Class="font-weight-bold">
-                                                                                @permNote.OfferedTagName
-                                                                            </MudLink>
-                                                                        }
-                                                                        else
-                                                                        {
-                                                                            <strong>@permNote.OfferedTagName</strong>
-                                                                        }
+                                                                        対価: <strong>@permNote.OfferedTagName</strong>
                                                                         (数量: @permNote.OfferedAmount)
                                                                     </MudText>
                                                                 }

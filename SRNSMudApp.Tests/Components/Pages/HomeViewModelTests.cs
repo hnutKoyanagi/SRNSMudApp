@@ -185,24 +185,37 @@ public sealed class HomeViewModelTests
     }
 
     [Fact]
-    public async Task LoadTimelineAsync_FollowedTagsNullOrEmpty_ReturnsEmptyResult()
+    public async Task LoadTimelineAsync_Unauthenticated_ReturnsEmptyResult()
     {
-        // 1. FollowedTagIds is null
-        var (groups1, totalCount1) = await _sut.LoadTimelineAsync(0, 10);
-        Assert.Empty(groups1);
-        Assert.Equal(0, totalCount1);
+        // Unauthenticated user (CurrentUserId empty, FollowedTagIds null)
+        var (groups, totalCount) = await _sut.LoadTimelineAsync(0, 10);
+        Assert.Empty(groups);
+        Assert.Equal(0, totalCount);
 
-        // 2. FollowedTagIds is empty
+        _homeDataMock.Verify(d => d.LoadTimelineAsync(It.IsAny<IReadOnlyList<int>>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task LoadTimelineAsync_AuthenticatedWithEmptyFollowedTags_CallsLoadTimelineForOwnPosts()
+    {
+        // Arrange
         const string userId = "user-123";
         _homeDataMock.Setup(d => d.GetFollowedTagIdsAsync(userId)).ReturnsAsync([]);
         _homeDataMock.Setup(d => d.GetTagsAndRelationsAsync()).ReturnsAsync(([], []));
         await _sut.InitializeAsync(CreateClaimsPrincipal(userId));
 
-        var (groups2, totalCount2) = await _sut.LoadTimelineAsync(0, 10);
-        Assert.Empty(groups2);
-        Assert.Equal(0, totalCount2);
+        List<TimelineFeedGroup> expectedGroups = [new() { TimelineTargetJson = "my-item-target" }];
+        _homeDataMock.Setup(d => d.LoadTimelineAsync(It.Is<IReadOnlyList<int>>(l => l.Count == 0), 0, 10, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HomeTimelinePage(expectedGroups, 1));
 
-        _homeDataMock.Verify(d => d.LoadTimelineAsync(It.IsAny<IReadOnlyList<int>>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string>()), Times.Never);
+        // Act
+        var (groups, totalCount) = await _sut.LoadTimelineAsync(0, 10);
+
+        // Assert: フォロータグが0件でも自分の投稿を読み込むために LoadTimelineAsync が呼ばれること
+        Assert.Single(groups);
+        Assert.Equal(1, totalCount);
+        Assert.Equal("my-item-target", groups[0].TimelineTargetJson);
+        _homeDataMock.Verify(d => d.LoadTimelineAsync(It.Is<IReadOnlyList<int>>(l => l.Count == 0), 0, 10, userId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -219,7 +232,7 @@ public sealed class HomeViewModelTests
             new() { TimelineTargetJson = "target1" },
             new() { TimelineTargetJson = "target2" }
         ];
-        _homeDataMock.Setup(d => d.LoadTimelineAsync(It.IsAny<IReadOnlyList<int>>(), 0, 20, userId))
+        _homeDataMock.Setup(d => d.LoadTimelineAsync(It.IsAny<IReadOnlyList<int>>(), 0, 20, userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new HomeTimelinePage(expectedGroups, 50));
 
         // Act

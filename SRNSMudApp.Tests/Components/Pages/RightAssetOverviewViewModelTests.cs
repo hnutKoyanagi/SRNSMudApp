@@ -28,6 +28,20 @@ public class RightAssetOverviewViewModelTests
     }
 
     [Fact]
+    public void Constructor_WhenDataProviderIsNull_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            new RightAssetOverviewViewModel(null!, _dialogLauncherMock.Object));
+    }
+
+    [Fact]
+    public void Constructor_WhenDialogLauncherIsNull_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            new RightAssetOverviewViewModel(_dataProviderMock.Object, null!));
+    }
+
+    [Fact]
     public async Task InitializeAsync_LoadsTopTags()
     {
         // Arrange
@@ -36,7 +50,7 @@ public class RightAssetOverviewViewModelTests
             new(1, "Tag1", "Desc1", 100, 5),
             new(2, "Tag2", null, 50, 2)
         };
-        _dataProviderMock.Setup(d => d.GetTopTagsWithRightAssetsAsync(15))
+        _dataProviderMock.Setup(d => d.GetTopTagsWithRightAssetsAsync(15, It.IsAny<CancellationToken>()))
             .ReturnsAsync(expectedTags);
 
         var vm = CreateViewModel();
@@ -48,7 +62,7 @@ public class RightAssetOverviewViewModelTests
         Assert.Equal(2, vm.TopTags.Count);
         Assert.Equal("Tag1", vm.TopTags[0].TagName);
         Assert.Equal(100, vm.TopTags[0].TotalAmount);
-        _dataProviderMock.Verify(d => d.GetTopTagsWithRightAssetsAsync(15), Times.Once);
+        _dataProviderMock.Verify(d => d.GetTopTagsWithRightAssetsAsync(15, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -65,7 +79,7 @@ public class RightAssetOverviewViewModelTests
             Holders: [],
             Assets: []);
 
-        _dataProviderMock.Setup(d => d.GetRightAssetOverviewByTagIdAsync(42))
+        _dataProviderMock.Setup(d => d.GetRightAssetOverviewByTagIdAsync(42, It.IsAny<CancellationToken>()))
             .ReturnsAsync(overviewData);
 
         var vm = CreateViewModel();
@@ -85,7 +99,7 @@ public class RightAssetOverviewViewModelTests
     public async Task LoadDataByTagIdAsync_WhenDataNotFound_SetsLoadedTagIdAndNullOverview()
     {
         // Arrange
-        _dataProviderMock.Setup(d => d.GetRightAssetOverviewByTagIdAsync(999))
+        _dataProviderMock.Setup(d => d.GetRightAssetOverviewByTagIdAsync(999, It.IsAny<CancellationToken>()))
             .ReturnsAsync((RightAssetOverviewData?)null);
 
         var vm = CreateViewModel();
@@ -106,7 +120,7 @@ public class RightAssetOverviewViewModelTests
         // Arrange
         var tag = new Tag { Id = 1, Name = "Tag", OwnerId = "user-1" };
         var vm = CreateViewModel();
-        _dataProviderMock.Setup(d => d.GetRightAssetOverviewByTagIdAsync(1))
+        _dataProviderMock.Setup(d => d.GetRightAssetOverviewByTagIdAsync(1, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new RightAssetOverviewData(tag, 1, 10, 1, 0, [], []));
 
         await vm.LoadDataByTagIdAsync(1);
@@ -160,7 +174,7 @@ public class RightAssetOverviewViewModelTests
         // Arrange
         var tag = new Tag { Id = 10, Name = "BuyTag", OwnerId = "user-1" };
         var overviewData = new RightAssetOverviewData(tag, 1, 100, 1, 0, [], []);
-        _dataProviderMock.Setup(d => d.GetRightAssetOverviewByTagIdAsync(10))
+        _dataProviderMock.Setup(d => d.GetRightAssetOverviewByTagIdAsync(10, It.IsAny<CancellationToken>()))
             .ReturnsAsync(overviewData);
 
         var dialogRefMock = new Mock<IDialogReference>();
@@ -182,7 +196,7 @@ public class RightAssetOverviewViewModelTests
 
         // Assert
         Assert.True(result);
-        _dataProviderMock.Verify(d => d.GetRightAssetOverviewByTagIdAsync(10), Times.Exactly(2));
+        _dataProviderMock.Verify(d => d.GetRightAssetOverviewByTagIdAsync(10, It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
     [Fact]
@@ -191,7 +205,7 @@ public class RightAssetOverviewViewModelTests
         // Arrange
         var tag = new Tag { Id = 10, Name = "BuyTag", OwnerId = "user-1" };
         var overviewData = new RightAssetOverviewData(tag, 1, 100, 1, 0, [], []);
-        _dataProviderMock.Setup(d => d.GetRightAssetOverviewByTagIdAsync(10))
+        _dataProviderMock.Setup(d => d.GetRightAssetOverviewByTagIdAsync(10, It.IsAny<CancellationToken>()))
             .ReturnsAsync(overviewData);
 
         var dialogRefMock = new Mock<IDialogReference>();
@@ -213,6 +227,6 @@ public class RightAssetOverviewViewModelTests
 
         // Assert
         Assert.False(result);
-        _dataProviderMock.Verify(d => d.GetRightAssetOverviewByTagIdAsync(10), Times.Once);
+        _dataProviderMock.Verify(d => d.GetRightAssetOverviewByTagIdAsync(10, It.IsAny<CancellationToken>()), Times.Once);
     }
 }

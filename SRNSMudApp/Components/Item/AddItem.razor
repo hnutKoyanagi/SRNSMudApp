@@ -12,23 +12,23 @@
     }
     else
     {
-        <EditForm Model="@NewItem" OnValidSubmit="HandleValidSubmit" OnInvalidSubmit="HandleInvalidSubmit"
+        <EditForm id="@FormId" Model="@NewItem" OnValidSubmit="HandleValidSubmit" OnInvalidSubmit="HandleInvalidSubmit"
                   FormName="AddItem" class="w-100">
             <DataAnnotationsValidator />
 
-            <MudStack Row="true" Spacing="4" AlignItems="AlignItems.Start">
-                <MudStack Class="flex-grow-1" Style="min-width: 0;">
+            <MudStack Row="@(!HideSubmitButton)" Wrap="Wrap.Wrap" Spacing="4" AlignItems="AlignItems.Start">
+                <MudStack Class="flex-grow-1" Style="min-width: 0; max-width: 100%;">
                     @{
                         var allUrls = ItemCardViewModel.ExtractUrls(NewItem.Content);
                         var externalUrls = allUrls.Where(u => !u.StartsWith("/")).ToList();
                     }
-                    <div class="add-item-editor-container" onclick="document.getElementById('add-item-textarea')?.focus()">
+                    <div class="add-item-editor-container" onclick="document.getElementById('@TextareaId')?.focus()">
                         @* リンクプレビュー（pill）をインライン表示可能な contenteditable エディタ *@
-                        <div id="add-item-textarea" class="add-item-editor" contenteditable="true" role="textbox"
+                        <div id="@TextareaId" class="add-item-editor" contenteditable="true" role="textbox"
                              aria-multiline="true" data-placeholder="新しいアイテムのコンテンツを入力..."></div>
 
                         @* bUnit テストおよびフォーム同期用の textarea（テスト・バリデーション互換性を維持） *@
-                        <textarea id="add-item-textarea-hidden" name="_newItem.Content" class="add-item-hidden-textarea"
+                        <textarea id="@(TextareaId + "-hidden")" name="_newItem.Content" class="add-item-hidden-textarea"
                                   value="@NewItem.Content"
                                   @oninput="@(async (ChangeEventArgs e) => await HandleContentChanged(e.Value?.ToString() ?? string.Empty))"
                                   @onkeydown="@HandleKeyDown"></textarea>
@@ -41,7 +41,7 @@
                         </MudText>
                     </div>
 
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="4" Class="mt-1">
+                    <MudStack Row="true" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center" Spacing="4" Class="mt-1 flex-wrap">
                         <MudSwitch @bind-Value="IsPrivate" Color="Color.Primary" Label="プライベートモード" Size="Size.Small" />
                         <MudSwitch @bind-Value="IsLinkConversionEnabled" Color="Color.Info" Label="テキスト→内部リンク変換"
                                    Size="Size.Small" data-testid="link-conversion-toggle" />
@@ -49,7 +49,7 @@
                         @if (IsPrivate)
                         {
                             <MudSelect T="int?" @bind-Value="SelectedGroupId" Label="公開範囲" Dense="true" Margin="Margin.Dense"
-                                       Variant="Variant.Outlined" Style="max-width: 250px;">
+                                       Variant="Variant.Outlined" Style="max-width: 100%; min-width: 200px;">
                                 <MudSelectItem T="int?" Value="@((int?)null)">フォロワーのみ（デフォルト）</MudSelectItem>
                                 @foreach (var group in UserGroups ?? [])
                                 {
@@ -99,7 +99,7 @@
                     @* 外部URLのプレビューカードのみ別セクションに表示 *@
                     @if (externalUrls.Count > 0)
                     {
-                        <MudStack Spacing="2" Class="mt-2">
+                        <MudStack Spacing="2" Class="mt-2 w-100" Style="max-width: 100%; min-width: 0;">
                             @foreach (var url in externalUrls.Take(3))
                             {
                                 <SRNSMudApp.Components.UI.UrlPreviewCard Url="@url" LoadPreview="@ViewModel.GetPreviewAsync" />
@@ -108,12 +108,15 @@
                     }
                 </MudStack>
 
-                <MudStack AlignItems="AlignItems.Center" Class="mt-2" Style="min-width: 90px;">
-                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary"
-                               Size="Size.Large" Class="w-100">
-                        保存
-                    </MudButton>
-                </MudStack>
+                @if (!HideSubmitButton)
+                {
+                    <MudStack AlignItems="AlignItems.Center" Class="mt-2" Style="min-width: 90px;">
+                        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary"
+                                   Size="Size.Large" Class="w-100">
+                            保存
+                        </MudButton>
+                    </MudStack>
+                }
             </MudStack>
         </EditForm>
     }

@@ -26,6 +26,9 @@ public partial class UserDetail : ComponentBase, IAsyncDisposable
 
     [CascadingParameter] private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
 
+    /// <summary>
+    ///     表示対象となるユーザーの ID。省略時は現在ログイン中のユーザーが表示されます。
+    /// </summary>
     [Parameter] public string? UserId { get; set; } = string.Empty;
 
     private string? _lastLoadedUserId;

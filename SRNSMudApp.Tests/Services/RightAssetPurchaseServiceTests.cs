@@ -1,6 +1,7 @@
 #region
 
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 using SRNSMudApp.Data;
 using SRNSMudApp.Models;
@@ -391,6 +392,282 @@ public class RightAssetPurchaseServiceTests : IAsyncLifetime
             // ウォレットがDBに保存されていること
             var wallet = await db.UserDepositWallets.FirstOrDefaultAsync(w => w.OwnerId == userId && w.NetworkName == "polygon-amoy");
             Assert.NotNull(wallet);
+        }
+    }
+
+    [Fact]
+    public async Task PurchaseRightAssetWithJpycAsync_WhenDepositTransactionSaveFails_RollsBackRightAssetAtomically()
+    {
+        // Arrange: DATA-01 / DATA-02 のアトミック性検証
+        // 2回目の SaveChanges（JpycDepositTransaction 保存時）に例外が発生した場合、
+        // 最初の SaveChanges で登録された RightAsset もトランザクションロールバックにより保存されないことを確認
+        var tid = Guid.NewGuid().ToString("N")[..8];
+        var userId = $"atomic_rollback_user_{tid}";
+
+        await using (var seedDb = new ApplicationDbContext(_sharedDb.Options))
+        {
+            await seedDb.SeedUsersAsync(userId);
+            var tag = new Tag
+            {
+                Name = $"AtomicTag_{tid}",
+                Content = "Atomic Tag Content",
+                OwnerId = userId
+            };
+            seedDb.Tags.Add(tag);
+            await seedDb.SaveChangesAsync();
+        }
+
+        int tagId;
+        await using (var queryDb = new ApplicationDbContext(_sharedDb.Options))
+        {
+            var tag = await queryDb.Tags.FirstAsync(t => t.Name == $"AtomicTag_{tid}");
+            tagId = tag.Id;
+        }
+
+        // JpycDepositTransaction 保存時に意図的に例外を投げるインターセプターを設定
+        var faultyOptions = new DbContextOptionsBuilder<ApplicationDbContext>(_sharedDb.Options)
+            .AddInterceptors(new FaultyDepositTransactionInterceptor())
+            .Options;
+        var faultyFactory = new DbContextFactoryStub(faultyOptions);
+        var sut = new RightAssetPurchaseService(faultyFactory, _verifier);
+
+        var amount = 3;
+        var unitPrice = 100;
+        var totalJpyc = amount * unitPrice;
+        var txHash = await sut.SimulateDepositAsync(userId, "polygon-amoy", totalJpyc);
+
+        var request = new JpycPurchaseRequestDto(
+            RequestedTagId: tagId,
+            Amount: amount,
+            UnitPriceJpyc: unitPrice,
+            NetworkName: "polygon-amoy",
+            TransactionHash: txHash
+        );
+
+        // Act: 実行すると JpycDepositTransaction 保存時の例外がスローされる
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            sut.PurchaseRightAssetWithJpycAsync(userId, request));
+
+        // Assert: ロールバックされたため、RightAsset も JpycDepositTransaction も一切保存されていないこと
+        await using (var verifyDb = new ApplicationDbContext(_sharedDb.Options))
+        {
+            var assets = await verifyDb.RightAssets.Where(a => a.OwnerId == userId).ToListAsync();
+            Assert.Empty(assets);
+
+            var transactions = await verifyDb.JpycDepositTransactions.Where(t => t.TransactionHash == txHash).ToListAsync();
+            Assert.Empty(transactions);
+        }
+    }
+
+    private sealed class FaultyDepositTransactionInterceptor : SaveChangesInterceptor
+    {
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (eventData.Context is not null)
+            {
+                var hasDepositTx = eventData.Context.ChangeTracker.Entries<JpycDepositTransaction>().Any();
+                if (hasDepositTx)
+                {
+                    throw new InvalidOperationException("Simulated failure when persisting JpycDepositTransaction");
+                }
+            }
+            return base.SavingChangesAsync(eventData, result, cancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task PurchaseRightAssetWithJpycAsync_WhenTransientFailureOnFirstSave_RetriesSafelyWithoutDuplicatingAssets()
+    {
+        var tid = Guid.NewGuid().ToString("N")[..8];
+        var userId = $"retry_first_save_{tid}";
+
+        await using (var seedDb = new ApplicationDbContext(_sharedDb.Options))
+        {
+            await seedDb.SeedUsersAsync(userId);
+            var tag = new Tag
+            {
+                Name = $"RetryTag1_{tid}",
+                Content = "Tag for retry test",
+                OwnerId = userId
+            };
+            seedDb.Tags.Add(tag);
+            await seedDb.SaveChangesAsync();
+        }
+
+        int tagId;
+        await using (var queryDb = new ApplicationDbContext(_sharedDb.Options))
+        {
+            var tag = await queryDb.Tags.FirstAsync(t => t.Name == $"RetryTag1_{tid}");
+            tagId = tag.Id;
+        }
+
+        var interceptor = new TransientTimeoutOnFirstSaveInterceptor();
+        var retryOptions = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlServer(_sharedDb.ConnectionString, sqlOptions =>
+            {
+                sqlOptions.UseHierarchyId();
+                sqlOptions.CommandTimeout(300);
+                sqlOptions.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromMilliseconds(50), errorNumbersToAdd: null);
+            })
+            .AddInterceptors(interceptor)
+            .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning))
+            .Options;
+
+        var factory = new DbContextFactoryStub(retryOptions);
+        var sut = new RightAssetPurchaseService(factory, _verifier);
+
+        var amount = 2;
+        var unitPrice = 100;
+        var totalJpyc = amount * unitPrice;
+        var txHash = await sut.SimulateDepositAsync(userId, "polygon-amoy", totalJpyc);
+
+        var request = new JpycPurchaseRequestDto(
+            RequestedTagId: tagId,
+            Amount: amount,
+            UnitPriceJpyc: unitPrice,
+            NetworkName: "polygon-amoy",
+            TransactionHash: txHash
+        );
+
+        // Act
+        var result = await sut.PurchaseRightAssetWithJpycAsync(userId, request);
+
+        // Assert
+        Assert.True(result is Success<RightAsset>, $"Expected success on retry but got: {result}");
+
+        await using (var verifyDb = new ApplicationDbContext(_sharedDb.Options))
+        {
+            var assets = await verifyDb.RightAssets.Where(a => a.OwnerId == userId).ToListAsync();
+            // 重要な検証: リトライによりアセットが二重発行されていないこと（1レコードのみ存在すること）
+            Assert.Single(assets);
+            Assert.Equal(amount, assets[0].Amount);
+
+            var transactions = await verifyDb.JpycDepositTransactions.Where(t => t.TransactionHash == txHash).ToListAsync();
+            Assert.Single(transactions);
+        }
+    }
+
+    [Fact]
+    public async Task PurchaseRightAssetWithJpycAsync_WhenTransientFailureOnSecondSave_RetriesSafelyAndAtomically()
+    {
+        var tid = Guid.NewGuid().ToString("N")[..8];
+        var userId = $"retry_second_save_{tid}";
+
+        await using (var seedDb = new ApplicationDbContext(_sharedDb.Options))
+        {
+            await seedDb.SeedUsersAsync(userId);
+            var tag = new Tag
+            {
+                Name = $"RetryTag2_{tid}",
+                Content = "Tag for retry test",
+                OwnerId = userId
+            };
+            seedDb.Tags.Add(tag);
+            await seedDb.SaveChangesAsync();
+        }
+
+        int tagId;
+        await using (var queryDb = new ApplicationDbContext(_sharedDb.Options))
+        {
+            var tag = await queryDb.Tags.FirstAsync(t => t.Name == $"RetryTag2_{tid}");
+            tagId = tag.Id;
+        }
+
+        var interceptor = new TransientTimeoutOnSecondSaveInterceptor();
+        var retryOptions = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlServer(_sharedDb.ConnectionString, sqlOptions =>
+            {
+                sqlOptions.UseHierarchyId();
+                sqlOptions.CommandTimeout(300);
+                sqlOptions.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromMilliseconds(50), errorNumbersToAdd: null);
+            })
+            .AddInterceptors(interceptor)
+            .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning))
+            .Options;
+
+        var factory = new DbContextFactoryStub(retryOptions);
+        var sut = new RightAssetPurchaseService(factory, _verifier);
+
+        var amount = 2;
+        var unitPrice = 100;
+        var totalJpyc = amount * unitPrice;
+        var txHash = await sut.SimulateDepositAsync(userId, "polygon-amoy", totalJpyc);
+
+        var request = new JpycPurchaseRequestDto(
+            RequestedTagId: tagId,
+            Amount: amount,
+            UnitPriceJpyc: unitPrice,
+            NetworkName: "polygon-amoy",
+            TransactionHash: txHash
+        );
+
+        // Act
+        var result = await sut.PurchaseRightAssetWithJpycAsync(userId, request);
+
+        // Assert
+        Assert.True(result is Success<RightAsset>, $"Expected success on retry but got: {result}");
+
+        await using (var verifyDb = new ApplicationDbContext(_sharedDb.Options))
+        {
+            var assets = await verifyDb.RightAssets.Where(a => a.OwnerId == userId).ToListAsync();
+            // 重要な検証: ロールバックとリトライにより二重発行や孤立レコードが生じないこと
+            Assert.Single(assets);
+            Assert.Equal(amount, assets[0].Amount);
+
+            var transactions = await verifyDb.JpycDepositTransactions.Where(t => t.TransactionHash == txHash).ToListAsync();
+            Assert.Single(transactions);
+        }
+    }
+
+    private sealed class TransientTimeoutOnFirstSaveInterceptor : SaveChangesInterceptor
+    {
+        private int _attempt;
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (eventData.Context is not null)
+            {
+                var hasRightAsset = eventData.Context.ChangeTracker.Entries<RightAsset>().Any();
+                var hasDepositTx = eventData.Context.ChangeTracker.Entries<JpycDepositTransaction>().Any();
+                if (hasRightAsset && !hasDepositTx)
+                {
+                    if (Interlocked.Increment(ref _attempt) == 1)
+                    {
+                        throw new TimeoutException("Simulated transient timeout on first SaveChanges");
+                    }
+                }
+            }
+            return base.SavingChangesAsync(eventData, result, cancellationToken);
+        }
+    }
+
+    private sealed class TransientTimeoutOnSecondSaveInterceptor : SaveChangesInterceptor
+    {
+        private int _attempt;
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (eventData.Context is not null)
+            {
+                var hasDepositTx = eventData.Context.ChangeTracker.Entries<JpycDepositTransaction>().Any();
+                if (hasDepositTx)
+                {
+                    if (Interlocked.Increment(ref _attempt) == 1)
+                    {
+                        throw new TimeoutException("Simulated transient timeout on second SaveChanges");
+                    }
+                }
+            }
+            return base.SavingChangesAsync(eventData, result, cancellationToken);
         }
     }
 

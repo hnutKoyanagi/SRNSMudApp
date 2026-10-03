@@ -138,4 +138,10 @@ public sealed class ProposeContractViewModelTests
             TaggingRequestType.Add,
             1), Times.Once);
     }
+
+    [Fact]
+    public void Constructor_WhenContractServiceIsNull_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => new ProposeContractViewModel(null!));
+    }
 }

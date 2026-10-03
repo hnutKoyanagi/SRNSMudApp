@@ -2,6 +2,7 @@ namespace SRNSMudApp.Controllers;
 
 using System.Security.Claims;
 
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -46,10 +47,18 @@ public sealed class PushNotificationController(
             return BadRequest(new { message = "無効なサブスクリプション情報です。" });
         }
 
-        // ログイン中のユーザーIDを優先、なければリクエストボディのUserIdを使用
-        string? userId = User?.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? subscription.UserId;
+        // SEC-01: 認証済みユーザーのIDを取得（ClaimTypes.NameIdentifier または "sub"）
+        // 未認証ユーザーの場合はリクエストボディの UserId を任意に信用せず null とする（ユーザーIDのなりすまし登録を防止）
+        string? authenticatedUserId = User?.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User?.FindFirst("sub")?.Value;
+        string? userId = (User?.Identity?.IsAuthenticated == true && !string.IsNullOrWhiteSpace(authenticatedUserId))
+            ? authenticatedUserId
+            : null;
 
-        await _subscriptionStore.AddOrUpdateAsync(subscription, userId, cancellationToken);
+        // SEC-01: クライアントがリクエストボディで指定した UserId を無条件に破棄し、
+        // サーバー側で検証した userId（認証済みならクレーム値、未認証なら null）で DTO を無害化して保存する
+        var sanitizedSubscription = subscription with { UserId = userId };
+
+        await _subscriptionStore.AddOrUpdateAsync(sanitizedSubscription, userId, cancellationToken);
         return Ok(new { message = "サブスクリプションの登録に成功しました。", userId });
     }
 
@@ -69,9 +78,10 @@ public sealed class PushNotificationController(
     }
 
     /// <summary>
-    /// 保存されている全購読者に対してプッシュ通知を送信します。
+    /// 保存されている全購読者に対してプッシュ通知を送信します。管理者ロール（Admin）のみ実行可能です。
     /// </summary>
     [HttpPost("send")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> SendNotification([FromBody] PushNotificationPayload? payload, CancellationToken cancellationToken)
     {
         if (payload == null || string.IsNullOrWhiteSpace(payload.Title) || string.IsNullOrWhiteSpace(payload.Body))

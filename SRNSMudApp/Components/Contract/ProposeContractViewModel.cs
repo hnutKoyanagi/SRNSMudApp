@@ -11,18 +11,12 @@ namespace SRNSMudApp.Components.Contract;
 ///     タグ契約提案（Propose Contract）の入力検証および提案実行ロジックを集約する ViewModel。
 ///     bUnit を使わずに xUnit で直接単体テスト可能。
 /// </summary>
-public class ProposeContractViewModel
+public class ProposeContractViewModel(
+    ITaggingContractService contractService,
+    IContractLookupDataProvider? contractData = null)
 {
-    private readonly ITaggingContractService _contractService;
-    private readonly IContractLookupDataProvider? _contractData;
-
-    public ProposeContractViewModel(
-        ITaggingContractService contractService,
-        IContractLookupDataProvider? contractData = null)
-    {
-        _contractService = contractService;
-        _contractData = contractData;
-    }
+    private readonly ITaggingContractService _contractService = contractService ?? throw new ArgumentNullException(nameof(contractService));
+    private readonly IContractLookupDataProvider? _contractData = contractData;
 
     /// <summary>
     ///     利用可能なライトアセット一覧を取得する。

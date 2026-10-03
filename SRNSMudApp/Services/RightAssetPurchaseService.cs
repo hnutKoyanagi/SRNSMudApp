@@ -239,53 +239,67 @@ public class RightAssetPurchaseService(
             return Result.Fail<RightAsset>(verification.ErrorMessage ?? "トランザクションの完了を確認できませんでした。");
         }
 
-        // 新規 RightAsset の発行
-        var newAsset = new RightAsset
+        // DATA-01 / DATA-02: RightAsset、JpycDepositTransaction、Item の保存を同一トランザクション内でアトミックにコミットする
+        // SqlServerRetryingExecutionStrategy との互換性を保つため ExecuteWithStrategyAsync 内でトランザクションを開始・コミット
+        return await dbContext.Database.ExecuteWithStrategyAsync(async () =>
         {
-            TargetTagId = tag.Id,
-            OwnerId = userId,
-            Amount = request.Amount,
-            IsBurned = false
-        };
+            // DATA-01 / DATA-02: 一時的障害によるリトライ発生時、前回試行で失敗・ロールバックされたエンティティが
+            // ChangeTracker に残存していると、重複登録（double-minting）や一意キー制約違反が発生する。
+            // 各試行の開始時に ChangeTracker をクリアして常にクリーンな状態でトランザクションを再実行する。
+            dbContext.ChangeTracker.Clear();
 
-        dbContext.RightAssets.Add(newAsset);
-        await dbContext.SaveChangesAsync(cancellationToken);
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
-        // JpycDepositTransaction レコードの保存
-        var depositTx = new JpycDepositTransaction
-        {
-            OwnerId = userId,
-            DepositAddress = wallet.DepositAddress,
-            TransactionHash = normalizedTx,
-            NetworkName = request.NetworkName,
-            AmountJpyc = verification.AmountJpyc > 0 ? verification.AmountJpyc : request.TotalJpycAmount,
-            TargetTagId = tag.Id,
-            RightAssetAmount = request.Amount,
-            RightAssetId = newAsset.Id,
-            Status = JpycDepositStatus.Confirmed,
-            VerifiedAt = DateTime.UtcNow
-        };
+            // 新規 RightAsset の発行
+            var newAsset = new RightAsset
+            {
+                TargetTagId = tag.Id,
+                OwnerId = userId,
+                Amount = request.Amount,
+                IsBurned = false
+            };
 
-        dbContext.JpycDepositTransactions.Add(depositTx);
+            dbContext.RightAssets.Add(newAsset);
+            await dbContext.SaveChangesAsync(cancellationToken);
 
-        // 取引・購入ログの記録用 Item 作成
-        var itemContent = $"【JPYC決済によるRightAsset購入（システム確認完了）】\n" +
-                          $"タグ「{tag.Name}」の操作権限 {request.Amount} を購入・付与しました。\n" +
-                          $"単価: {request.UnitPriceJpyc:N0} JPYC / 合計: {request.TotalJpycAmount:N0} JPYC\n" +
-                          $"受取専用アドレス: {wallet.DepositAddress}\n" +
-                          $"ネットワーク: {request.NetworkName} / Tx: {normalizedTx}";
+            // JpycDepositTransaction レコードの保存（生成された RightAsset.Id を紐付け）
+            var depositTx = new JpycDepositTransaction
+            {
+                OwnerId = userId,
+                DepositAddress = wallet.DepositAddress,
+                TransactionHash = normalizedTx,
+                NetworkName = request.NetworkName,
+                AmountJpyc = verification.AmountJpyc > 0 ? verification.AmountJpyc : request.TotalJpycAmount,
+                TargetTagId = tag.Id,
+                RightAssetAmount = request.Amount,
+                RightAssetId = newAsset.Id,
+                Status = JpycDepositStatus.Confirmed,
+                VerifiedAt = DateTime.UtcNow
+            };
 
-        var purchaseItem = new Item
-        {
-            OwnerId = userId,
-            Content = itemContent
-        };
+            dbContext.JpycDepositTransactions.Add(depositTx);
 
-        dbContext.Items.Add(purchaseItem);
+            // 取引・購入ログの記録用 Item 作成
+            var itemContent = $"【JPYC決済によるRightAsset購入（システム確認完了）】\n" +
+                              $"タグ「{tag.Name}」の操作権限 {request.Amount} を購入・付与しました。\n" +
+                              $"単価: {request.UnitPriceJpyc:N0} JPYC / 合計: {request.TotalJpycAmount:N0} JPYC\n" +
+                              $"受取専用アドレス: {wallet.DepositAddress}\n" +
+                              $"ネットワーク: {request.NetworkName} / Tx: {normalizedTx}";
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+            var purchaseItem = new Item
+            {
+                OwnerId = userId,
+                Content = itemContent
+            };
 
-        return Result.Ok(newAsset);
+            dbContext.Items.Add(purchaseItem);
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            await transaction.CommitAsync(cancellationToken);
+
+            return Result.Ok(newAsset);
+        });
     }
 
     /// <summary>

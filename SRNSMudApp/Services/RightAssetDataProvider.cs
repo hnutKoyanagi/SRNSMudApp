@@ -3,10 +3,12 @@
 using System.Text.Json;
 
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 using SRNSMudApp.Data;
 using SRNSMudApp.Models;
 using SRNSMudApp.Models.Unions;
+using SRNSMudApp.Resources;
 
 #endregion
 
@@ -60,10 +62,12 @@ public interface IRightAssetDataProvider
 /// </summary>
 public class RightAssetDataProvider(
     IDbContextFactory<ApplicationDbContext> dbFactory,
-    INotificationService? notificationService = null) : IRightAssetDataProvider
+    INotificationService? notificationService = null,
+    ILogger<RightAssetDataProvider>? logger = null) : IRightAssetDataProvider
 {
     private readonly IDbContextFactory<ApplicationDbContext> _dbFactory = dbFactory ?? throw new ArgumentNullException(nameof(dbFactory));
     private readonly INotificationService? _notificationService = notificationService;
+    private readonly ILogger<RightAssetDataProvider>? _logger = logger;
 
     /// <inheritdoc />
     public async Task<RightAssetOverviewData?> GetRightAssetOverviewByTagIdAsync(int tagId, CancellationToken cancellationToken = default)
@@ -189,31 +193,30 @@ public class RightAssetDataProvider(
                 return [];
             }
 
-            var fallbackIds = fallbackTagIds.Select(x => x.TagId).ToList();
-            var tagsMap = await dbContext.Tags
-                .AsNoTracking()
-                .Where(t => fallbackIds.Contains(t.Id))
-                .ToDictionaryAsync(t => t.Id, cancellationToken);
-
-            return fallbackTagIds
-                .Where(x => tagsMap.ContainsKey(x.TagId))
-                .Select(x => new TagRightAssetSummary(
-                    TagId: x.TagId,
-                    TagName: tagsMap[x.TagId].Name,
-                    TagContent: tagsMap[x.TagId].Content,
-                    TotalAmount: x.TotalAmount,
-                    HolderCount: x.HolderCount
-                ))
-                .ToList();
+            return await MapToTagRightAssetSummariesAsync(
+                dbContext,
+                fallbackTagIds.Select(x => (x.TagId, x.TotalAmount, x.HolderCount)).ToList(),
+                cancellationToken);
         }
 
-        var ids = topTagIds.Select(x => x.TagId).ToList();
+        return await MapToTagRightAssetSummariesAsync(
+            dbContext,
+            topTagIds.Select(x => (x.TagId, x.TotalAmount, x.HolderCount)).ToList(),
+            cancellationToken);
+    }
+
+    private static async Task<IReadOnlyList<TagRightAssetSummary>> MapToTagRightAssetSummariesAsync(
+        ApplicationDbContext dbContext,
+        List<(int TagId, int TotalAmount, int HolderCount)> aggregatedTags,
+        CancellationToken cancellationToken)
+    {
+        var ids = aggregatedTags.Select(x => x.TagId).ToList();
         var tags = await dbContext.Tags
             .AsNoTracking()
             .Where(t => ids.Contains(t.Id))
             .ToDictionaryAsync(t => t.Id, cancellationToken);
 
-        return topTagIds
+        return aggregatedTags
             .Where(x => tags.ContainsKey(x.TagId))
             .Select(x => new TagRightAssetSummary(
                 TagId: x.TagId,
@@ -350,6 +353,10 @@ public class RightAssetDataProvider(
         dbContext.Items.Add(requestItem);
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        _logger?.LogInformation(
+            "User {RequesterUserId} submitted permission request for Tag {TagId} ({TagName}) to User {TargetUserId} with amount {Amount}.",
+            requesterUserId, request.RequestedTagId, tag.Name, request.TargetUserId, request.RequestedAmount);
+
         _notificationService?.NotifyNotificationsChanged();
 
         return Result.Ok(true);
@@ -367,14 +374,14 @@ public class RightAssetDataProvider(
 
         if (item is null)
         {
-            return Result.Fail<bool>("リクエストが見つかりません。");
+            return Result.Fail<bool>(ErrorMessages.RequestNotFound);
         }
 
         bool isTargetUser = item.NotificationRecipients.Any(r =>
             string.Equals(r.RecipientUserId, currentUserId, StringComparison.OrdinalIgnoreCase));
         if (!isTargetUser)
         {
-            return Result.Fail<bool>("このリクエストを承認する権限がありません。");
+            return Result.Fail<bool>(ErrorMessages.NotAuthorizedToApprove);
         }
 
         TagPermissionRequestPayload? payload = ParsePermissionPayload(item);
@@ -385,42 +392,22 @@ public class RightAssetDataProvider(
 
         if (payload.Status != TradeStatus.Proposed)
         {
-            return Result.Fail<bool>("このリクエストは既に処理されています。");
+            return Result.Fail<bool>(ErrorMessages.RequestAlreadyProcessed);
         }
 
-        Tag? tag = null;
-        if (payload.RequestedTagId > 0)
+        if (payload.RequestedTagId <= 0)
         {
-            tag = await dbContext.Tags.FirstOrDefaultAsync(t => t.Id == payload.RequestedTagId, cancellationToken);
+            return Result.Fail<bool>(ErrorMessages.TargetTagNotFound);
         }
 
-        // TagIdで取得できなかった場合、または取得したタグのオーナーが承認者でない場合、
-        // 承認者自身が所有する同名タグを優先して検索・解決する
-        if ((tag == null || !string.Equals(tag.OwnerId, currentUserId, StringComparison.OrdinalIgnoreCase))
-            && !string.IsNullOrWhiteSpace(payload.RequestedTagName))
+        // TagId のみで対象タグを取得する
+        Tag? tag = await dbContext.Tags.FirstOrDefaultAsync(t => t.Id == payload.RequestedTagId, cancellationToken);
+        if (tag is null)
         {
-            var ownerTag = await dbContext.Tags
-                .Where(t => t.Name == payload.RequestedTagName && t.OwnerId == currentUserId)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (ownerTag != null)
-            {
-                tag = ownerTag;
-            }
-            else if (tag == null)
-            {
-                tag = await dbContext.Tags
-                    .Where(t => t.Name == payload.RequestedTagName)
-                    .OrderByDescending(t => t.OwnerId == currentUserId)
-                    .FirstOrDefaultAsync(cancellationToken);
-            }
+            return Result.Fail<bool>(ErrorMessages.TargetTagNotFound);
         }
 
-        int targetTagId = tag?.Id ?? payload.RequestedTagId;
-        if (targetTagId <= 0)
-        {
-            return Result.Fail<bool>("対象のタグが見つかりません。");
-        }
+        int targetTagId = tag.Id;
 
         // 承認者（currentUserId）の要求タグ保有残高を確認
         List<RightAsset> approverAssets = await dbContext.RightAssets
@@ -432,7 +419,7 @@ public class RightAssetDataProvider(
         if (totalApproverAmount < payload.RequestedAmount)
         {
             // 自分のタグ（タグオーナー自身）である場合、不足分の操作権限を新規発行して承認する
-            if (tag != null && string.Equals(tag.OwnerId, currentUserId, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(tag.OwnerId, currentUserId, StringComparison.OrdinalIgnoreCase))
             {
                 int neededAmount = payload.RequestedAmount - totalApproverAmount;
                 var mintedAsset = new RightAsset
@@ -446,10 +433,14 @@ public class RightAssetDataProvider(
                 dbContext.RightAssets.Add(mintedAsset);
                 approverAssets.Add(mintedAsset);
                 totalApproverAmount += neededAmount;
+
+                _logger?.LogInformation(
+                    "Minted {MintedAmount} additional RightAsset for Tag {TagId} to owner {OwnerId}.",
+                    neededAmount, targetTagId, currentUserId);
             }
             else
             {
-                return Result.Fail<bool>($"操作権限の残高が不足しています（必要: {payload.RequestedAmount}, 保有: {totalApproverAmount}）。");
+                return Result.Fail<bool>(ErrorMessages.FormatInsufficientPermissionBalance(payload.RequestedAmount, totalApproverAmount));
             }
         }
 
@@ -466,67 +457,22 @@ public class RightAssetDataProvider(
             }
         }
 
-        // 1. 承認者から要求量を減算
-        int remainingToDeduct = payload.RequestedAmount;
-        foreach (var asset in approverAssets)
-        {
-            if (remainingToDeduct <= 0) break;
-            if (asset.Amount <= remainingToDeduct)
-            {
-                remainingToDeduct -= asset.Amount;
-                asset.Amount = 0;
-                asset.IsBurned = true;
-                asset.Status = new Burned(DateTime.UtcNow);
-            }
-            else
-            {
-                asset.Amount -= remainingToDeduct;
-                remainingToDeduct = 0;
-            }
-        }
+        // 1. 承認者から要求量を減算し、リクエスト送信者に要求量を付与
+        TransferRequestedRightAsset(dbContext, approverAssets, payload.RequestedAmount, item.OwnerId, targetTagId);
 
-        // 2. リクエスト送信者に要求量を付与
-        var newAssetForRequester = new RightAsset
-        {
-            OwnerId = item.OwnerId,
-            TargetTagId = targetTagId,
-            Amount = payload.RequestedAmount,
-            IsBurned = false,
-            Status = new NotBurned()
-        };
-        dbContext.RightAssets.Add(newAssetForRequester);
+        // 2. 対価アセットの移転（存在する場合）
+        TransferOfferedRightAsset(dbContext, offeredAsset, payload.OfferedAmount, currentUserId);
 
-        // 3. 対価アセットの移転（存在する場合）
-        if (offeredAsset is not null && payload.OfferedAmount > 0)
-        {
-            if (offeredAsset.Amount <= payload.OfferedAmount)
-            {
-                offeredAsset.Amount = 0;
-                offeredAsset.IsBurned = true;
-                offeredAsset.Status = new Burned(DateTime.UtcNow);
-            }
-            else
-            {
-                offeredAsset.Amount -= payload.OfferedAmount;
-            }
-
-            var newAssetForApprover = new RightAsset
-            {
-                OwnerId = currentUserId,
-                TargetTagId = offeredAsset.TargetTagId,
-                Amount = payload.OfferedAmount,
-                IsBurned = false,
-                Status = new NotBurned()
-            };
-            dbContext.RightAssets.Add(newAssetForApprover);
-        }
-
-        // 4. ステータス更新
+        // 3. ステータス更新
         var updatedPayload = payload with { Status = TradeStatus.Executed, RequestedTagId = targetTagId };
         item.ItemKindJson = JsonSerializer.Serialize(updatedPayload);
         item.UpdatedDate = DateTime.UtcNow;
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        _logger?.LogInformation(
+            "User {ApproverUserId} approved permission request {ItemId} for Tag {TagId} from User {RequesterUserId}.",
+            currentUserId, itemId, targetTagId, item.OwnerId);
 
         if (_notificationService != null)
         {
@@ -553,14 +499,14 @@ public class RightAssetDataProvider(
 
         if (item is null)
         {
-            return Result.Fail<bool>("リクエストが見つかりません。");
+            return Result.Fail<bool>(ErrorMessages.RequestNotFound);
         }
 
         bool isTargetUser = item.NotificationRecipients.Any(r =>
             string.Equals(r.RecipientUserId, currentUserId, StringComparison.OrdinalIgnoreCase));
         if (!isTargetUser)
         {
-            return Result.Fail<bool>("このリクエストを却下する権限がありません。");
+            return Result.Fail<bool>(ErrorMessages.NotAuthorizedToReject);
         }
 
         TagPermissionRequestPayload? payload = ParsePermissionPayload(item);
@@ -571,27 +517,19 @@ public class RightAssetDataProvider(
 
         if (payload.Status != TradeStatus.Proposed)
         {
-            return Result.Fail<bool>("このリクエストは既に処理されています。");
+            return Result.Fail<bool>(ErrorMessages.RequestAlreadyProcessed);
         }
 
         int targetTagId = payload.RequestedTagId;
-        if (targetTagId <= 0 && !string.IsNullOrWhiteSpace(payload.RequestedTagName))
-        {
-            var resolvedTag = await dbContext.Tags
-                .Where(t => t.Name == payload.RequestedTagName)
-                .OrderByDescending(t => string.Equals(t.OwnerId, currentUserId, StringComparison.OrdinalIgnoreCase))
-                .FirstOrDefaultAsync(cancellationToken);
-            if (resolvedTag != null)
-            {
-                targetTagId = resolvedTag.Id;
-            }
-        }
-
         var updatedPayload = payload with { Status = TradeStatus.Rejected, RejectReason = comment, RequestedTagId = targetTagId };
         item.ItemKindJson = JsonSerializer.Serialize(updatedPayload);
         item.UpdatedDate = DateTime.UtcNow;
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        _logger?.LogInformation(
+            "User {CurrentUserId} rejected permission request {ItemId} for Tag {TagId}. Comment: {Comment}",
+            currentUserId, itemId, targetTagId, comment);
 
         if (_notificationService != null)
         {
@@ -608,13 +546,82 @@ public class RightAssetDataProvider(
         return Result.Ok(true);
     }
 
+    private static void TransferRequestedRightAsset(
+        ApplicationDbContext dbContext,
+        List<RightAsset> approverAssets,
+        int requestedAmount,
+        string requesterUserId,
+        int targetTagId)
+    {
+        int remainingToDeduct = requestedAmount;
+        foreach (var asset in approverAssets)
+        {
+            if (remainingToDeduct <= 0) break;
+            if (asset.Amount <= remainingToDeduct)
+            {
+                remainingToDeduct -= asset.Amount;
+                asset.Amount = 0;
+                asset.IsBurned = true;
+                asset.Status = new Burned(DateTime.UtcNow);
+            }
+            else
+            {
+                asset.Amount -= remainingToDeduct;
+                remainingToDeduct = 0;
+            }
+        }
+
+        var newAssetForRequester = new RightAsset
+        {
+            OwnerId = requesterUserId,
+            TargetTagId = targetTagId,
+            Amount = requestedAmount,
+            IsBurned = false,
+            Status = new NotBurned()
+        };
+        dbContext.RightAssets.Add(newAssetForRequester);
+    }
+
+    private static void TransferOfferedRightAsset(
+        ApplicationDbContext dbContext,
+        RightAsset? offeredAsset,
+        int offeredAmount,
+        string approverUserId)
+    {
+        if (offeredAsset is null || offeredAmount <= 0) return;
+
+        if (offeredAsset.Amount <= offeredAmount)
+        {
+            offeredAsset.Amount = 0;
+            offeredAsset.IsBurned = true;
+            offeredAsset.Status = new Burned(DateTime.UtcNow);
+        }
+        else
+        {
+            offeredAsset.Amount -= offeredAmount;
+        }
+
+        var newAssetForApprover = new RightAsset
+        {
+            OwnerId = approverUserId,
+            TargetTagId = offeredAsset.TargetTagId,
+            Amount = offeredAmount,
+            IsBurned = false,
+            Status = new NotBurned()
+        };
+        dbContext.RightAssets.Add(newAssetForApprover);
+    }
+
     /// <summary>
     ///     通知アイテムから権限リクエストのメタデータを解析する。
     ///     ItemKindJson による構造化メタデータを優先し、未設定の場合は Content テキストから解析する。
     /// </summary>
+    /// <param name="item">解析対象のアイテムエンティティ。</param>
+    /// <returns>解析されたリクエストペイロード。権限リクエストに該当しない場合は null。</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="item"/> が null の場合にスローされます。</exception>
     public static TagPermissionRequestPayload? ParsePermissionPayload(Item item)
     {
-        if (item is null) return null;
+        ArgumentNullException.ThrowIfNull(item);
 
         if (!string.IsNullOrWhiteSpace(item.ItemKindJson))
         {

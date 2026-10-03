@@ -202,7 +202,7 @@ public sealed class NotificationsPageTests : IAsyncLifetime
     }
 
     [Fact]
-    public void TagPermissionRequest_WhenRequestedTagIdIsZero_ResolvesFromAllTagsAndRendersLink()
+    public void TagPermissionRequest_WhenRequestedTagIdIsZero_DoesNotResolveFromAllTagsAndRendersPlainText()
     {
         var targetTag = new SRNSMudApp.Data.Tag { Id = 42, Name = "ResolvedTag", OwnerId = OwnerUserId };
         _homeDataMock.Setup(h => h.GetTagsAndRelationsAsync(It.IsAny<CancellationToken>()))
@@ -217,7 +217,7 @@ public sealed class NotificationsPageTests : IAsyncLifetime
             IsRead = false,
             Kind = new TagPermissionRequestNotification(
                 ItemId: 201,
-                RequestedTagId: 0, // RequestedTagId が 0 の場合でも AllTags から 42 を解決してリンク化
+                RequestedTagId: 0,
                 RequestedTagName: "ResolvedTag",
                 RequestedAmount: 3,
                 OfferedRightAssetId: null,
@@ -243,10 +243,11 @@ public sealed class NotificationsPageTests : IAsyncLifetime
 
         host.WaitForState(() => host.Markup.Contains("ResolvedTag"));
 
-        // タグ名リンクが /TagDetail/42 に遷移可能であること
-        var tagLink = host.Find("[data-testid='permission-request-tag-link']");
-        Assert.NotNull(tagLink);
-        Assert.Equal("/TagDetail/42", tagLink.GetAttribute("href"));
+        // AllTags からのすり替えが行われず、プレーンテキストとして表示されること
+        var tagText = host.Find("[data-testid='permission-request-tag-text']");
+        Assert.NotNull(tagText);
+        Assert.Equal("ResolvedTag", tagText.TextContent.Trim());
+        Assert.Empty(host.FindAll("[data-testid='permission-request-tag-link']"));
     }
 
     private static AuthenticationState CreateAuthState(string userId)

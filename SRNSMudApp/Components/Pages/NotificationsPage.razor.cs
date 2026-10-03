@@ -219,26 +219,4 @@ public partial class NotificationsPage
             ApplyResult(result);
         }
     }
-
-    private async Task NavigateToTagDetailByNameAsync(string tagName)
-    {
-        if (string.IsNullOrWhiteSpace(tagName))
-        {
-            return;
-        }
-
-        var tag = ViewModel.AllTags.FirstOrDefault(t => t.Name == tagName);
-        if (tag != null)
-        {
-            NavigationManager.NavigateTo($"/TagDetail/{tag.Id}");
-            return;
-        }
-
-        await ViewModel.FetchTagsAsync();
-        tag = ViewModel.AllTags.FirstOrDefault(t => t.Name == tagName);
-        if (tag != null)
-        {
-            NavigationManager.NavigateTo($"/TagDetail/{tag.Id}");
-        }
-    }
 }

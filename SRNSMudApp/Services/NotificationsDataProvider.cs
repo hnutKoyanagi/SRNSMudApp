@@ -213,8 +213,6 @@ public class NotificationsDataProvider(IDbContextFactory<ApplicationDbContext> d
                          (i.Content != null && i.Content.StartsWith("【タグ操作権限リクエスト】"))))
             .ToListAsync(cancellationToken);
 
-        await ResolveMissingTagIdsForPermissionRequestsAsync(context, tagPermissionRequests, resolvedTagPermissionRequests, cancellationToken);
-
         return new NotificationRawData(
             tagRequests,
             itemReplies,
@@ -285,50 +283,6 @@ public class NotificationsDataProvider(IDbContextFactory<ApplicationDbContext> d
         {
             context.NotificationReadStates.AddRange(toAdd);
             _ = await context.SaveChangesAsync(cancellationToken);
-        }
-    }
-
-    private static async Task ResolveMissingTagIdsForPermissionRequestsAsync(
-        ApplicationDbContext context,
-        List<Item> tagPermissionRequests,
-        List<Item> resolvedTagPermissionRequests,
-        CancellationToken cancellationToken)
-    {
-        var allPermissionItems = tagPermissionRequests.Concat(resolvedTagPermissionRequests).ToList();
-        var missingItems = allPermissionItems
-            .Select(item => (Item: item, Payload: RightAssetDataProvider.ParsePermissionPayload(item)))
-            .Where(x => x.Payload != null && x.Payload.RequestedTagId <= 0 && !string.IsNullOrWhiteSpace(x.Payload.RequestedTagName))
-            .ToList();
-
-        if (missingItems.Count == 0)
-        {
-            return;
-        }
-
-        var missingTagNames = missingItems
-            .Select(x => x.Payload!.RequestedTagName)
-            .Distinct()
-            .ToList();
-
-        List<Tag> tags = await context.Tags!
-            .AsNoTracking()
-            .Where(t => missingTagNames.Contains(t.Name))
-            .ToListAsync(cancellationToken);
-
-        foreach (var (item, payload) in missingItems)
-        {
-            var recipientUserId = item.NotificationRecipients.FirstOrDefault()?.RecipientUserId;
-            Tag? matchedTag = tags
-                .Where(t => t.Name == payload!.RequestedTagName)
-                .OrderByDescending(t => string.Equals(t.OwnerId, recipientUserId, StringComparison.OrdinalIgnoreCase))
-                .ThenBy(t => t.Id)
-                .FirstOrDefault();
-
-            if (matchedTag != null)
-            {
-                var updatedPayload = payload with { RequestedTagId = matchedTag.Id };
-                item.ItemKindJson = JsonSerializer.Serialize(updatedPayload);
-            }
         }
     }
 }

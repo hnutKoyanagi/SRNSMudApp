@@ -22,7 +22,9 @@ public sealed class InMemoryPushSubscriptionStore : IPushSubscriptionStore
             throw new ArgumentException("Endpoint must not be empty.", nameof(subscription));
         }
 
-        string? effectiveUserId = userId ?? subscription.UserId;
+        // SEC-01: クライアント入力由来の subscription.UserId へのフォールバックを排除し、
+        // 呼び出し元から明示的に渡された検証済み userId のみを採用する
+        string? effectiveUserId = userId;
         var dtoWithUserId = subscription with { UserId = effectiveUserId };
         _subscriptions[subscription.Endpoint] = new StoredSubscription(dtoWithUserId, effectiveUserId);
         return Task.CompletedTask;
