@@ -48,11 +48,20 @@ public partial class Home : ComponentBase
         var result = await dialog.Result;
         if (result is { Canceled: false })
         {
-            if (TimelineVirtualize is not null)
-            {
-                await TimelineVirtualize.RefreshDataAsync();
-            }
-            await InvokeAsync(StateHasChanged);
+            await HandleItemAddedAsync();
         }
+    }
+
+    /// <summary>
+    ///     アイテム追加後にタグ情報の再同期およびタイムラインの再描画を行う。
+    /// </summary>
+    protected internal async Task HandleItemAddedAsync()
+    {
+        await ViewModel.FetchTagsAsync();
+        if (TimelineVirtualize is not null)
+        {
+            await TimelineVirtualize.RefreshDataAsync();
+        }
+        await InvokeAsync(StateHasChanged);
     }
 }
