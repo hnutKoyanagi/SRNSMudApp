@@ -58,14 +58,21 @@ public partial class ReactionCommentDialog : ComponentBase, IDisposable
         {
             if (!_disposed)
             {
-                MudDialog.Close(DialogResult.Ok(result));
+                if (result.Saved)
+                {
+                    MudDialog.Close(DialogResult.Ok(result));
+                }
+                else
+                {
+                    MudDialog.Cancel();
+                }
             }
         });
     }
 
-    public void OnCursorEnter()
+    public void OnToastClicked()
     {
-        ViewModel.OnCursorEnter();
+        ViewModel.OnUserEngaged();
         _cts?.Cancel();
     }
 
@@ -73,6 +80,13 @@ public partial class ReactionCommentDialog : ComponentBase, IDisposable
     {
         _cts?.Cancel();
         ViewModel.Save();
+    }
+
+    private void Cancel()
+    {
+        _cts?.Cancel();
+        ViewModel.Cancel();
+        MudDialog.Cancel();
     }
 
     public void Dispose()

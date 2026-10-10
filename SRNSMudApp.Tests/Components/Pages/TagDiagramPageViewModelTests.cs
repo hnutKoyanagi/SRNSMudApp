@@ -469,7 +469,7 @@ public sealed class TagDiagramPageViewModelTests
     }
 
     [Fact]
-    public void HandleTagSelection_SetsFirstOrSecondTag()
+    public void HandleTagSelection_SetsFirstOrSecondTag_AndTogglesOffWhenSelectedAgain()
     {
         // Arrange
         TagEntity tag1 = CreateTag(1, "Tag 1");
@@ -481,16 +481,65 @@ public sealed class TagDiagramPageViewModelTests
         Assert.Null(_sut.SecondFocusedTag);
         Assert.Contains(1, _sut.PinnedTagIds);
 
-        // Act 2: Select same -> no-op
-        _sut.HandleTagSelection(tag1);
-        Assert.Equal(tag1, _sut.FocusedTag);
-        Assert.Null(_sut.SecondFocusedTag);
-
-        // Act 3: Select second
+        // Act 2: Select second
         _sut.HandleTagSelection(tag2);
         Assert.Equal(tag1, _sut.FocusedTag);
         Assert.Equal(tag2, _sut.SecondFocusedTag);
         Assert.Contains(2, _sut.PinnedTagIds);
+
+        // Act 3: Select second again -> second tag focus is cleared
+        _sut.HandleTagSelection(tag2);
+        Assert.Equal(tag1, _sut.FocusedTag);
+        Assert.Null(_sut.SecondFocusedTag);
+
+        // Act 4: Select first again -> all focus is cleared
+        _sut.HandleTagSelection(tag1);
+        Assert.Null(_sut.FocusedTag);
+        Assert.Null(_sut.SecondFocusedTag);
+    }
+
+    [Fact]
+    public void HandleTagSelection_WhenTwoTagsFocused_SelectFirstAgain_PromotesSecondToFirst()
+    {
+        // Arrange
+        TagEntity tag1 = CreateTag(1, "Tag 1");
+        TagEntity tag2 = CreateTag(2, "Tag 2");
+        _sut.HandleTagSelection(tag1);
+        _sut.HandleTagSelection(tag2);
+        Assert.Equal(tag1, _sut.FocusedTag);
+        Assert.Equal(tag2, _sut.SecondFocusedTag);
+
+        // Act: Select first tag again -> first is cleared, second promoted
+        _sut.HandleTagSelection(tag1);
+
+        // Assert
+        Assert.Equal(tag2, _sut.FocusedTag);
+        Assert.Null(_sut.SecondFocusedTag);
+    }
+
+    [Fact]
+    public void ToggleEdgeSelection_SelectsEdge_AndClearsWhenToggledAgain()
+    {
+        // Arrange
+        TagEdge edge1 = CreateEdge(10, 1, 2);
+        TagEdge edge2 = CreateEdge(20, 2, 3);
+
+        // Act 1: Select edge1
+        _sut.ToggleEdgeSelection(edge1);
+        Assert.Equal(edge1, _sut.SelectedEdge);
+
+        // Act 2: Toggle edge1 again -> cleared
+        _sut.ToggleEdgeSelection(edge1);
+        Assert.Null(_sut.SelectedEdge);
+
+        // Act 3: Select edge1, then select edge2 -> changes to edge2
+        _sut.ToggleEdgeSelection(edge1);
+        _sut.ToggleEdgeSelection(edge2);
+        Assert.Equal(edge2, _sut.SelectedEdge);
+
+        // Act 4: Toggle with null -> clears
+        _sut.ToggleEdgeSelection(null);
+        Assert.Null(_sut.SelectedEdge);
     }
 
     [Fact]

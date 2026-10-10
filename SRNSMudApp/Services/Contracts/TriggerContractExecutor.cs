@@ -162,7 +162,7 @@ public class TriggerContractExecutor(
             OwnerId = contract.RequesterUserId,
             Target = new ItemTarget(contract.TargetItemId),
             FollowedTagId = offer.OfferedTagId,
-            EventType = "Insert",
+            ParsedEventType = TimelineEventType.Insert,
             NewWeight = contract.ProposedWeight
         });
 
@@ -228,7 +228,7 @@ public class TriggerContractExecutor(
             OwnerId = contract.RequesterUserId,
             Target = new ItemTarget(contract.TargetItemId),
             FollowedTagId = offer.OfferedTagId,
-            EventType = "Delete",
+            ParsedEventType = TimelineEventType.Delete,
             PreviousWeight = prevWeight
         });
 

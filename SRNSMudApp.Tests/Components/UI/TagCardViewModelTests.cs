@@ -426,4 +426,82 @@ public class TagCardViewModelTests
         Assert.Equal("タグを変更しました。", result.Message);
         Assert.True(result.ShouldNotifyChanged);
     }
+
+    // --- 同時操作（競合）シナリオ: 別ユーザーが先にリレーションを削除した場合 ---
+
+    /// <summary>
+    ///     タグ交換を試みた際に、別ユーザーの同時操作でリレーションが既に削除されていた場合、
+    ///     DataProvider が NotFound を返し、VM は NoOp を返すことを確認する。
+    ///     （権限チェック通過後のDBアクセス段階での競合ケース）
+    /// </summary>
+    [Fact]
+    public async Task ChangeRelationTagAsync_NotFound_WhenConcurrentlyDeleted_ReturnsNoOp()
+    {
+        var mock = new Moq.Mock<ITagCardDataProvider>();
+        mock.Setup(x => x.ChangeRelationTagAsync(1, 1, 20, "me")).ReturnsAsync(TagCardOperationResult.NotFound);
+        var vm = new TagCardViewModel(mock.Object);
+        // 自分のリレーション（権限チェックは通過する）
+        var relation = CreateRelation(1, 10, ownerId: "me");
+
+        TagCardActionResult result = await vm.ChangeRelationTagAsync(relation, 1, 20, "me");
+
+        // 競合削除の場合は静かに NoOp として扱い、エラーダイアログを出さない
+        Assert.Equal(TagCardActionResultType.NoOp, result.Type);
+        Assert.False(result.ShouldNotifyChanged);
+    }
+
+    /// <summary>
+    ///     Weight 更新を試みた際に、別ユーザーの同時操作でリレーションが既に削除されていた場合、
+    ///     DataProvider が NotFound を返し、VM は NoOp を返すことを確認する。
+    /// </summary>
+    [Fact]
+    public async Task UpdateRelationWeightAsync_NotFound_WhenConcurrentlyDeleted_ReturnsNoOp()
+    {
+        var mock = new Moq.Mock<ITagCardDataProvider>();
+        mock.Setup(x => x.UpdateRelationWeightAsync(1, 1, "me")).ReturnsAsync(TagCardOperationResult.NotFound);
+        var vm = new TagCardViewModel(mock.Object);
+        var relation = CreateRelation(1, 10, ownerId: "me");
+
+        TagCardActionResult result = await vm.UpdateRelationWeightAsync(relation, 1, "me");
+
+        Assert.Equal(TagCardActionResultType.NoOp, result.Type);
+        Assert.False(result.ShouldNotifyChanged);
+    }
+
+    /// <summary>
+    ///     Weight の絶対値セットを試みた際に、別ユーザーの同時操作でリレーションが既に削除されていた場合、
+    ///     DataProvider が NotFound を返し、VM は NoOp を返すことを確認する。
+    /// </summary>
+    [Fact]
+    public async Task SetRelationWeightAsync_NotFound_WhenConcurrentlyDeleted_ReturnsNoOp()
+    {
+        var mock = new Moq.Mock<ITagCardDataProvider>();
+        mock.Setup(x => x.SetRelationWeightAsync(1, 10, "me")).ReturnsAsync(TagCardOperationResult.NotFound);
+        var vm = new TagCardViewModel(mock.Object);
+        // weight=5 → 10 に変更しようとする（NoChange 判定は通過する）
+        var relation = CreateRelation(1, 10, weight: 5, ownerId: "me");
+
+        TagCardActionResult result = await vm.SetRelationWeightAsync(relation, 10, "me");
+
+        Assert.Equal(TagCardActionResultType.NoOp, result.Type);
+        Assert.False(result.ShouldNotifyChanged);
+    }
+
+    /// <summary>
+    ///     関連付け解除を試みた際に、別ユーザーの同時操作でリレーションが既に削除されていた場合、
+    ///     DataProvider が NotFound を返し、VM は NoOp を返すことを確認する。
+    /// </summary>
+    [Fact]
+    public async Task RemoveRelationAsync_NotFound_WhenConcurrentlyDeleted_ReturnsNoOp()
+    {
+        var mock = new Moq.Mock<ITagCardDataProvider>();
+        mock.Setup(x => x.RemoveRelationAsync(1, "me")).ReturnsAsync(TagCardOperationResult.NotFound);
+        var vm = new TagCardViewModel(mock.Object);
+        var relation = CreateRelation(1, 10, ownerId: "me");
+
+        TagCardActionResult result = await vm.RemoveRelationAsync(relation, "me");
+
+        Assert.Equal(TagCardActionResultType.NoOp, result.Type);
+        Assert.False(result.ShouldNotifyChanged);
+    }
 }

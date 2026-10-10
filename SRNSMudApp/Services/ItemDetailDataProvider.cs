@@ -1,10 +1,6 @@
-#region
-
 using Microsoft.EntityFrameworkCore;
 
 using SRNSMudApp.Data;
-
-#endregion
 
 namespace SRNSMudApp.Services;
 
@@ -133,13 +129,10 @@ public class ItemDetailDataProvider(IDbContextFactory<ApplicationDbContext> dbFa
                     .WhereVisibleToUser(context, currentUserId, isAdmin)
                     .ToDictionaryAsync(i => i.Id, cancellationToken);
 
-                foreach (var id in ancestorIds)
-                {
-                    if (ancestorItems.TryGetValue(id, out var parent))
-                    {
-                        ancestors.Add(parent);
-                    }
-                }
+                // CTE でソートされた ancestorIds の深さ順を維持してエンティティ一覧を構築
+                ancestors = [.. ancestorIds
+                    .Select(id => ancestorItems.GetValueOrDefault(id))
+                    .OfType<Item>()];
             }
         }
 

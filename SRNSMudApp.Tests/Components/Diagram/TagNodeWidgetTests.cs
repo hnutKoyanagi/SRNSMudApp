@@ -48,13 +48,10 @@ public class TagNodeWidgetTests : IAsyncDisposable
             .Add(p => p.Node, node)
             .AddCascadingValue(diagram));
 
-        // Act: 詳細ボタンをクリック
-        var detailBtn = cut.Find("button.tag-detail-button");
-        Assert.NotNull(detailBtn);
-        detailBtn.Click();
-
-        // Assert: TagDetail ページへ遷移していること
-        Assert.Contains("/TagDetail/42", navManager.Uri);
+        // Assert: 詳細リンクが描画され、Href が /TagDetail/42 であること
+        var detailLink = cut.Find("a.tag-detail-button");
+        Assert.NotNull(detailLink);
+        Assert.Equal("/TagDetail/42", detailLink.GetAttribute("href"));
     }
 
     [Theory]
@@ -78,5 +75,28 @@ public class TagNodeWidgetTests : IAsyncDisposable
         Assert.NotNull(chip);
         var tooltip = cut.FindComponents<MudTooltip>().FirstOrDefault(t => t.Instance.Text == expectedTooltip);
         Assert.NotNull(tooltip);
+    }
+
+    [Fact]
+    public void TagNodeWidget_RendersMultilineTagName_InNodeNameElement()
+    {
+        // Arrange
+        var diagram = new BlazorDiagram();
+        var multilineName = "Line 1\nLine 2\nLine 3";
+        var tag = new TagEntity { Id = 99, Name = multilineName, OwnerId = "user1" };
+        var node = new TagNode(tag, new Point(0, 0));
+        diagram.Nodes.Add(node);
+
+        // Act
+        var cut = _ctx.Render<TagNodeWidget>(parameters => parameters
+            .Add(p => p.Node, node)
+            .AddCascadingValue(diagram));
+
+        // Assert
+        var nameSpan = cut.Find(".tag-node-name");
+        Assert.NotNull(nameSpan);
+        Assert.Contains("Line 1", nameSpan.TextContent);
+        Assert.Contains("Line 2", nameSpan.TextContent);
+        Assert.Contains("Line 3", nameSpan.TextContent);
     }
 }

@@ -191,13 +191,10 @@ public class ItemNodeWidgetTests : IAsyncDisposable
             .Add(p => p.Node, node)
             .AddCascadingValue(diagram));
 
-        // Act: 詳細ボタンをクリック
-        var detailBtn = cut.Find("button.item-detail-button");
-        Assert.NotNull(detailBtn);
-        detailBtn.Click();
-
-        // Assert: ItemDetail ページへ遷移していること
-        Assert.Contains("/ItemDetail/300", navManager.Uri);
+        // Assert: 詳細リンクが描画され、Href が /ItemDetail/300 であること
+        var detailLink = cut.Find("a.item-detail-button");
+        Assert.NotNull(detailLink);
+        Assert.Equal("/ItemDetail/300", detailLink.GetAttribute("href"));
     }
 
     [Fact]
@@ -209,18 +206,13 @@ public class ItemNodeWidgetTests : IAsyncDisposable
         var node = new ItemNode(item, [item]) { IsExpanded = true };
         diagram.Nodes.Add(node);
 
-        var navManager = _ctx.Services.GetRequiredService<NavigationManager>();
-
         var cut = _ctx.Render<ItemNodeWidget>(parameters => parameters
             .Add(p => p.Node, node)
             .AddCascadingValue(diagram));
 
-        // Act: 展開コンテナ内の詳細ボタンをクリック
-        var detailBtn = cut.Find(".expanded-card-container button.item-detail-button");
-        Assert.NotNull(detailBtn);
-        detailBtn.Click();
-
-        // Assert: ItemDetail ページへ遷移していること
-        Assert.Contains("/ItemDetail/400", navManager.Uri);
+        // Assert: 展開コンテナ内の詳細リンクが描画され、Href が /ItemDetail/400 であること
+        var detailLink = cut.Find(".expanded-card-container a.item-detail-button");
+        Assert.NotNull(detailLink);
+        Assert.Equal("/ItemDetail/400", detailLink.GetAttribute("href"));
     }
 }

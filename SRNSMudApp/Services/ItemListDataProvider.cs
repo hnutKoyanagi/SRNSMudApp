@@ -191,28 +191,34 @@ public class ItemListDataProvider(
         {
             var queryVector = (await _tagEmbeddingService.GenerateEmbeddingAsync(searchText)).ToArray();
 
+            const int maxTextMatches = 20;
+            const int maxVectorCandidates = 500;
+            const int maxResults = 10;
+
             List<Tag> textMatches = await context.Tags
                 .WhereVisibleToUser()
                 .Where(t => t.Name.Contains(searchText) || t.Content.Contains(searchText))
                 .AsNoTracking()
+                .Take(maxTextMatches)
                 .ToListAsync(token);
 
             List<Tag> vectorTags = await context.Tags
                 .WhereVisibleToUser()
                 .Where(t => t.Embedding != null)
                 .AsNoTracking()
+                .Take(maxVectorCandidates)
                 .ToListAsync(token);
 
             var vectorMatches = vectorTags
                 .Where(t => t.Embedding.Length == queryVector.Length)
                 .OrderByDescending(t => TensorPrimitives.CosineSimilarity(t.Embedding, queryVector))
-                .Take(10)
+                .Take(maxResults)
                 .ToList();
 
             tagNames = [.. textMatches.Concat(vectorMatches)
                 .Select(t => t.Name)
                 .Distinct()
-                .Take(10)];
+                .Take(maxResults)];
         }
         catch
         {

@@ -566,7 +566,17 @@ public partial class TagDiagramPage : ComponentBase
 
     private void HandleEdgeSelected(TagEdge? edge)
     {
-        ViewModel.SelectedEdge = edge;
+        if (edge != null && ViewModel.SelectedEdge?.Id == edge.Id)
+        {
+            // すでに選択されているエッジを再クリックした場合はフォーカスを解除
+            ViewModel.SelectedEdge = null;
+            _diagram.UnselectAll();
+        }
+        else
+        {
+            ViewModel.SelectedEdge = edge;
+        }
+
         UpdateUrlQuery();
     }
 

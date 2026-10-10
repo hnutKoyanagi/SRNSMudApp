@@ -41,7 +41,7 @@ public class ReactionCommentViewModelTests
     public void Tick_WhenCursorHovered_DoesNotDecrement()
     {
         var vm = new ReactionCommentViewModel();
-        vm.OnCursorEnter();
+        vm.OnUserEngaged();
 
         var stateChangedFired = false;
         vm.StateChanged += () => stateChangedFired = true;
@@ -84,19 +84,19 @@ public class ReactionCommentViewModelTests
     }
 
     [Fact]
-    public void OnCursorEnter_SetsHoveredAndFiresStateChanged()
+    public void OnUserEngaged_SetsHoveredAndFiresStateChanged()
     {
         var vm = new ReactionCommentViewModel();
         var stateChangedCount = 0;
         vm.StateChanged += () => stateChangedCount++;
 
-        vm.OnCursorEnter();
+        vm.OnUserEngaged();
 
         Assert.True(vm.IsCursorHovered);
         Assert.Equal(1, stateChangedCount);
 
         // 再度呼んでも重複発火しない
-        vm.OnCursorEnter();
+        vm.OnUserEngaged();
         Assert.Equal(1, stateChangedCount);
     }
 

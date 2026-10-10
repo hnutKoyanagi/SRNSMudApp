@@ -48,11 +48,11 @@ public sealed class ReactionCommentDialogTests : IAsyncLifetime
 
         // Assert
         Assert.Contains("真実 リアクションにコメントを追加", host.Markup);
-        Assert.Contains("10秒以内にカーソルを合わせると永久表示になります", host.Markup);
+        Assert.Contains("10秒以内にクリックすると永久表示になります", host.Markup);
     }
 
     [Fact]
-    public async Task ReactionCommentDialog_Hover_StopsTimer()
+    public async Task ReactionCommentDialog_Click_StopsTimer()
     {
         // Arrange
         IRenderedComponent<DialogHost> host = _ctx.Render<DialogHost>();
@@ -67,15 +67,15 @@ public sealed class ReactionCommentDialogTests : IAsyncLifetime
         _ = await dialogService.ShowAsync<ReactionCommentDialog>("リアクションを追加", parameters);
         host.WaitForState(() => host.Markup.Contains("善 リアクションにコメントを追加"));
 
-        // ダイアログ最上位コンテナを検索して mouseenter を発火
+        // ダイアログ最上位コンテナを検索して click を発火
         var container = host.Find(".reaction-comment-dialog-container");
-        container.MouseEnter();
+        container.Click();
 
         host.WaitForState(() => host.Markup.Contains("タイマーが停止しました"));
 
         // Assert
         Assert.Contains("タイマーが停止しました", host.Markup);
-        Assert.DoesNotContain("10秒以内にカーソルを合わせると永久表示になります", host.Markup);
+        Assert.DoesNotContain("10秒以内にクリックすると永久表示になります", host.Markup);
     }
 
     [Fact]
@@ -114,7 +114,7 @@ public sealed class ReactionCommentDialogTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ReactionCommentDialog_DoesNotRenderCancelButton()
+    public async Task ReactionCommentDialog_RendersCloseButton_AndCanCancel()
     {
         // Arrange
         IRenderedComponent<DialogHost> host = _ctx.Render<DialogHost>();
@@ -126,11 +126,16 @@ public sealed class ReactionCommentDialogTests : IAsyncLifetime
         };
 
         // Act
-        _ = await dialogService.ShowAsync<ReactionCommentDialog>("リアクションを追加", parameters);
+        IDialogReference dialogRef = await dialogService.ShowAsync<ReactionCommentDialog>("リアクションを追加", parameters);
         host.WaitForState(() => host.Markup.Contains("真実 リアクションにコメントを追加"));
 
-        // Assert: キャンセルボタンが存在しないことを検証
-        Assert.DoesNotContain(host.FindAll("button"), b => b.TextContent.Contains("キャンセル"));
+        // Assert: 閉じるボタンが存在し、クリックでキャンセルされることを検証
+        var closeButton = host.FindAll("button").First(b => b.TextContent.Contains("閉じる"));
+        closeButton.Click();
+
+        DialogResult? result = await dialogRef.Result;
+        Assert.NotNull(result);
+        Assert.True(result.Canceled);
     }
 
     private sealed class DialogHost : ComponentBase

@@ -688,6 +688,71 @@ public sealed class TagDiagramPageTests : IAsyncDisposable
         Assert.Single(secondLink.Vertices);
     }
 
+    [Fact]
+    public void TagDiagramPage_ClearsNodeFocus_WhenFocusedNodeIsClickedAgain()
+    {
+        // Arrange
+        var tag1 = new TagEntity { Id = 1, Name = "Alpha", OwnerId = TestUserId, CachedWeight = 5 };
+        var tag2 = new TagEntity { Id = 2, Name = "Beta", OwnerId = TestUserId, CachedWeight = 3 };
+        var edge = new TagEdge { Id = 101, SourceTagId = 1, TargetTagId = 2, OwnerId = TestUserId, SourceTag = tag1, TargetTag = tag2 };
+
+        _ = _dataProviderMock.Setup(p => p.LoadAllTagsAsync()).ReturnsAsync([tag1, tag2]);
+        _ = _dataProviderMock.Setup(p => p.LoadAllEdgesAsync()).ReturnsAsync([edge]);
+
+        // Act
+        var cut = _ctx.Render<TagDiagramPage>();
+        cut.WaitForState(() => cut.Markup.Contains("Tag Edge Diagram"));
+
+        var canvas = cut.FindComponent<TagDiagramCanvas>();
+        var diagram = canvas.Instance.Diagram;
+
+        // node1 を選択してフォーカス
+        var node1 = diagram.Nodes.OfType<TagNode>().First(n => n.Tag.Id == 1);
+        cut.InvokeAsync(() => canvas.Instance.OnNodeSelected.InvokeAsync(tag1));
+
+        cut.WaitForState(() => diagram.Nodes.OfType<TagNode>().Any(n => n.Tag.Id == 1 && n.IsFocused));
+        var focusedNode1 = diagram.Nodes.OfType<TagNode>().First(n => n.Tag.Id == 1);
+        Assert.True(focusedNode1.IsFocused);
+        Assert.Equal(TagFocusRole.Source, focusedNode1.FocusRole);
+
+        // もう一度 node1 をクリック
+        cut.InvokeAsync(() => canvas.Instance.OnNodeSelected.InvokeAsync(tag1));
+
+        // Assert: node1 のフォーカスが外れていること
+        cut.WaitForState(() => diagram.Nodes.OfType<TagNode>().All(n => !n.IsFocused));
+        var unFocusedNode1 = diagram.Nodes.OfType<TagNode>().First(n => n.Tag.Id == 1);
+        Assert.False(unFocusedNode1.IsFocused);
+        Assert.Equal(TagFocusRole.None, unFocusedNode1.FocusRole);
+    }
+
+    [Fact]
+    public void TagDiagramPage_ClearsEdgeFocus_WhenSelectedEdgeIsClickedAgain()
+    {
+        // Arrange
+        var tag1 = new TagEntity { Id = 1, Name = "Alpha", OwnerId = TestUserId, CachedWeight = 5 };
+        var tag2 = new TagEntity { Id = 2, Name = "Beta", OwnerId = TestUserId, CachedWeight = 3 };
+        var edge = new TagEdge { Id = 101, SourceTagId = 1, TargetTagId = 2, OwnerId = TestUserId, SourceTag = tag1, TargetTag = tag2 };
+
+        _ = _dataProviderMock.Setup(p => p.LoadAllTagsAsync()).ReturnsAsync([tag1, tag2]);
+        _ = _dataProviderMock.Setup(p => p.LoadAllEdgesAsync()).ReturnsAsync([edge]);
+
+        // Act
+        var cut = _ctx.Render<TagDiagramPage>();
+        cut.WaitForState(() => cut.Markup.Contains("Tag Edge Diagram"));
+
+        var canvas = cut.FindComponent<TagDiagramCanvas>();
+
+        // edge を選択
+        cut.InvokeAsync(() => canvas.Instance.OnEdgeSelected.InvokeAsync(edge));
+        cut.WaitForState(() => cut.Markup.Contains("TagEdgeInspector") || cut.FindAll("div.tag-edge-inspector").Count > 0);
+
+        // もう一度同じ edge をクリック
+        cut.InvokeAsync(() => canvas.Instance.OnEdgeSelected.InvokeAsync(edge));
+
+        // Assert: インスペクターが閉じ、選択が解除されていること
+        cut.WaitForState(() => cut.FindAll("div.tag-edge-inspector").Count == 0);
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _ctx.DisposeAsync();

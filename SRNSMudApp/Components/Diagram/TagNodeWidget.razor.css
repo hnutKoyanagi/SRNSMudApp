@@ -78,15 +78,17 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 4px;
 }
 
 .tag-node-name {
     font-size: 0.95rem;
     color: var(--mud-palette-text-primary, #424242);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 120px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
+    flex-grow: 1;
 }
 
 ::deep .port {

@@ -157,7 +157,7 @@ public static class ApplicationDbContextTagExtensions
                 OwnerId = currentUserId,
                 TimelineTargetJson = JsonSerializer.Serialize<TimelineTarget>(new ItemTarget(itemId)),
                 FollowedTagId = tagId,
-                EventType = "Insert",
+                ParsedEventType = Models.TimelineEventType.Insert,
                 NewWeight = 1
             });
 

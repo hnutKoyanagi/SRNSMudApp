@@ -126,7 +126,7 @@ public class MutualContractExecutor(
             OwnerId = executorUserId,
             Target = new ItemTarget(contract.TargetItemId),
             FollowedTagId = contract.RequestedTagId,
-            EventType = "Insert",
+            ParsedEventType = TimelineEventType.Insert,
             NewWeight = contract.ProposedWeight
         });
 
@@ -182,7 +182,7 @@ public class MutualContractExecutor(
             OwnerId = executorUserId,
             Target = new ItemTarget(contract.TargetItemId),
             FollowedTagId = contract.RequestedTagId,
-            EventType = "Delete",
+            ParsedEventType = TimelineEventType.Delete,
             PreviousWeight = prevWeight
         });
 
@@ -232,7 +232,7 @@ public class MutualContractExecutor(
             OwnerId = executorUserId,
             Target = new ItemTarget(mutualPayload.OfferedTargetItemId),
             FollowedTagId = mutualPayload.OfferedTagId,
-            EventType = "Insert",
+            ParsedEventType = TimelineEventType.Insert,
             NewWeight = contract.ProposedWeight
         });
 

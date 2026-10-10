@@ -163,7 +163,7 @@ public class BountyContractExecutor(
             OwnerId = fulfillerUserId,
             Target = new ItemTarget(contract.TargetItemId),
             FollowedTagId = contract.RequestedTagId,
-            EventType = "Insert",
+            ParsedEventType = TimelineEventType.Insert,
             NewWeight = contract.ProposedWeight
         });
 
@@ -272,7 +272,7 @@ public class BountyContractExecutor(
             OwnerId = fulfillerUserId,
             Target = new ItemTarget(contract.TargetItemId),
             FollowedTagId = contract.RequestedTagId,
-            EventType = "Delete",
+            ParsedEventType = TimelineEventType.Delete,
             PreviousWeight = prevWeight
         });
 

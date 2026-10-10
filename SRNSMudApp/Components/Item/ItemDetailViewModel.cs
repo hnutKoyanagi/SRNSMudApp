@@ -87,7 +87,7 @@ public class ItemDetailViewModel
                 ? await _detailData.GetItemDetailAsync(itemId, userId, IsAdmin)
                 : await _detailData.GetItemDetailAsync(itemId, userId);
 
-            // 後方互換性フォールバック
+            // モック未設定のレガシーテストまたは引数なしオーバーロード用の安全なフォールバック
             data ??= await _detailData.GetItemDetailAsync(itemId);
 
             if (data is null)

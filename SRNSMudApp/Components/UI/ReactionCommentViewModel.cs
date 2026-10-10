@@ -29,9 +29,9 @@ public sealed class ReactionCommentViewModel
     public event Action<ReactionCommentDialogResult>? Completed;
 
     /// <summary>
-    ///     カーソルがダイアログに入ったときの処理。タイマーを停止する。
+    ///     ユーザーがトーストをクリック（操作）したときの処理。タイマーを停止する。
     /// </summary>
-    public void OnCursorEnter()
+    public void OnUserEngaged()
     {
         if (IsCursorHovered || IsCompleted)
         {

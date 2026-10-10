@@ -448,18 +448,33 @@ public class TagDiagramPageViewModel
         }
         else if (FocusedTag.Id == tag.Id)
         {
-            // 始点と同じタグの場合は何もしない
-            return;
+            // すでにフォーカスされている始点タグを再度選択した場合は始点フォーカスを解除
+            ClearFirstTag();
         }
         else if (SecondFocusedTag?.Id == tag.Id)
         {
-            // 終点と同じタグの場合も何もしない
-            return;
+            // すでにフォーカスされている終点タグを再度選択した場合は終点フォーカスを解除
+            ClearSecondTag();
         }
         else
         {
             // 異なるタグの場合は終点（2つ目）に指定
             SecondFocusedTag = tag;
+        }
+    }
+
+    /// <summary>
+    ///     エッジの選択状態を切り替える。すでに選択されているエッジが指定された場合は選択を解除する。
+    /// </summary>
+    public void ToggleEdgeSelection(TagEdge? edge)
+    {
+        if (edge != null && SelectedEdge?.Id == edge.Id)
+        {
+            SelectedEdge = null;
+        }
+        else
+        {
+            SelectedEdge = edge;
         }
     }
 

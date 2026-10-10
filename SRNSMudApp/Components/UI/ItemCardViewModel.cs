@@ -70,7 +70,7 @@ public static class ItemCardViewModel
     public static int GetItemScore(IEnumerable<TagRelation>? tagRelations)
     {
         return tagRelations?
-            .Where(tr => tr.Tag?.Name == "good" && tr.Tag?.IsSystem == true)
+            .Where(tr => tr.Tag?.Name == SystemVoteTagNames.Good && tr.Tag?.IsSystem == true)
             .Sum(tr => tr.Weight) ?? 0;
     }
 
@@ -173,16 +173,16 @@ public static class ItemCardViewModel
     ///     オーナー名を最大7文字に短縮して返す。null/空の場合は「不明」を返す。
     /// </summary>
     public static string GetShortOwnerName(string? name) =>
-        string.IsNullOrEmpty(name) ? "不明" : name.Length > 7 ? name[..7] : name;
+        DisplayHelpers.GetShortOwnerName(name);
 
     /// <summary>
     ///     タグチップに表示するウェイト文字列を生成する（イベントの差分表示を含む）。
     /// </summary>
     public static string GetTagDisplayWeight(TagRelation relation, TimelineEvent? highlightEvent)
     {
-        var isUpdated = highlightEvent?.EventType == "Update";
-        var isInserted = highlightEvent?.EventType == "Insert";
-        var isDeleted = highlightEvent?.EventType == "Delete";
+        var isUpdated = highlightEvent?.ParsedEventType == TimelineEventType.Update;
+        var isInserted = highlightEvent?.ParsedEventType == TimelineEventType.Insert;
+        var isDeleted = highlightEvent?.ParsedEventType == TimelineEventType.Delete;
 
         return (isUpdated || isInserted) switch
         {
@@ -204,20 +204,13 @@ public static class ItemCardViewModel
         string? currentUserId,
         string[] myChipBackgrounds)
     {
-        var isDeleted = highlightEvent?.EventType == "Delete";
-        return isDeleted switch
-        {
-            true => "#E0E0E0",
-            false => (highlightEvent != null) switch
-            {
-                true => "#FFEB3B",
-                false => (relation.OwnerId == currentUserId) switch
-                {
-                    true => myChipBackgrounds.Length > 0 ? myChipBackgrounds[0] : "#EEEDFE",
-                    false => "#FFF9C4"
-                }
-            }
-        };
+        var isDeleted = highlightEvent?.ParsedEventType == TimelineEventType.Delete;
+        return ChipColorCalculator.GetBackgroundColor(
+            isDeleted,
+            highlightEvent != null,
+            relation.OwnerId == currentUserId,
+            0,
+            myChipBackgrounds);
     }
 
     /// <summary>
@@ -229,20 +222,13 @@ public static class ItemCardViewModel
         string? currentUserId,
         string[] myChipTextColors)
     {
-        var isDeleted = highlightEvent?.EventType == "Delete";
-        return isDeleted switch
-        {
-            true => "#9E9E9E",
-            false => (highlightEvent != null) switch
-            {
-                true => "#F57F17",
-                false => (relation.OwnerId == currentUserId) switch
-                {
-                    true => myChipTextColors.Length > 0 ? myChipTextColors[0] : "#26215C",
-                    false => "#5C4B00"
-                }
-            }
-        };
+        var isDeleted = highlightEvent?.ParsedEventType == TimelineEventType.Delete;
+        return ChipColorCalculator.GetTextColor(
+            isDeleted,
+            highlightEvent != null,
+            relation.OwnerId == currentUserId,
+            0,
+            myChipTextColors);
     }
 
     /// <summary>

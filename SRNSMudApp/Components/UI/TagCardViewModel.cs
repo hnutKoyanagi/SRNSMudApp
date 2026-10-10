@@ -7,6 +7,7 @@ using System.Globalization;
 using MudBlazor;
 
 using SRNSMudApp.Data;
+using SRNSMudApp.Models;
 using SRNSMudApp.Services;
 
 namespace SRNSMudApp.Components.UI;
@@ -240,11 +241,19 @@ public class TagCardViewModel
     /// <summary>good / bad システムタグへのリレーション数からスコアを計算する。</summary>
     public static int GetTagScore(Data.Tag tag)
     {
-        var goodCount =
-            tag.TargetTagRelations?.Count(tr => tr.Tag?.Name == "good" && tr.Tag?.IsSystem == true) ?? 0;
-        var badCount =
-            tag.TargetTagRelations?.Count(tr => tr.Tag?.Name == "bad" && tr.Tag?.IsSystem == true) ?? 0;
-        return goodCount - badCount;
+        if (tag.TargetTagRelations is null)
+        {
+            return 0;
+        }
+
+        return tag.TargetTagRelations
+            .Where(tr => tr.Tag is { IsSystem: true })
+            .Sum(tr => tr.Tag?.Name switch
+            {
+                SystemVoteTagNames.Good => 1,
+                SystemVoteTagNames.Bad => -1,
+                _ => 0
+            });
     }
 
     public static bool IsTagUpvoted(Data.Tag tag, int? currentUserGoodTagId, string currentUserId)
@@ -275,7 +284,7 @@ public class TagCardViewModel
         // 削除されたタグが TimelineEvent に含まれている場合は、仮想的な TagRelationToTag としてリストに追加して表示する
         if (highlightEvents is not null)
         {
-            foreach (TimelineEvent ev in highlightEvents.Where(e => e.EventType == "Delete"))
+            foreach (TimelineEvent ev in highlightEvents.Where(e => e.ParsedEventType == Models.TimelineEventType.Delete))
             {
                 if (ev.FollowedTag is not null && allTags.All(t => t.TagId != ev.FollowedTagId))
                 {
@@ -305,25 +314,24 @@ public class TagCardViewModel
         bool isMyTag,
         int index)
     {
-        var isDeleted = highlightEvent?.EventType == "Delete";
-        var isInserted = highlightEvent?.EventType == "Insert";
-        var isUpdated = highlightEvent?.EventType == "Update";
+        var isDeleted = highlightEvent?.ParsedEventType == Models.TimelineEventType.Delete;
+        var isInserted = highlightEvent?.ParsedEventType == Models.TimelineEventType.Insert;
+        var isUpdated = highlightEvent?.ParsedEventType == Models.TimelineEventType.Update;
         var weightIncreased = highlightEvent != null && highlightEvent.NewWeight > highlightEvent.PreviousWeight;
 
-        var bgColor = isDeleted
-            ? "#E0E0E0"
-            : highlightEvent != null
-                ? "#FFEB3B"
-                : isMyTag
-                    ? index < ChipBackgrounds.Length ? ChipBackgrounds[index] : ChipBackgrounds[0]
-                    : "#FFF9C4";
-        var textColor = isDeleted
-            ? "#9E9E9E"
-            : highlightEvent != null
-                ? "#F57F17"
-                : isMyTag
-                    ? index < ChipTextColors.Length ? ChipTextColors[index] : ChipTextColors[0]
-                    : "#5C4B00";
+        var bgColor = ChipColorCalculator.GetBackgroundColor(
+            isDeleted,
+            highlightEvent != null,
+            isMyTag,
+            index,
+            ChipBackgrounds);
+
+        var textColor = ChipColorCalculator.GetTextColor(
+            isDeleted,
+            highlightEvent != null,
+            isMyTag,
+            index,
+            ChipTextColors);
 
         var displayWeight = isUpdated || isInserted
             ? $"{highlightEvent?.PreviousWeight} → {highlightEvent?.NewWeight}"
@@ -373,12 +381,7 @@ public class TagCardViewModel
     /// <summary>Weight に変化があるかどうかを判定する。</summary>
     public static bool HasWeightChange(int currentWeight, int newWeight) => currentWeight != newWeight;
 
-    public static string GetShortOwnerName(string? name)
-    {
-        return string.IsNullOrEmpty(name) switch
-        {
-            true => "不明",
-            false => name.Length > 7 ? name[..7] : name
-        };
-    }
+    /// <summary>オーナー名を最大7文字に短縮して返す。null/空の場合は「不明」を返す。</summary>
+    public static string GetShortOwnerName(string? name) =>
+        DisplayHelpers.GetShortOwnerName(name);
 }
