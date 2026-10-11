@@ -241,12 +241,9 @@ public class TagCardViewModel
     /// <summary>good / bad システムタグへのリレーション数からスコアを計算する。</summary>
     public static int GetTagScore(Data.Tag tag)
     {
-        if (tag.TargetTagRelations is null)
-        {
-            return 0;
-        }
-
-        return tag.TargetTagRelations
+        return tag.TargetTagRelations is null
+            ? 0
+            : tag.TargetTagRelations
             .Where(tr => tr.Tag is { IsSystem: true })
             .Sum(tr => tr.Tag?.Name switch
             {
