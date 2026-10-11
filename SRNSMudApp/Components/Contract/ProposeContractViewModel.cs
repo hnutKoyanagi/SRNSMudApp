@@ -37,12 +37,7 @@ public class ProposeContractViewModel(
     /// </summary>
     public async Task<IEnumerable<ItemEntity>> SearchItemsAsync(string? value, CancellationToken cancellationToken = default)
     {
-        if (_contractData is null)
-        {
-            return [];
-        }
-
-        return await _contractData.SearchItemsAsync(value, cancellationToken);
+        return _contractData is null ? [] : (IEnumerable<ItemEntity>)await _contractData.SearchItemsAsync(value, cancellationToken);
     }
 
     /// <summary>
@@ -50,12 +45,7 @@ public class ProposeContractViewModel(
     /// </summary>
     public async Task<IEnumerable<TagEntity>> SearchTagsByNameAsync(string? value, CancellationToken cancellationToken = default)
     {
-        if (_contractData is null)
-        {
-            return [];
-        }
-
-        return await _contractData.SearchTagsByNameAsync(value, cancellationToken);
+        return _contractData is null ? [] : (IEnumerable<TagEntity>)await _contractData.SearchTagsByNameAsync(value, cancellationToken);
     }
 
     /// <summary>
@@ -95,12 +85,9 @@ public class ProposeContractViewModel(
     /// </summary>
     public static TaggingRequestType ResolveRequestType(bool isRemoval, int proposedWeightInput)
     {
-        if (isRemoval)
-        {
-            return TaggingRequestType.Remove;
-        }
-
-        return proposedWeightInput > 0
+        return isRemoval
+            ? TaggingRequestType.Remove
+            : proposedWeightInput > 0
             ? TaggingRequestType.Add
             : TaggingRequestType.DecreaseWeight;
     }

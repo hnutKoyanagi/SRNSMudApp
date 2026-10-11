@@ -1,6 +1,7 @@
 @implements IDisposable
 @using Blazor.Diagrams
 @using Blazor.Diagrams.Components
+@using Blazor.Diagrams.Core.Events
 @using Blazor.Diagrams.Core.Models
 @using Blazor.Diagrams.Core.Models.Base
 @using SRNSMudApp.Data
@@ -29,11 +30,13 @@
     public EventCallback<(int SourceTagId, int TargetTagId)> OnLinkCreated { get; set; }
 
     private bool _isMounted;
+    private SelectableModel? _lastSelectionChangedModel;
 
     protected override void OnInitialized()
     {
         Diagram.RegisterComponent<TagEdgeLink, TagEdgeLinkWidget>(replace: true);
         Diagram.SelectionChanged += HandleSelectionChanged;
+        Diagram.PointerClick += HandlePointerClick;
     }
 
     protected override void OnAfterRender(bool firstRender)
@@ -47,6 +50,7 @@
 
     private void HandleSelectionChanged(SelectableModel model)
     {
+        _lastSelectionChangedModel = model;
         if (model is TagEdgeLink link)
         {
             _ = OnEdgeSelected.InvokeAsync(link.Selected ? link.Edge : null);
@@ -57,8 +61,35 @@
         }
     }
 
+    private void HandlePointerClick(Model? model, Blazor.Diagrams.Core.Events.PointerEventArgs args)
+    {
+        // 直前の PointerDown で SelectionChanged が発火していたモデルの場合は新規選択なので二重発火を防止
+        if (model is SelectableModel selectable && ReferenceEquals(selectable, _lastSelectionChangedModel))
+        {
+            _lastSelectionChangedModel = null;
+            return;
+        }
+
+        _lastSelectionChangedModel = null;
+
+        // すでにフォーカスされているノードまたはエッジを再度クリックした場合はコールバックを発火してトグル解除を可能にする
+        if (model is TagNode node)
+        {
+            _ = OnNodeSelected.InvokeAsync(node.Tag);
+        }
+        else if (model is TagEdgeLink link)
+        {
+            _ = OnEdgeSelected.InvokeAsync(link.Edge);
+        }
+        else if (model is LinkLabelModel label && label.Parent is TagEdgeLink parentLink)
+        {
+            _ = OnEdgeSelected.InvokeAsync(parentLink.Edge);
+        }
+    }
+
     public void Dispose()
     {
         Diagram.SelectionChanged -= HandleSelectionChanged;
+        Diagram.PointerClick -= HandlePointerClick;
     }
 }

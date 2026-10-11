@@ -44,6 +44,28 @@ public partial class TagTree : IAsyncDisposable
     [SupplyParameterFromQuery(Name = "tagId")]
     public int? SelectedTagId { get; set; }
 
+    /// <summary>
+    ///     URL クエリ文字列 (?search=...) からバインドされる検索文字列。
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "search")]
+    public string? SearchQuery { get; set; }
+
+    /// <summary>
+    ///     URL クエリ文字列 (?q=...) からのフォールバック用検索文字列。
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "q")]
+    public string? QQuery { get; set; }
+
+    /// <summary>
+    ///     URL クエリ上の有効な検索文字列を取得する（search パラメータを優先し、無ければ q を使用）。
+    /// </summary>
+    private string? EffectiveSearchQuery =>
+        !string.IsNullOrWhiteSpace(SearchQuery)
+            ? SearchQuery
+            : !string.IsNullOrWhiteSpace(QQuery)
+                ? QQuery
+                : null;
+
     protected override async Task OnInitializedAsync()
     {
         string? currentUserId = null;
@@ -56,8 +78,22 @@ public partial class TagTree : IAsyncDisposable
         }
 
         ViewModel.SetUser(currentUserId, isAdmin);
+        _searchText = EffectiveSearchQuery;
         await LoadDataAsync();
         _dataLoaded = true;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var effective = EffectiveSearchQuery;
+        var normalizedQuery = string.IsNullOrWhiteSpace(effective) ? null : effective.Trim();
+        var normalizedCurrent = string.IsNullOrWhiteSpace(_searchText) ? null : _searchText.Trim();
+
+        if (!string.Equals(normalizedCurrent, normalizedQuery, StringComparison.Ordinal))
+        {
+            _searchText = normalizedQuery;
+            await ReloadTreeDataAsync();
+        }
     }
 
     [SuppressMessage("Design", "CA1031:Do not catch general exception types",
@@ -98,8 +134,15 @@ public partial class TagTree : IAsyncDisposable
 
     private IEnumerable<Data.Tag> GetFilteredTags() => TagTreeViewModel.FilterTags(ViewModel.Tags, _searchText, _currentUserId);
 
+    private IReadOnlySet<int> GetHighlightedTagIds() => TagTreeViewModel.GetMatchingTagIds(ViewModel.Tags, _searchText);
+
     private string GetSerializedTreeData() =>
-        TagTreeViewModel.SerializeTreeData(GetFilteredTags(), ViewModel.PendingMoves, _currentUserId, ViewModel.LockedTagIds);
+        TagTreeViewModel.SerializeTreeData(
+            GetFilteredTags(),
+            ViewModel.PendingMoves,
+            _currentUserId,
+            ViewModel.LockedTagIds,
+            GetHighlightedTagIds());
 
     /// <summary>初期化済みの場合、jqTree 側のデータを現在のフィルタ結果で差し替える。</summary>
     private async Task ReloadTreeDataAsync()
@@ -122,8 +165,30 @@ public partial class TagTree : IAsyncDisposable
 
     private async Task OnSearchTextChanged(string? text)
     {
-        _searchText = text;
+        var normalized = string.IsNullOrWhiteSpace(text) ? null : text;
+        if (string.Equals(_searchText, normalized, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _searchText = normalized;
+        UpdateUrlQuery();
         await ReloadTreeDataAsync();
+    }
+
+    /// <summary>
+    ///     現在の検索文字列を URL クエリ文字列に反映する。
+    ///     search パラメータを更新し、旧 q パラメータが存在する場合は除去する。
+    /// </summary>
+    private void UpdateUrlQuery()
+    {
+        var parameters = new Dictionary<string, object?>
+        {
+            ["search"] = string.IsNullOrWhiteSpace(_searchText) ? null : _searchText.Trim(),
+            ["q"] = null
+        };
+        var uri = NavigationManager.GetUriWithQueryParameters(parameters);
+        NavigationManager.NavigateTo(uri, replace: true);
     }
 
     [SuppressMessage("Design", "CA1031:Do not catch general exception types",
@@ -234,9 +299,42 @@ public partial class TagTree : IAsyncDisposable
             case { Canceled: false, Data: TagCreateChildDialog.Result data }:
                 TagCardActionResult actionResult = await ViewModel.AddChildTagAsync(parentId, data.Name, data.Content);
                 await ApplyResultAsync(actionResult);
+                if (actionResult.DuplicateTagId.HasValue)
+                {
+                    await ExpandAndHighlightNodeAsync(actionResult.DuplicateTagId.Value);
+                }
                 break;
             default:
                 break;
+        }
+    }
+
+    /// <summary>
+    ///     重複タグなどの指定ノードを、ルートからリーフまで展開してツリー上に表示・選択する。
+    /// </summary>
+    private async Task ExpandAndHighlightNodeAsync(int tagId)
+    {
+        if (!_isTreeInitialized)
+        {
+            return;
+        }
+
+        // 検索フィルターで該当タグが非表示になっている場合は検索をクリアして全表示する
+        var filteredTags = GetFilteredTags();
+        if (!filteredTags.Any(t => t.Id == tagId))
+        {
+            _searchText = null;
+            UpdateUrlQuery();
+            await ReloadTreeDataAsync();
+        }
+
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("jqTreeInterop.expandNodeRoute", TreeContainerId, tagId);
+        }
+        catch (JSException)
+        {
+            // ignored
         }
     }
 

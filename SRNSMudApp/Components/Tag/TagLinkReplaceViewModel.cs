@@ -31,8 +31,7 @@ public class TagLinkReplaceViewModel
         {
             if (Action == TagLinkReplaceAction.DoNotReplace) return true;
             if (Action == TagLinkReplaceAction.ReplaceWithFirstCandidate) return FirstCandidateTag != null;
-            if (Action == TagLinkReplaceAction.ReplaceWithSelectedCandidate) return SelectedCustomTag != null;
-            return false;
+            return Action == TagLinkReplaceAction.ReplaceWithSelectedCandidate ? SelectedCustomTag != null : false;
         }
     }
 

@@ -118,13 +118,10 @@ public class BountyBoardViewModel
         ArgumentNullException.ThrowIfNull(bounty);
         ArgumentNullException.ThrowIfNull(rewardAssets);
 
-        if (bounty.Payload is BountyPayload { OfferedRewardAssetId: not 0 } bp &&
-            rewardAssets.TryGetValue(bp.OfferedRewardAssetId, out RightAsset? asset))
-        {
-            return asset;
-        }
-
-        return null;
+        return bounty.Payload is BountyPayload { OfferedRewardAssetId: not 0 } bp &&
+            rewardAssets.TryGetValue(bp.OfferedRewardAssetId, out RightAsset? asset)
+            ? asset
+            : null;
     }
 
     /// <summary>
@@ -137,11 +134,6 @@ public class BountyBoardViewModel
     {
         ArgumentNullException.ThrowIfNull(bounty);
 
-        if (string.IsNullOrEmpty(currentUserId))
-        {
-            return false;
-        }
-
-        return bounty.RequesterUserId != currentUserId;
+        return string.IsNullOrEmpty(currentUserId) ? false : bounty.RequesterUserId != currentUserId;
     }
 }

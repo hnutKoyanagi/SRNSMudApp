@@ -24,9 +24,6 @@ public partial class ItemNodeWidget : ComponentBase
     public Func<string, Task<LinkPreviewData?>>? LoadPreview { get; set; }
 
     [Inject]
-    private NavigationManager NavigationManager { get; set; } = null!;
-
-    [Inject]
     private ILinkPreviewService PreviewService { get; set; } = null!;
 
     private Task<LinkPreviewData?> GetPreviewAsync(string url) =>
@@ -43,8 +40,8 @@ public partial class ItemNodeWidget : ComponentBase
         // 選択操作を妨げないため、シングルクリックではナビゲーションを行わない
     }
 
-    private void NavigateToItemDetail()
+    private void HandleHideNode()
     {
-        NavigationManager.NavigateTo($"/ItemDetail/{Node.Item.Id}");
+        Node.RequestHideNode?.Invoke(Node.Item);
     }
 }

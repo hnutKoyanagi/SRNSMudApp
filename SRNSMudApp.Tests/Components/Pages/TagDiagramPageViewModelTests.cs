@@ -469,7 +469,7 @@ public sealed class TagDiagramPageViewModelTests
     }
 
     [Fact]
-    public void HandleTagSelection_SetsFirstOrSecondTag()
+    public void HandleTagSelection_SetsFirstOrSecondTag_AndTogglesOffWhenSelectedAgain()
     {
         // Arrange
         TagEntity tag1 = CreateTag(1, "Tag 1");
@@ -481,16 +481,65 @@ public sealed class TagDiagramPageViewModelTests
         Assert.Null(_sut.SecondFocusedTag);
         Assert.Contains(1, _sut.PinnedTagIds);
 
-        // Act 2: Select same -> no-op
-        _sut.HandleTagSelection(tag1);
-        Assert.Equal(tag1, _sut.FocusedTag);
-        Assert.Null(_sut.SecondFocusedTag);
-
-        // Act 3: Select second
+        // Act 2: Select second
         _sut.HandleTagSelection(tag2);
         Assert.Equal(tag1, _sut.FocusedTag);
         Assert.Equal(tag2, _sut.SecondFocusedTag);
         Assert.Contains(2, _sut.PinnedTagIds);
+
+        // Act 3: Select second again -> second tag focus is cleared
+        _sut.HandleTagSelection(tag2);
+        Assert.Equal(tag1, _sut.FocusedTag);
+        Assert.Null(_sut.SecondFocusedTag);
+
+        // Act 4: Select first again -> all focus is cleared
+        _sut.HandleTagSelection(tag1);
+        Assert.Null(_sut.FocusedTag);
+        Assert.Null(_sut.SecondFocusedTag);
+    }
+
+    [Fact]
+    public void HandleTagSelection_WhenTwoTagsFocused_SelectFirstAgain_PromotesSecondToFirst()
+    {
+        // Arrange
+        TagEntity tag1 = CreateTag(1, "Tag 1");
+        TagEntity tag2 = CreateTag(2, "Tag 2");
+        _sut.HandleTagSelection(tag1);
+        _sut.HandleTagSelection(tag2);
+        Assert.Equal(tag1, _sut.FocusedTag);
+        Assert.Equal(tag2, _sut.SecondFocusedTag);
+
+        // Act: Select first tag again -> first is cleared, second promoted
+        _sut.HandleTagSelection(tag1);
+
+        // Assert
+        Assert.Equal(tag2, _sut.FocusedTag);
+        Assert.Null(_sut.SecondFocusedTag);
+    }
+
+    [Fact]
+    public void ToggleEdgeSelection_SelectsEdge_AndClearsWhenToggledAgain()
+    {
+        // Arrange
+        TagEdge edge1 = CreateEdge(10, 1, 2);
+        TagEdge edge2 = CreateEdge(20, 2, 3);
+
+        // Act 1: Select edge1
+        _sut.ToggleEdgeSelection(edge1);
+        Assert.Equal(edge1, _sut.SelectedEdge);
+
+        // Act 2: Toggle edge1 again -> cleared
+        _sut.ToggleEdgeSelection(edge1);
+        Assert.Null(_sut.SelectedEdge);
+
+        // Act 3: Select edge1, then select edge2 -> changes to edge2
+        _sut.ToggleEdgeSelection(edge1);
+        _sut.ToggleEdgeSelection(edge2);
+        Assert.Equal(edge2, _sut.SelectedEdge);
+
+        // Act 4: Toggle with null -> clears
+        _sut.ToggleEdgeSelection(null);
+        Assert.Null(_sut.SelectedEdge);
     }
 
     [Fact]
@@ -560,5 +609,127 @@ public sealed class TagDiagramPageViewModelTests
         Assert.Equal(2, _sut.GetChildTags(1).Count);
         Assert.NotNull(_sut.GetExistingEdgeBetween(1, 2));
         Assert.Null(_sut.GetExistingEdgeBetween(1, 3));
+    }
+
+    [Fact]
+    public void HideTag_AddsToHiddenTagIds_AndClearsFocusAndPinnedTags()
+    {
+        // Arrange
+        TagEntity tag1 = CreateTag(1, "Tag 1");
+        TagEntity tag2 = CreateTag(2, "Tag 2");
+        _sut.Tags.AddRange([tag1, tag2]);
+        _sut.FocusedTag = tag1;
+        _sut.SecondFocusedTag = tag2;
+        _ = _sut.PinnedTagIds.Add(tag1.Id);
+        _sut.SelectedEdge = CreateEdge(10, 1, 2);
+
+        // Act
+        _sut.HideTag(1);
+
+        // Assert
+        Assert.Contains(1, _sut.HiddenTagIds);
+        Assert.DoesNotContain(1, _sut.PinnedTagIds);
+        Assert.Equal(tag2, _sut.FocusedTag);
+        Assert.Null(_sut.SecondFocusedTag);
+        Assert.Null(_sut.SelectedEdge);
+    }
+
+    [Fact]
+    public void GetTagsToDisplay_ExcludesHiddenTags()
+    {
+        // Arrange
+        TagEntity tag1 = CreateTag(1, "Tag 1");
+        TagEntity tag2 = CreateTag(2, "Tag 2");
+        TagEntity tag3 = CreateTag(3, "Tag 3");
+        _sut.Tags.AddRange([tag1, tag2, tag3]);
+        _sut.OnlyConnectedTags = false;
+
+        // Act
+        _sut.HideTag(2);
+        IReadOnlyList<TagEntity> result = _sut.GetTagsToDisplay(queryItemId: null);
+
+        // Assert
+        Assert.Equal(2, result.Count);
+        Assert.Contains(result, t => t.Id == 1);
+        Assert.DoesNotContain(result, t => t.Id == 2);
+        Assert.Contains(result, t => t.Id == 3);
+        Assert.Equal(2, _sut.DisplayedTagsCount);
+    }
+
+    [Fact]
+    public void GetTagsToDisplay_WhenTagHidden_ExcludesConnectedEdgesAndUpdatesDisplayedEdgesCount()
+    {
+        // Arrange
+        TagEntity tag1 = CreateTag(1, "Tag 1");
+        TagEntity tag2 = CreateTag(2, "Tag 2");
+        TagEntity tag3 = CreateTag(3, "Tag 3");
+        _sut.Tags.AddRange([tag1, tag2, tag3]);
+        _sut.Edges.Add(CreateEdge(10, 1, 2));
+        _sut.Edges.Add(CreateEdge(20, 1, 3));
+        _sut.OnlyConnectedTags = true;
+
+        // Act
+        _sut.HideTag(2);
+        IReadOnlyList<TagEntity> result = _sut.GetTagsToDisplay(queryItemId: null);
+
+        // Assert: tag2 is hidden, edge (1->2) is excluded, only edge (1->3) remains active
+        Assert.DoesNotContain(result, t => t.Id == 2);
+        Assert.Contains(result, t => t.Id == 1);
+        Assert.Contains(result, t => t.Id == 3);
+        Assert.Equal(1, _sut.DisplayedEdgesCount);
+    }
+
+    [Fact]
+    public void RestoreHiddenNodes_ClearsHiddenTagIdsAndHiddenItemIds()
+    {
+        // Arrange
+        _sut.HideTag(1);
+        _sut.HideItem(100);
+        Assert.Single(_sut.HiddenTagIds);
+        Assert.Single(_sut.HiddenItemIds);
+
+        // Act
+        _sut.RestoreHiddenNodes();
+
+        // Assert
+        Assert.Empty(_sut.HiddenTagIds);
+        Assert.Empty(_sut.HiddenItemIds);
+    }
+
+    [Fact]
+    public void OnTagFocusedFromSearch_RemovesTagFromHiddenTagIds()
+    {
+        // Arrange
+        TagEntity tag1 = CreateTag(1, "Tag 1");
+        _sut.Tags.Add(tag1);
+        _sut.HideTag(1);
+        Assert.Contains(1, _sut.HiddenTagIds);
+
+        // Act
+        _sut.OnTagFocusedFromSearch(tag1);
+
+        // Assert
+        Assert.DoesNotContain(1, _sut.HiddenTagIds);
+        Assert.Contains(1, _sut.PinnedTagIds);
+        Assert.Equal(tag1, _sut.FocusedTag);
+    }
+
+    [Fact]
+    public void PinChildTags_RemovesChildrenFromHiddenTagIds()
+    {
+        // Arrange
+        TagEntity parent = CreateTag(1, "Parent");
+        TagEntity child = CreateTag(2, "Child", parentId: 1);
+        _sut.Tags.AddRange([parent, child]);
+        _sut.HideTag(2);
+        Assert.Contains(2, _sut.HiddenTagIds);
+
+        // Act
+        int newlyAdded = _sut.PinChildTags(1);
+
+        // Assert
+        Assert.Equal(1, newlyAdded);
+        Assert.DoesNotContain(2, _sut.HiddenTagIds);
+        Assert.Contains(2, _sut.PinnedTagIds);
     }
 }

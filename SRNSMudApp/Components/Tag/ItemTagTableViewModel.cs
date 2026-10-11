@@ -111,10 +111,13 @@ public class ItemTagTableViewModel
 
     /// <summary>
     ///     MudTable のフィルタ条件。TagSearchQuery に基づいてタグ名およびユーザー名で判定する。
+    ///     オーナーが BAN されたタグは不可視（false）とする。
     /// </summary>
     public static bool FilterFunc(TagRelation relation, string? search)
     {
-        return TagSearchQuery.Parse(search) switch
+        return relation.Tag != null && !relation.Tag.IsTagVisibleToUser()
+            ? false
+            : TagSearchQuery.Parse(search) switch
         {
             EmptySearch => true,
             IncompleteSearch incompleteSearch =>
@@ -144,7 +147,7 @@ public class ItemTagTableViewModel
     /// </summary>
     public static IReadOnlyList<string> GetSearchSuggestions(IEnumerable<TagRelation>? sourceRelations, string? value)
     {
-        IEnumerable<TagRelation> relations = sourceRelations ?? [];
+        IEnumerable<TagRelation> relations = (sourceRelations ?? []).Where(r => r.Tag == null || r.Tag.IsTagVisibleToUser());
 
         return TagSearchQuery.Parse(value) switch
         {

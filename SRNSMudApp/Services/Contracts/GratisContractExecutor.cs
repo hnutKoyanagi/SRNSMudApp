@@ -220,7 +220,7 @@ public class GratisContractExecutor(
             OwnerId = executorUserId,
             Target = new ItemTarget(contract.TargetItemId),
             FollowedTagId = contract.RequestedTagId,
-            EventType = "Insert",
+            ParsedEventType = TimelineEventType.Insert,
             NewWeight = contract.ProposedWeight
         });
 
@@ -274,7 +274,7 @@ public class GratisContractExecutor(
             OwnerId = executorUserId,
             Target = new ItemTarget(contract.TargetItemId),
             FollowedTagId = contract.RequestedTagId,
-            EventType = "Update",
+            ParsedEventType = TimelineEventType.Update,
             NewWeight = contract.ProposedWeight
         });
 

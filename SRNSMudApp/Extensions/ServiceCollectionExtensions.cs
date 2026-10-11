@@ -119,7 +119,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ITimelineRecorder, TimelineRecorder>();
         services.AddScoped<ITagWeightLedgerService, TagWeightLedgerService>();
         services.AddScoped<IItemListExportService, ItemListExportService>();
-        services.AddScoped<IItemTagService, ItemTagService>();
+        services.AddScoped<ItemTagService>();
+        services.AddScoped<IItemTagService>(sp => sp.GetRequiredService<ItemTagService>());
+        services.AddScoped<ITagRelationToTagService>(sp => sp.GetRequiredService<ItemTagService>());
         services.AddScoped<IItemReplyService, ItemReplyService>();
         services.AddScoped<IItemReactionService, ItemReactionService>();
         // 登録順が元アイテム解決の優先順位になる。
@@ -130,7 +132,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ITagEdgeService, TagEdgeService>();
 
         // 他のサービスに合わせて Scoped ライフタイムに統一 (IDbContextFactory からコンテキストを生成するため安全)
-        services.AddScoped<ITaggingService, TaggingService>();
+        services.AddScoped<TaggingService>();
+        services.AddScoped<ITaggingService>(sp => sp.GetRequiredService<TaggingService>());
+        services.AddScoped<IDirectTaggingService>(sp => sp.GetRequiredService<TaggingService>());
+        services.AddScoped<ITagRequestRejectionService>(sp => sp.GetRequiredService<TaggingService>());
         services.AddScoped<ITaggingRequestActions, TaggingRequestActions>();
         services.AddScoped<ISystemTagEnsurer, SystemTagEnsurer>();
         services.AddScoped<INotificationService, NotificationService>();
@@ -144,6 +149,7 @@ public static class ServiceCollectionExtensions
 
         // タグ提案サービス
         services.AddScoped<ITagSuggestionService, TagSuggestionService>();
+        services.AddScoped<ITagSimilarityService, TagSimilarityService>();
 
         // 内部リンク自動変換サービス
         services.AddScoped<IInternalLinkConversionService, InternalLinkConversionService>();
@@ -173,52 +179,59 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        // ページ・Circuit 単位の ViewModel
         services.AddScoped<ItemDetailViewModel>();
-        services.AddScoped<AddItemViewModel>();
         services.AddScoped<ItemImportViewModel>();
         services.AddScoped<ContractManagementViewModel>();
-        services.AddScoped<ItemEditViewModel>();
-        services.AddScoped<ItemTagChipActionViewModel>();
-        services.AddScoped<TaggingRequestActionViewModel>();
-        services.AddScoped<ItemCardActionViewModel>();
         services.AddScoped(sp => new UserDetailViewModel(
             sp.GetRequiredService<IUserDataProvider>(),
-            sp.GetService<Microsoft.AspNetCore.Identity.UserManager<Data.ApplicationUser>>()));
+            sp.GetService<Microsoft.AspNetCore.Identity.UserManager<Data.ApplicationUser>>(),
+            sp.GetService<IServiceScopeFactory>()));
         services.AddScoped(sp => new UserDetailActionViewModel(
             sp.GetRequiredService<IUserDataProvider>(),
-            sp.GetService<Microsoft.AspNetCore.Identity.UserManager<Data.ApplicationUser>>()));
-        services.AddScoped<ProposeContractViewModel>();
+            sp.GetService<Microsoft.AspNetCore.Identity.UserManager<Data.ApplicationUser>>(),
+            sp.GetService<IServiceScopeFactory>()));
         services.AddScoped<TagDiagramCanvasViewModel>();
-        services.AddScoped<RequestTagPermissionViewModel>();
-        services.AddScoped<TagAddViewModel>();
         services.AddScoped<UserManagementViewModel>();
         services.AddScoped<UserSearchViewModel>();
-        services.AddScoped<ReportDetailActionViewModel>();
         services.AddScoped<TagDetailViewModel>();
         services.AddScoped<ReportManagerViewModel>();
-        services.AddScoped<TriggerPublicOfferViewModel>();
-        services.AddScoped<CreatePublicOfferViewModel>();
         services.AddScoped<PublicOfferBoardViewModel>();
-        services.AddScoped<QuoteItemViewModel>();
         services.AddScoped<QuotedItemListViewModel>();
-        services.AddScoped<TagResolutionViewModel>();
-        services.AddScoped<TagLinkReplaceViewModel>();
-        services.AddScoped<TagEditViewModel>();
-        services.AddScoped<PurchaseRightAssetViewModel>();
-        services.AddScoped<TagContentProposalViewModel>();
-        services.AddScoped<TagNameProposalViewModel>();
-        services.AddScoped<ReportContentViewModel>();
-        services.AddScoped<UserGroupCreateEditViewModel>();
         services.AddScoped<UserGroupMembersViewModel>();
-        services.AddScoped<BountyCreateViewModel>();
-        services.AddScoped<FulfillBountyViewModel>();
         services.AddScoped<BountyBoardViewModel>();
-        services.AddScoped<AttachTagToEdgeViewModel>();
         services.AddScoped<RightAssetOverviewViewModel>();
         services.AddScoped<NotificationBadgeViewModel>();
-        services.AddScoped<TaggingRequestThreadViewModel>();
         services.AddScoped<PushNotificationPromptViewModel>();
+
+        // STATE-01: ダイアログ用・短命アクション用 ViewModel を Transient に登録し、
+        // Blazor Circuit 内での入力状態残留・ゴースト表示を防止する
+        services.AddTransient<AddItemViewModel>();
+        services.AddTransient<ItemEditViewModel>();
+        services.AddTransient<ItemTagChipActionViewModel>();
+        services.AddTransient<TaggingRequestActionViewModel>();
+        services.AddTransient<ItemCardActionViewModel>();
+        services.AddTransient<ProposeContractViewModel>();
+        services.AddTransient<RequestTagPermissionViewModel>();
+        services.AddTransient<TagAddViewModel>();
+        services.AddTransient<ReportDetailActionViewModel>();
+        services.AddTransient<TriggerPublicOfferViewModel>();
+        services.AddTransient<CreatePublicOfferViewModel>();
+        services.AddTransient<QuoteItemViewModel>();
+        services.AddTransient<TagResolutionViewModel>();
+        services.AddTransient<TagLinkReplaceViewModel>();
+        services.AddTransient<TagEditViewModel>();
+        services.AddTransient<PurchaseRightAssetViewModel>();
+        services.AddTransient<TagContentProposalViewModel>();
+        services.AddTransient<TagNameProposalViewModel>();
+        services.AddTransient<ReportContentViewModel>();
+        services.AddTransient<UserGroupCreateEditViewModel>();
+        services.AddTransient<BountyCreateViewModel>();
+        services.AddTransient<FulfillBountyViewModel>();
+        services.AddTransient<AttachTagToEdgeViewModel>();
+        services.AddTransient<TaggingRequestThreadViewModel>();
         services.AddTransient<ReactionCommentViewModel>();
+        services.AddTransient<CreateEdgeViewModel>();
         services.AddTransient<TagEdgeInspectorViewModel>();
         services.AddTransient<MakeMeAdminViewModel>();
         services.AddTransient<AddTagPageViewModel>();

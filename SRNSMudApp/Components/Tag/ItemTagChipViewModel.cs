@@ -1,5 +1,6 @@
 using SRNSMudApp.Components.UI;
 using SRNSMudApp.Data;
+using SRNSMudApp.Models;
 using SRNSMudApp.Models.Unions;
 
 namespace SRNSMudApp.Components.Tag;
@@ -41,8 +42,8 @@ public static class ItemTagChipViewModel
         IReadOnlyList<TagRelationToTag> allTagRelationsToTags)
     {
         var tagId = relation.Tag?.Id ?? -1;
-        var isDeleted = highlightEvent?.EventType == "Delete";
-        var isUpdated = highlightEvent?.EventType == "Update";
+        var isDeleted = highlightEvent?.ParsedEventType == Models.TimelineEventType.Delete;
+        var isUpdated = highlightEvent?.ParsedEventType == Models.TimelineEventType.Update;
         var isMyTag = relation.OwnerId == currentUserId;
         var hasHighlight = highlightEvent != null;
 
@@ -58,8 +59,8 @@ public static class ItemTagChipViewModel
             TextColor = GetTextColor(isDeleted, hasHighlight, isMyTag, chipIndex, chipTextColors),
             FontWeight = hasHighlight ? "bold" : "normal",
             WeightIncreased = highlightEvent != null && highlightEvent.NewWeight > highlightEvent.PreviousWeight,
-            TagName = showNameAndOwner ? relation.Tag?.Name ?? "不明" : null,
-            OwnerName = showNameAndOwner ? ItemCardViewModel.GetShortOwnerName(ownerUserName) : null,
+            TagName = showNameAndOwner ? relation.Tag?.Name ?? DisplayHelpers.UnknownOwnerName : null,
+            OwnerName = showNameAndOwner ? DisplayHelpers.GetShortOwnerName(ownerUserName) : null,
             ChipId = $"tag-chip-{itemId}-{tagId}",
             DisplayWeight = GetDisplayWeight(isDeleted, isUpdated, highlightEvent, relation.Weight),
             AddButtonColor = (highlightEvent != null && highlightEvent.NewWeight > highlightEvent.PreviousWeight)
@@ -79,19 +80,7 @@ public static class ItemTagChipViewModel
         bool isMyTag,
         int chipIndex,
         IReadOnlyList<string> backgrounds) =>
-        isDeleted switch
-        {
-            true => "#E0E0E0",
-            false => hasHighlight switch
-            {
-                true => "#FFEB3B",
-                false => isMyTag switch
-                {
-                    true => chipIndex < backgrounds.Count ? backgrounds[chipIndex] : backgrounds[0],
-                    false => "#FFF9C4"
-                }
-            }
-        };
+        ChipColorCalculator.GetBackgroundColor(isDeleted, hasHighlight, isMyTag, chipIndex, backgrounds);
 
     private static string GetTextColor(
         bool isDeleted,
@@ -99,19 +88,7 @@ public static class ItemTagChipViewModel
         bool isMyTag,
         int chipIndex,
         IReadOnlyList<string> textColors) =>
-        isDeleted switch
-        {
-            true => "#9E9E9E",
-            false => hasHighlight switch
-            {
-                true => "#F57F17",
-                false => isMyTag switch
-                {
-                    true => chipIndex < textColors.Count ? textColors[chipIndex] : textColors[0],
-                    false => "#5C4B00"
-                }
-            }
-        };
+        ChipColorCalculator.GetTextColor(isDeleted, hasHighlight, isMyTag, chipIndex, textColors);
 
     private static string GetDisplayWeight(
         bool isDeleted,
@@ -121,7 +98,7 @@ public static class ItemTagChipViewModel
         isDeleted switch
         {
             true => $"{highlightEvent?.PreviousWeight}",
-            false => (isUpdated || highlightEvent?.EventType == "Insert") switch
+            false => (isUpdated || highlightEvent?.ParsedEventType == Models.TimelineEventType.Insert) switch
             {
                 true => $"{highlightEvent?.PreviousWeight} → {highlightEvent?.NewWeight}",
                 false => weight.ToString(System.Globalization.CultureInfo.InvariantCulture)

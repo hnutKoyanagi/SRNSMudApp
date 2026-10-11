@@ -80,12 +80,9 @@ public class ItemCardActionViewModel
     /// </summary>
     public async Task<bool> DeleteItemByAdminAsync(int itemId, string adminUserId, bool isAdmin)
     {
-        if (!isAdmin || itemId <= 0 || string.IsNullOrEmpty(adminUserId))
-        {
-            return false;
-        }
-
-        return await _itemCardDataProvider.DeleteItemByAdminAsync(itemId, adminUserId);
+        return !isAdmin || itemId <= 0 || string.IsNullOrEmpty(adminUserId)
+            ? false
+            : await _itemCardDataProvider.DeleteItemByAdminAsync(itemId, adminUserId);
     }
 
     /// <summary>
@@ -93,12 +90,9 @@ public class ItemCardActionViewModel
     /// </summary>
     public async Task<bool> SetAdminHiddenAsync(int itemId, bool isHidden, string? reason, string adminUserId, bool isAdmin)
     {
-        if (!isAdmin || itemId <= 0 || string.IsNullOrEmpty(adminUserId))
-        {
-            return false;
-        }
-
-        return await _itemCardDataProvider.SetAdminHiddenAsync(itemId, isHidden, reason, adminUserId);
+        return !isAdmin || itemId <= 0 || string.IsNullOrEmpty(adminUserId)
+            ? false
+            : await _itemCardDataProvider.SetAdminHiddenAsync(itemId, isHidden, reason, adminUserId);
     }
 
     /// <summary>

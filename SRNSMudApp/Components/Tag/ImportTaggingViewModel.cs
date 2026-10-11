@@ -94,12 +94,9 @@ public sealed class ImportTaggingViewModel
         {
             var root = JsonSerializer.Deserialize<TaggingImportRoot>(jsonText, JsonOptions);
 
-            if (root?.TaggingRequestEntity == null)
-            {
-                return new Failure("有効な TaggingRequestEntity が含まれていません。");
-            }
-
-            return new Success<TaggingImportPayload>(root.TaggingRequestEntity);
+            return root?.TaggingRequestEntity == null
+                ? new Failure("有効な TaggingRequestEntity が含まれていません。")
+                : new Success<TaggingImportPayload>(root.TaggingRequestEntity);
         }
         catch (Exception ex)
         {

@@ -67,12 +67,7 @@ public class QuoteItemViewModel
             var created = await _itemQuoteService.CreateQuoteItemAsync(
                 QuotedItem.Id, Content, CurrentUserId, cancellationToken: cancellationToken);
 
-            if (created is null)
-            {
-                return Result.Fail<Data.Item>("引用元のアイテムが見つかりませんでした。");
-            }
-
-            return Result.Ok(created);
+            return created is null ? Result.Fail<Data.Item>("引用元のアイテムが見つかりませんでした。") : Result.Ok(created);
         }
         catch (Exception ex)
         {

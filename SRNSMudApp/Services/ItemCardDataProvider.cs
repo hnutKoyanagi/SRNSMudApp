@@ -54,6 +54,7 @@ public class ItemCardDataProvider(IDbContextFactory<ApplicationDbContext> dbFact
     {
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
         return await context.Items
+            .AsNoTracking()
             .Include(i => i.Owner)
             .Include(i => i.TargetUserGroup)
             .Include(i => i.TagRelations)
@@ -107,7 +108,7 @@ public class ItemCardDataProvider(IDbContextFactory<ApplicationDbContext> dbFact
     public async Task<Tag?> GetTagWithOwnerAsync(int tagId)
     {
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
-        return await context.Tags.Include(t => t.Owner).FirstOrDefaultAsync(t => t.Id == tagId);
+        return await context.Tags.AsNoTracking().Include(t => t.Owner).WhereVisibleToUser().FirstOrDefaultAsync(t => t.Id == tagId);
     }
 
     public async Task<TagRelation?> AddFreeTagRelationAsync(int itemId, int tagId, string userId)
@@ -173,11 +174,6 @@ public class ItemCardDataProvider(IDbContextFactory<ApplicationDbContext> dbFact
     {
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
         Tag? tag = await context.Tags.FindAsync(tagId);
-        if (tag is null)
-        {
-            return false;
-        }
-
-        return await context.CanUserAttachTagDirectlyAsync(tag, userId);
+        return tag is null ? false : await context.CanUserAttachTagDirectlyAsync(tag, userId);
     }
 }

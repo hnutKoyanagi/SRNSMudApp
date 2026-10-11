@@ -23,11 +23,6 @@ public sealed class TagCreateChildViewModel
     /// </summary>
     public TagCreateChildResult? CreateResult()
     {
-        if (!CanSubmit)
-        {
-            return null;
-        }
-
-        return new TagCreateChildResult(Name.Trim(), Content?.Trim() ?? string.Empty);
+        return !CanSubmit ? null : new TagCreateChildResult(Name.Trim(), Content?.Trim() ?? string.Empty);
     }
 }

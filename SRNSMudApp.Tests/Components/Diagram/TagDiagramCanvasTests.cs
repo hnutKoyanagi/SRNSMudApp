@@ -119,6 +119,105 @@ public class TagDiagramCanvasTests : IAsyncDisposable
     }
 
     [Fact]
+    public void TagDiagramCanvas_PointerClick_OnAlreadySelectedNode_InvokesOnNodeSelected()
+    {
+        var diagram = new BlazorDiagram();
+        diagram.RegisterComponent<TagNode, TagNodeWidget>();
+
+        var tag = new TagEntity { Id = 1, Name = "Alpha", OwnerId = "u1" };
+        var node = new TagNode(tag, new Point(10, 10));
+        diagram.Nodes.Add(node);
+
+        int callCount = 0;
+        TagEntity? selectedTag = null;
+        var cut = _ctx.Render<TagDiagramCanvas>(parameters => parameters
+            .Add(p => p.Diagram, diagram)
+            .Add(p => p.OnNodeSelected, (TagEntity? t) =>
+            {
+                callCount++;
+                selectedTag = t;
+            }));
+
+        // 1回目のクリック（未選択ノードのクリック: SelectModel + PointerClick）
+        diagram.SelectModel(node, unselectOthers: true);
+        var dummyEvent = new Blazor.Diagrams.Core.Events.PointerEventArgs(0, 0, 0, 0, false, false, false, 0, 0, 0, 0, 0, 0, string.Empty, true);
+        diagram.TriggerPointerClick(node, dummyEvent);
+        Assert.Equal(1, callCount);
+
+        // 2回目のクリック（すでに選択されたノードを再クリック: SelectionChanged は発火せず PointerClick のみ発火）
+        diagram.TriggerPointerClick(node, dummyEvent);
+
+        Assert.Equal(2, callCount);
+        Assert.NotNull(selectedTag);
+        Assert.Equal(1, selectedTag.Id);
+    }
+
+    [Fact]
+    public void TagDiagramCanvas_PointerClick_OnAlreadySelectedEdge_InvokesOnEdgeSelected()
+    {
+        var diagram = new BlazorDiagram();
+        diagram.RegisterComponent<TagNode, TagNodeWidget>();
+
+        var tag1 = new TagEntity { Id = 1, Name = "Alpha", OwnerId = "u1" };
+        var tag2 = new TagEntity { Id = 2, Name = "Beta", OwnerId = "u1" };
+        var node1 = new TagNode(tag1, new Point(0, 0));
+        var node2 = new TagNode(tag2, new Point(100, 0));
+        diagram.Nodes.Add(node1);
+        diagram.Nodes.Add(node2);
+
+        var edge = new TagEdge { Id = 10, SourceTagId = 1, TargetTagId = 2, OwnerId = "u1" };
+        var link = new TagEdgeLink(edge, node1.GetPort(Blazor.Diagrams.Core.Models.PortAlignment.Right)!, node2.GetPort(Blazor.Diagrams.Core.Models.PortAlignment.Left)!);
+        diagram.Links.Add(link);
+
+        int callCount = 0;
+        TagEdge? selectedEdge = null;
+        var cut = _ctx.Render<TagDiagramCanvas>(parameters => parameters
+            .Add(p => p.Diagram, diagram)
+            .Add(p => p.OnEdgeSelected, (TagEdge? e) =>
+            {
+                callCount++;
+                selectedEdge = e;
+            }));
+
+        // 1回目のクリック（未選択エッジのクリック: SelectModel + PointerClick）
+        diagram.SelectModel(link, unselectOthers: true);
+        var dummyEvent = new Blazor.Diagrams.Core.Events.PointerEventArgs(0, 0, 0, 0, false, false, false, 0, 0, 0, 0, 0, 0, string.Empty, true);
+        diagram.TriggerPointerClick(link, dummyEvent);
+        Assert.Equal(1, callCount);
+
+        // 2回目のクリック（すでに選択されたエッジを再クリック）
+        diagram.TriggerPointerClick(link, dummyEvent);
+
+        Assert.Equal(2, callCount);
+        Assert.NotNull(selectedEdge);
+        Assert.Equal(10, selectedEdge.Id);
+    }
+
+    [Fact]
+    public void TagDiagramCanvas_PointerClick_DirectlyAfterSelectionChanged_DoesNotDoubleInvoke()
+    {
+        var diagram = new BlazorDiagram();
+        diagram.RegisterComponent<TagNode, TagNodeWidget>();
+
+        var tag = new TagEntity { Id = 1, Name = "Alpha", OwnerId = "u1" };
+        var node = new TagNode(tag, new Point(10, 10));
+        diagram.Nodes.Add(node);
+
+        int callCount = 0;
+        var cut = _ctx.Render<TagDiagramCanvas>(parameters => parameters
+            .Add(p => p.Diagram, diagram)
+            .Add(p => p.OnNodeSelected, (TagEntity? _) => callCount++));
+
+        // 未選択ノードをクリックした時のシーケンス: PointerDown (SelectModel) -> PointerClick
+        diagram.SelectModel(node, unselectOthers: true);
+        var dummyEvent = new Blazor.Diagrams.Core.Events.PointerEventArgs(0, 0, 0, 0, false, false, false, 0, 0, 0, 0, 0, 0, string.Empty, true);
+        diagram.TriggerPointerClick(node, dummyEvent);
+
+        // 2重発火せず1回のみ呼ばれること
+        Assert.Equal(1, callCount);
+    }
+
+    [Fact]
     public void TagNodeWidget_RendersTagTreeButton_AndTogglesPopover()
     {
         var diagram = new BlazorDiagram();
@@ -231,6 +330,31 @@ public class TagDiagramCanvasTests : IAsyncDisposable
         var showChildrenBtn = cut.Find("button.tag-show-children-button");
         Assert.NotNull(showChildrenBtn);
         Assert.True(showChildrenBtn.HasAttribute("disabled"));
+    }
+
+    [Fact]
+    public void TagNodeWidget_RendersHideNodeButton_AndInvokesCallback()
+    {
+        var diagram = new BlazorDiagram();
+        var tag = new TagEntity { Id = 10, Name = "TargetTag", OwnerId = "user1" };
+        TagEntity? hiddenTag = null;
+        var node = new TagNode(tag, new Point(20, 20))
+        {
+            RequestHideNode = t => hiddenTag = t
+        };
+        diagram.Nodes.Add(node);
+
+        var cut = _ctx.Render<TagNodeWidget>(parameters => parameters
+            .Add(p => p.Node, node)
+            .AddCascadingValue(diagram));
+
+        var hideBtn = cut.Find("button.tag-hide-node-button");
+        Assert.NotNull(hideBtn);
+
+        hideBtn.Click();
+
+        Assert.NotNull(hiddenTag);
+        Assert.Equal(10, hiddenTag.Id);
     }
 
     [Fact]

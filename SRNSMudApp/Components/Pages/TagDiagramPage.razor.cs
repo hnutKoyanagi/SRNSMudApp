@@ -90,6 +90,10 @@ public partial class TagDiagramPage : ComponentBase
                 Inverse = true,
                 Minimum = 0.3,
                 Maximum = 2.0
+            },
+            Links =
+            {
+                DefaultPathGenerator = new Blazor.Diagrams.Core.PathGenerators.SmoothPathGenerator()
             }
         };
 
@@ -161,16 +165,16 @@ public partial class TagDiagramPage : ComponentBase
             {
                 int order = childOffsets.TryGetValue(tag.ParentTagId.Value, out int cur) ? cur : 0;
                 childOffsets[tag.ParentTagId.Value] = order + 1;
-                double offsetX = (order - 1) * 200.0;
-                double offsetY = 120.0;
+                double offsetX = (order - 1) * 280.0;
+                double offsetY = 240.0;
                 position = new Blazor.Diagrams.Core.Geometry.Point(Math.Max(20, parentPos.X + offsetX), Math.Max(20, parentPos.Y + offsetY));
             }
             else
             {
                 int col = i % columns;
                 int row = i / columns;
-                double x = 80 + (col * 240);
-                double y = 80 + (row * 160);
+                double x = 80 + (col * 280);
+                double y = 80 + (row * 280);
                 position = new Blazor.Diagrams.Core.Geometry.Point(x, y);
             }
 
@@ -190,32 +194,41 @@ public partial class TagDiagramPage : ComponentBase
                 AllTags = ViewModel.Tags,
                 RequestFocusTag = FocusTagById,
                 RequestAddChildTag = HandleAddChildTag,
-                RequestShowChildNodes = HandleShowChildNodes
+                RequestShowChildNodes = HandleShowChildNodes,
+                RequestHideNode = HandleHideTagNode
             };
             nodeMap[tag.Id] = node;
             _diagram.Nodes.Add(node);
         }
 
-        double tagMaxY = 80 + (((displayList.Count / columns) + 1) * 160);
+        double tagMaxY = 80 + (((displayList.Count / columns) + 1) * 280);
         ItemEntity? parentItem = ViewModel.ContextItems.FirstOrDefault(item => QueryItemId.HasValue && item.Id == QueryItemId.Value);
-        List<ItemEntity> childItems = ViewModel.ContextItems.Where(item => !QueryItemId.HasValue || item.Id != QueryItemId.Value).ToList();
+        List<ItemEntity> childItems = ViewModel.ContextItems
+            .Where(item => (!QueryItemId.HasValue || item.Id != QueryItemId.Value) && !ViewModel.HiddenItemIds.Contains(item.Id))
+            .ToList();
         var itemNodes = new List<ItemNode>();
 
         for (int i = 0; i < childItems.Count; i++)
         {
             ItemEntity item = childItems[i];
-            double x = 80 + (i * 240);
-            double y = tagMaxY + 80;
-            var node = new ItemNode(item, ViewModel.ContextItems, new Blazor.Diagrams.Core.Geometry.Point(x, y));
+            double x = 80 + (i * 280);
+            double y = tagMaxY + 140;
+            var node = new ItemNode(item, ViewModel.ContextItems, new Blazor.Diagrams.Core.Geometry.Point(x, y))
+            {
+                RequestHideNode = HandleHideItemNode
+            };
             itemNodes.Add(node);
             _diagram.Nodes.Add(node);
         }
 
-        if (parentItem != null)
+        if (parentItem != null && !ViewModel.HiddenItemIds.Contains(parentItem.Id))
         {
-            double x = 80 + (childItems.Count > 0 ? (childItems.Count - 1) * 240 / 2.0 : 0);
-            double y = tagMaxY + 240;
-            var node = new ItemNode(parentItem, ViewModel.ContextItems, new Blazor.Diagrams.Core.Geometry.Point(x, y));
+            double x = 80 + (childItems.Count > 0 ? (childItems.Count - 1) * 280 / 2.0 : 0);
+            double y = tagMaxY + 300;
+            var node = new ItemNode(parentItem, ViewModel.ContextItems, new Blazor.Diagrams.Core.Geometry.Point(x, y))
+            {
+                RequestHideNode = HandleHideItemNode
+            };
             itemNodes.Add(node);
             _diagram.Nodes.Add(node);
         }
@@ -238,6 +251,8 @@ public partial class TagDiagramPage : ComponentBase
                 _diagram.Links.Add(new LinkModel(parentNode, node));
             }
         }
+
+        var pairLinkCount = new Dictionary<(int, int), int>();
 
         foreach (TagEdge edge in ViewModel.Edges)
         {
@@ -264,9 +279,56 @@ public partial class TagDiagramPage : ComponentBase
                 PortModel targetPort = targetNode.GetPort(targetAlignment) ?? targetNode.Ports[0];
 
                 var link = new TagEdgeLink(edge, sourcePort, targetPort);
+
+                // 同一ノードペア（無向）間のエッジ重なりを防止するため、2本目以降にオフセットを付与
+                (int, int) pairKey = (Math.Min(edge.SourceTagId, edge.TargetTagId), Math.Max(edge.SourceTagId, edge.TargetTagId));
+                int pairIndex = pairLinkCount.TryGetValue(pairKey, out int currentCount) ? currentCount : 0;
+                pairLinkCount[pairKey] = pairIndex + 1;
+
+                if (pairIndex > 0)
+                {
+                    TagNode baseNodeA = edge.SourceTagId <= edge.TargetTagId ? sourceNode : targetNode;
+                    TagNode baseNodeB = edge.SourceTagId <= edge.TargetTagId ? targetNode : sourceNode;
+                    ApplyEdgeOffset(link, baseNodeA, baseNodeB, pairIndex);
+                }
+
                 _diagram.Links.Add(link);
             }
         }
+    }
+
+    /// <summary>
+    ///     同一ノードペア間に複数のエッジが存在する場合に、エッジが視覚的に重ならないよう
+    ///     経路の中間点に垂直方向のオフセット（中間ウェイポイント）を付与する。
+    /// </summary>
+    internal static void ApplyEdgeOffset(TagEdgeLink link, TagNode nodeA, TagNode nodeB, int pairIndex)
+    {
+        const double offsetStep = 40.0;
+
+        double midX = (nodeA.Position.X + nodeB.Position.X) / 2.0;
+        double midY = (nodeA.Position.Y + nodeB.Position.Y) / 2.0;
+
+        double dx = nodeB.Position.X - nodeA.Position.X;
+        double dy = nodeB.Position.Y - nodeA.Position.Y;
+        double len = Math.Sqrt((dx * dx) + (dy * dy));
+
+        if (len < 1.0)
+        {
+            return;
+        }
+
+        // nodeA -> nodeB の進行方向に垂直な単位ベクトル
+        double perpX = -dy / len;
+        double perpY = dx / len;
+
+        // pairIndex: 1 -> +40, 2 -> -40, 3 -> +80, 4 -> -80 ...
+        double sign = (pairIndex % 2 == 1) ? 1.0 : -1.0;
+        double magnitude = Math.Ceiling(pairIndex / 2.0) * offsetStep;
+        double offset = sign * magnitude;
+
+        link.AddVertex(new Blazor.Diagrams.Core.Geometry.Point(
+            midX + (perpX * offset),
+            midY + (perpY * offset)));
     }
 
     private void FocusTagFromHeaderTree(int tagId) =>
@@ -362,6 +424,10 @@ public partial class TagDiagramPage : ComponentBase
                 double panY = (containerHeight / 2.0) - ((node1.Position.Y + (nodeHeight / 2.0)) * zoom);
                 _diagram.SetPan(panX, panY);
             }
+            else
+            {
+                _diagram.UnselectAll();
+            }
         }
         finally
         {
@@ -445,6 +511,53 @@ public partial class TagDiagramPage : ComponentBase
         }
     }
 
+    private void HandleHideTagNode(TagEntity tag)
+    {
+        _isProgrammaticSelection = true;
+        try
+        {
+            ViewModel.HideTag(tag.Id);
+            _diagram.UnselectAll();
+            BuildDiagramElements();
+            FocusNodesInDiagram();
+            _ = InvokeAsync(StateHasChanged);
+            UpdateUrlQuery();
+            Snackbar.Add($"タグ「{tag.Name}」を画面表示から消しました。", Severity.Info);
+        }
+        finally
+        {
+            _isProgrammaticSelection = false;
+        }
+    }
+
+    private void HandleHideItemNode(ItemEntity item)
+    {
+        _isProgrammaticSelection = true;
+        try
+        {
+            ViewModel.HideItem(item.Id);
+            _diagram.UnselectAll();
+            BuildDiagramElements();
+            FocusNodesInDiagram();
+            _ = InvokeAsync(StateHasChanged);
+            Snackbar.Add($"Item #{item.Id} を画面表示から消しました。", Severity.Info);
+        }
+        finally
+        {
+            _isProgrammaticSelection = false;
+        }
+    }
+
+    private void RestoreHiddenNodes()
+    {
+        int count = ViewModel.HiddenTagIds.Count + ViewModel.HiddenItemIds.Count;
+        ViewModel.RestoreHiddenNodes();
+        BuildDiagramElements();
+        FocusNodesInDiagram();
+        _ = InvokeAsync(StateHasChanged);
+        Snackbar.Add($"非表示ノード ({count}件) を再表示しました。", Severity.Success);
+    }
+
     private void ResetZoom()
     {
         _diagram.SetZoom(1.0);
@@ -453,7 +566,17 @@ public partial class TagDiagramPage : ComponentBase
 
     private void HandleEdgeSelected(TagEdge? edge)
     {
-        ViewModel.SelectedEdge = edge;
+        if (edge != null && ViewModel.SelectedEdge?.Id == edge.Id)
+        {
+            // すでに選択されているエッジを再クリックした場合はフォーカスを解除
+            ViewModel.SelectedEdge = null;
+            _diagram.UnselectAll();
+        }
+        else
+        {
+            ViewModel.SelectedEdge = edge;
+        }
+
         UpdateUrlQuery();
     }
 
@@ -465,7 +588,7 @@ public partial class TagDiagramPage : ComponentBase
         }
 
         ViewModel.SelectedEdge = null;
-        if (tag == null)
+        if (tag == null || ViewModel.HiddenTagIds.Contains(tag.Id))
         {
             return;
         }

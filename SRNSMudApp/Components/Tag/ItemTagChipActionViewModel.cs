@@ -102,12 +102,9 @@ public class ItemTagChipActionViewModel
     /// </summary>
     public async Task<string?> ChangeItemTagAsync(int relationId, int newTagId, int itemId, string currentUserId, string relationOwnerId)
     {
-        if (relationOwnerId != currentUserId)
-        {
-            return "関連付けた本人ではないため、変更する権限がありません。";
-        }
-
-        return await _itemTagService.ChangeItemTagAsync(relationId, newTagId, itemId, currentUserId);
+        return relationOwnerId != currentUserId
+            ? "関連付けた本人ではないため、変更する権限がありません。"
+            : await _itemTagService.ChangeItemTagAsync(relationId, newTagId, itemId, currentUserId);
     }
 
     /// <summary>
@@ -123,11 +120,8 @@ public class ItemTagChipActionViewModel
     /// </summary>
     public async Task<string?> RemoveTagToTagRelationAsync(int relationId, string currentUserId, string relationOwnerId)
     {
-        if (relationOwnerId != currentUserId)
-        {
-            return "関連付けた本人ではないため、解除する権限がありません。";
-        }
-
-        return await _itemTagService.RemoveTagToTagRelationAsync(relationId, currentUserId);
+        return relationOwnerId != currentUserId
+            ? "関連付けた本人ではないため、解除する権限がありません。"
+            : await _itemTagService.RemoveTagToTagRelationAsync(relationId, currentUserId);
     }
 }

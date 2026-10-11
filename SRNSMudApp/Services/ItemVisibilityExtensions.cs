@@ -38,12 +38,9 @@ public static class ItemVisibilityExtensions
             query = query.Where(i => !i.IsAdminHidden);
         }
 
-        if (string.IsNullOrEmpty(currentUserId))
-        {
-            return query.Where(i => !i.IsPrivate);
-        }
-
-        return query.Where(i =>
+        return string.IsNullOrEmpty(currentUserId)
+            ? query.Where(i => !i.IsPrivate)
+            : query.Where(i =>
             isAdmin
             || i.OwnerId == currentUserId
             || !i.IsPrivate
@@ -92,12 +89,9 @@ public static class ItemVisibilityExtensions
             return true;
         }
 
-        if (item.TargetUserGroupId is null)
-        {
-            return await context.UserFollows.AnyAsync(f => f.OwnerId == currentUserId && f.FollowedUserId == item.OwnerId);
-        }
-
-        return await context.UserGroupMembers.AnyAsync(m => m.UserGroupId == item.TargetUserGroupId && m.UserId == currentUserId)
+        return item.TargetUserGroupId is null
+            ? await context.UserFollows.AnyAsync(f => f.OwnerId == currentUserId && f.FollowedUserId == item.OwnerId)
+            : await context.UserGroupMembers.AnyAsync(m => m.UserGroupId == item.TargetUserGroupId && m.UserId == currentUserId)
                || await context.UserGroups.AnyAsync(g => g.Id == item.TargetUserGroupId && g.OwnerId == currentUserId);
     }
 }

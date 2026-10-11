@@ -47,12 +47,9 @@ public sealed class ImportTagViewModel
     /// </summary>
     public async Task<IEnumerable<TagEntity>> SearchTagsAsync(string? value, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrEmpty(CurrentUserId))
-        {
-            return [];
-        }
-
-        return await _importTagDataProvider.SearchUserTagsAsync(CurrentUserId, value, cancellationToken);
+        return string.IsNullOrEmpty(CurrentUserId)
+            ? []
+            : (IEnumerable<TagEntity>)await _importTagDataProvider.SearchUserTagsAsync(CurrentUserId, value, cancellationToken);
     }
 
     /// <summary>

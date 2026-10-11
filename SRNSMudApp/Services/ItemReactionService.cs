@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 
 using SRNSMudApp.Data;
+using SRNSMudApp.Models;
 using SRNSMudApp.Models.Unions;
 
 namespace SRNSMudApp.Services;
@@ -115,7 +116,7 @@ public class ItemReactionService(
                 UpdatedDate = now
             };
             _ = context.TagRelations.Add(newRelation);
-            AddTimelineEvent(context, itemId, userId, tagId, "Insert", now, newWeight: targetWeight);
+            AddTimelineEvent(context, itemId, userId, tagId, TimelineEventType.Insert, now, newWeight: targetWeight);
             RecordWeightChange(context, tag, itemId, "TagRelationInsert", null, targetWeight, $"{reasonPrefix}付与", userId, newRelation);
 
             _ = await context.SaveChangesAsync();
@@ -153,7 +154,7 @@ public class ItemReactionService(
         {
             int delta = -previousWeight;
             RecordWeightChange(context, tag, itemId, "TagRelationDelete", null, delta, $"{reasonPrefix}取り消し", userId);
-            AddTimelineEvent(context, itemId, userId, tagId, "Delete", now, previousWeight: previousWeight);
+            AddTimelineEvent(context, itemId, userId, tagId, TimelineEventType.Delete, now, previousWeight: previousWeight);
             if (existingRelation.CommentItem is not null)
             {
                 _ = context.Items.Remove(existingRelation.CommentItem);
@@ -168,7 +169,7 @@ public class ItemReactionService(
         existingRelation.Weight = newWeight;
         existingRelation.UpdatedDate = now;
         RecordWeightChange(context, tag, itemId, "TagRelationUpdate", existingRelation.Id, weightDelta, $"{reasonPrefix}変更", userId);
-        AddTimelineEvent(context, itemId, userId, tagId, "Update", now, previousWeight, newWeight);
+        AddTimelineEvent(context, itemId, userId, tagId, TimelineEventType.Update, now, previousWeight, newWeight);
 
         _ = await context.SaveChangesAsync();
         return new ItemVoteResult(ItemVoteAction.Updated, existingRelation.Id, newWeight);
@@ -198,7 +199,7 @@ public class ItemReactionService(
         int itemId,
         string userId,
         int tagId,
-        string eventType,
+        TimelineEventType eventType,
         DateTime timestamp,
         int previousWeight = 0,
         int newWeight = 0)
@@ -208,7 +209,7 @@ public class ItemReactionService(
             OwnerId = userId,
             Target = new ItemTarget(itemId),
             FollowedTagId = tagId,
-            EventType = eventType,
+            ParsedEventType = eventType,
             PreviousWeight = previousWeight,
             NewWeight = newWeight,
             CreatedDate = timestamp,

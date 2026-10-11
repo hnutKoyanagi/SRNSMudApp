@@ -17,7 +17,6 @@ using SRNSMudApp.Data;
 public partial class TagNodeWidget : ComponentBase
 {
     [Inject] private IJSRuntime JS { get; set; } = null!;
-    [Inject] private NavigationManager NavigationManager { get; set; } = null!;
 
     /// <summary>
     ///     ウィジェットで描画対象となるタグノード。
@@ -65,9 +64,9 @@ public partial class TagNodeWidget : ComponentBase
         }
     }
 
-    private void NavigateToTagDetail()
+    private void HandleHideNode()
     {
-        NavigationManager.NavigateTo($"/TagDetail/{Node.Tag.Id}");
+        Node.RequestHideNode?.Invoke(Node.Tag);
     }
 
     private static string GetPortClass(PortAlignment alignment) => alignment switch

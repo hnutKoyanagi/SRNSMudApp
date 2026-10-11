@@ -32,6 +32,16 @@ public class TimelineEvent : BaseEntity
     // イベントの種類 ("Insert", "Update", "Delete")
     [MaxLength(20)] public string EventType { get; set; } = string.Empty;
 
+    /// <summary>
+    ///     イベント種別の列挙型表現。
+    /// </summary>
+    [NotMapped]
+    public Models.TimelineEventType? ParsedEventType
+    {
+        get => Models.TimelineEventTypeExtensions.ToTimelineEventType(EventType);
+        set => EventType = value.HasValue ? Models.TimelineEventTypeExtensions.ToDbString(value.Value) : string.Empty;
+    }
+
     // Weight の変化 (Update や Delete 時の表示用)
     public int PreviousWeight { get; set; }
     public int NewWeight { get; set; }

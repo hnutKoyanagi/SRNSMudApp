@@ -64,9 +64,9 @@ public class UserManagementViewModel
     /// </summary>
     public bool IsProtectedUser(ApplicationUser user)
     {
-        if (user == null) return false;
-
-        return string.Equals(user.Id, CurrentUserId, StringComparison.Ordinal)
+        return user == null
+            ? false
+            : string.Equals(user.Id, CurrentUserId, StringComparison.Ordinal)
             || string.Equals(user.UserName, "system", StringComparison.OrdinalIgnoreCase);
     }
 

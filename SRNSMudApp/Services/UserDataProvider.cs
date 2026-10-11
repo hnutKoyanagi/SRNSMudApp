@@ -26,7 +26,15 @@ public sealed record UserDetailPageData(
     int FollowersCount = 0,
     IReadOnlyList<ApplicationUser>? FollowingUsers = null,
     IReadOnlyList<ApplicationUser>? FollowerUsers = null,
-    IReadOnlyList<Tag>? ReactionTags = null);
+    IReadOnlyList<Tag>? ReactionTags = null,
+    UserProfileDto? Profile = null)
+{
+    /// <summary>
+    ///     公開プロファイル DTO を取得する（Profile が明示されていない場合は User から生成）。
+    /// </summary>
+    public UserProfileDto? UserProfile => Profile ?? UserProfileDto.FromEntity(User);
+}
+
 
 /// <summary>
 ///     ユーザー系コンポーネント用のデータアクセスを分離するインターフェース。
@@ -353,7 +361,7 @@ public class UserDataProvider(
     public async Task<ApplicationUser?> FindUserByIdAsync(string userId)
     {
         await using ApplicationDbContext dbContext = await _dbFactory.CreateDbContextAsync();
-        return await dbContext.Users.FindAsync(userId);
+        return await dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId);
     }
 
     public async Task<List<ApplicationUser>> GetUsersByIdsAsync(IEnumerable<string> userIds)
@@ -366,12 +374,7 @@ public class UserDataProvider(
     public async Task<bool> IsUserInRoleAsync(ApplicationUser user, string role)
     {
         ArgumentNullException.ThrowIfNull(user);
-        if (_userManager is null)
-        {
-            return false;
-        }
-
-        return await _userManager.IsInRoleAsync(user, role);
+        return _userManager is null ? false : await _userManager.IsInRoleAsync(user, role);
     }
 
     public async Task<IdentityResult> UpdateUserAdminRoleAsync(string userId, bool isAdmin)
@@ -382,12 +385,9 @@ public class UserDataProvider(
         }
 
         var user = await _userManager.FindByIdAsync(userId);
-        if (user is null)
-        {
-            return IdentityResult.Failed(new IdentityError { Description = "ユーザーが見つかりません。" });
-        }
-
-        return isAdmin
+        return user is null
+            ? IdentityResult.Failed(new IdentityError { Description = "ユーザーが見つかりません。" })
+            : isAdmin
             ? await _userManager.AddToRoleAsync(user, "Admin")
             : await _userManager.RemoveFromRoleAsync(user, "Admin");
     }

@@ -82,6 +82,12 @@ window.jqTreeInterop = {
                     $title.addClass('locked-tag-title');
                 }
 
+                if (node.isHighlighted) {
+                    $li.addClass('highlighted-tag-node');
+                    const $title = $li.find('.jqtree-title');
+                    $title.addClass('highlighted-tag-title');
+                }
+
                 if (isLoggedIn) {
                     const $title = $li.find('.jqtree-title');
                     $title.before('<input type="checkbox" class="tag-checkbox" data-id="' + node.id + '" style="margin-right: 8px; cursor: pointer;" />');
@@ -112,6 +118,17 @@ window.jqTreeInterop = {
             window.jqTreeInterop.dotNetHelpers[elementId].invokeMethodAsync('OnNodeSelected', selectedNodeId);
         });
 
+        $tree.off('auxclick', '.jqtree-title');
+        $tree.on('auxclick', '.jqtree-title', function (e) {
+            if (e.button === 1) {
+                e.preventDefault();
+                const node = $tree.tree('getNodeByHtmlElement', this);
+                if (node && !node.isPendingMove) {
+                    window.open('/TagDetail/' + node.id, '_blank');
+                }
+            }
+        });
+
         $tree.on('tree.click', function (event) {
             if (event.node && event.node.isPendingMove) {
                 event.preventDefault();
@@ -128,8 +145,13 @@ window.jqTreeInterop = {
                     event.preventDefault();
 
                     const nodeId = event.node.id;
-                    // noinspection JSUnresolvedReference
-                    window.jqTreeInterop.dotNetHelpers[elementId].invokeMethodAsync('NavigateToTagDetail', nodeId);
+                    const origEvent = event.click_event;
+                    if (origEvent.metaKey || origEvent.ctrlKey || origEvent.button === 1) {
+                        window.open('/TagDetail/' + nodeId, '_blank');
+                    } else {
+                        // noinspection JSUnresolvedReference
+                        window.jqTreeInterop.dotNetHelpers[elementId].invokeMethodAsync('NavigateToTagDetail', nodeId);
+                    }
                 }
             }
         });
@@ -178,5 +200,55 @@ window.jqTreeInterop = {
             }
         });
         return ids;
+    },
+    /** @public */
+    // noinspection JSUnusedGlobalSymbols
+    expandNodeRoute(elementId, nodeId) {
+        const $tree = $('#' + elementId);
+        if (!$tree.length) {
+            return;
+        }
+
+        const targetNode = $tree.tree('getNodeById', nodeId);
+        if (!targetNode) {
+            return;
+        }
+
+        // 1. ルートノードから重複ノードまでの祖先ノードを収集して展開
+        let currentParent = targetNode.parent;
+        const ancestors = [];
+        while (currentParent && currentParent.name !== undefined) {
+            ancestors.push(currentParent);
+            currentParent = currentParent.parent;
+        }
+
+        for (let i = ancestors.length - 1; i >= 0; i--) {
+            $tree.tree('openNode', ancestors[i], false);
+        }
+
+        // 2. 重複ノード自身およびその全子孫（リーフまで）を再帰的に展開
+        const openRecursively = (node) => {
+            if (node.children && node.children.length > 0) {
+                $tree.tree('openNode', node, false);
+                for (const child of node.children) {
+                    openRecursively(child);
+                }
+            }
+        };
+        openRecursively(targetNode);
+
+        // 3. 重複ノードを選択
+        $tree.tree('selectNode', targetNode);
+
+        // 4. 重複ノードを画面中央へスクロールし、ハイライト表示
+        const finalNode = $tree.tree('getNodeById', nodeId) || targetNode;
+        if (finalNode && finalNode.element) {
+            finalNode.element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            const $element = $(finalNode.element);
+            $element.addClass('duplicate-highlight');
+            setTimeout(() => {
+                $element.removeClass('duplicate-highlight');
+            }, 3000);
+        }
     }
 };

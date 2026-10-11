@@ -1,6 +1,6 @@
 @namespace SRNSMudApp.Components.UI
 
-<div class="reaction-comment-dialog-container" @onmouseenter="OnCursorEnter" @onpointerenter="OnCursorEnter" @onfocusin="OnCursorEnter">
+<div class="reaction-comment-dialog-container reaction-toast-dialog" @onclick="OnToastClicked">
     <MudDialog>
         <TitleContent>
             <div class="d-flex align-center">
@@ -9,13 +9,13 @@
             </div>
         </TitleContent>
         <DialogContent>
-            @if (!_isCursorHovered)
+            @if (!ViewModel.IsCursorHovered)
             {
                 <div class="mb-3">
                     <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-1">
-                        10秒以内にカーソルを合わせると永久表示になります（残り: @_remainingSeconds 秒）
+                        10秒以内にクリックすると永久表示になります（残り: @ViewModel.RemainingSeconds 秒）
                     </MudText>
-                    <MudProgressLinear Color="Color.Primary" Value="@(_remainingSeconds * 10)" Max="100" />
+                    <MudProgressLinear Color="Color.Primary" Value="@(ViewModel.RemainingSeconds * 10)" Max="100" />
                 </div>
             }
             else
@@ -25,7 +25,7 @@
                 </MudAlert>
             }
 
-            <MudTextField @bind-Value="Comment"
+            <MudTextField @bind-Value="ViewModel.Comment"
                           Label="コメント (オプション)"
                           Placeholder="リアクションにコメントを添えることができます"
                           Variant="Variant.Outlined"
@@ -33,9 +33,10 @@
                           MaxLength="500"
                           Counter="500"
                           Immediate="true"
-                          AutoFocus="true" />
+                          AutoFocus="false" />
         </DialogContent>
         <DialogActions>
+            <MudButton Color="Color.Default" Variant="Variant.Text" OnClick="Cancel">閉じる</MudButton>
             <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save">保存</MudButton>
         </DialogActions>
     </MudDialog>

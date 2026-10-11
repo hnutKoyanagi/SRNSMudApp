@@ -73,6 +73,7 @@ public class TagDetailDataProvider(
             .Include(t => t.Owner)
             .Include(t => t.AutoApproveUserGroups)
                 .ThenInclude(g => g.UserGroup)
+            .WhereVisibleToUser()
             .AsNoTracking()
             .FirstOrDefaultAsync(t => t.Id == tagId);
 
@@ -106,6 +107,7 @@ public class TagDetailDataProvider(
             .ThenInclude(tr => tr.Tag)
             .ThenInclude(t => t.Owner)
             .Where(t => t.TargetTagRelations.Any(tr => tr.TagId == tagId))
+            .WhereVisibleToUser()
             .OrderByDescending(t => t.UpdatedDate)
             .AsNoTracking()
             .ToListAsync();
@@ -212,6 +214,10 @@ public class TagDetailDataProvider(
         {
             return TagDeleteOperationResult.Unauthorized;
         }
+
+        await context.RemoveTagRestrictedDependenciesAsync([tagId]);
+        tagToDelete.ParentTagId = null;
+        _ = await context.SaveChangesAsync();
 
         _ = context.Tags.Remove(tagToDelete);
         _ = await context.SaveChangesAsync();

@@ -1,10 +1,6 @@
-#region
-
 using Microsoft.EntityFrameworkCore;
 
 using SRNSMudApp.Data;
-
-#endregion
 
 namespace SRNSMudApp.Services;
 
@@ -133,13 +129,10 @@ public class ItemDetailDataProvider(IDbContextFactory<ApplicationDbContext> dbFa
                     .WhereVisibleToUser(context, currentUserId, isAdmin)
                     .ToDictionaryAsync(i => i.Id, cancellationToken);
 
-                foreach (var id in ancestorIds)
-                {
-                    if (ancestorItems.TryGetValue(id, out var parent))
-                    {
-                        ancestors.Add(parent);
-                    }
-                }
+                // CTE でソートされた ancestorIds の深さ順を維持してエンティティ一覧を構築
+                ancestors = [.. ancestorIds
+                    .Select(id => ancestorItems.GetValueOrDefault(id))
+                    .OfType<Item>()];
             }
         }
 
@@ -184,9 +177,13 @@ public class ItemDetailDataProvider(IDbContextFactory<ApplicationDbContext> dbFa
             .AsNoTracking()
             .ToListAsync(cancellationToken);
 
-        List<Tag> allTags = await context.Tags.AsNoTracking().ToListAsync(cancellationToken);
+        List<Tag> allTags = await context.Tags.WhereVisibleToUser().AsNoTracking().ToListAsync(cancellationToken);
         List<TagRelationToTag> allTagRelationsToTags =
-            await context.TagRelationToTags.Include(ttr => ttr.Tag).AsNoTracking().ToListAsync(cancellationToken);
+            await context.TagRelationToTags
+                .Include(ttr => ttr.Tag)
+                .Where(ttr => ttr.Tag.Owner == null || !ttr.Tag.Owner.IsBanned)
+                .AsNoTracking()
+                .ToListAsync(cancellationToken);
 
         return new ItemDetailPageData(item, allTags, allTagRelationsToTags, ledgers, ancestors, replies, siblings, quotes);
     }

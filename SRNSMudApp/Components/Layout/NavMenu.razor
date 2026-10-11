@@ -20,6 +20,16 @@
     </MudNavLink>
     <AuthorizeView>
         <Authorized>
+            <MudNavLink Href="notifications" Match="NavLinkMatch.Prefix">
+                <div class="d-flex align-center">
+                    <MudBadge Content="@ViewModel.UnreadNotificationCount" Color="Color.Error" Overlap="true"
+                              Visible="@(ViewModel.UnreadNotificationCount > 0)" Class="mr-3"
+                              data-testid="nav-notifications-badge">
+                        <MudIcon Icon="@Icons.Material.Filled.Notifications" />
+                    </MudBadge>
+                    <span>Notifications</span>
+                </div>
+            </MudNavLink>
             <MudNavLink Href="@($"User/UserDetail/{_currentUserId}")" Match="NavLinkMatch.Prefix"
                         Icon="@Icons.Material.Filled.AccountCircle">
                 Profile
@@ -31,7 +41,7 @@
                 <AntiforgeryToken />
                 <input type="hidden" name="ReturnUrl" value="@ViewModel.CurrentUrl" />
                 <button type="submit" class="mud-nav-link mud-ripple">
-                    <MudIcon Icon="@Icons.Material.Filled.Logout" Color="Color.Info" Class="mr-3"></MudIcon>
+                    <MudIcon Icon="@Icons.Material.Filled.Logout" Color="Color.Info" Class="mr-3" />
                     Logout
                 </button>
             </form>
@@ -76,16 +86,7 @@
             <MudNavLink Href="UserGroup/List" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Group">
                 User Groups
             </MudNavLink>
-            <MudNavLink Href="notifications" Match="NavLinkMatch.Prefix">
-                <div class="d-flex align-center">
-                    <MudBadge Content="@ViewModel.UnreadNotificationCount" Color="Color.Error" Overlap="true"
-                              Visible="@(ViewModel.UnreadNotificationCount > 0)" Class="mr-3"
-                              data-testid="nav-notifications-badge">
-                        <MudIcon Icon="@Icons.Material.Filled.Notifications" />
-                    </MudBadge>
-                    <span>Notifications</span>
-                </div>
-            </MudNavLink>
+            
             <MudNavLink Href="PublicOffer/PublicOfferBoard" Match="NavLinkMatch.Prefix"
                         Icon="@Icons.Material.Filled.Store">
                 Public Offers

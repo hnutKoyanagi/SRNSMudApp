@@ -63,12 +63,7 @@ public sealed class TagNameProposalViewModel
             return "タグ名は100文字以内で入力してください";
         }
 
-        if (!TagNameProposalService.TagNameRegex().IsMatch(value))
-        {
-            return "タグ名に使用できない文字が含まれています";
-        }
-
-        return null;
+        return !TagNameProposalService.TagNameRegex().IsMatch(value) ? "タグ名に使用できない文字が含まれています" : null;
     }
 
     /// <summary>

@@ -224,12 +224,9 @@ public class TagDetailViewModel
             return TagDeleteOperationResult.Locked;
         }
 
-        if (!CanDelete)
-        {
-            return Tag.IsSystem ? TagDeleteOperationResult.SystemTag : TagDeleteOperationResult.Unauthorized;
-        }
-
-        return await _tagDetailData.DeleteTagWithResultAsync(Tag.Id, CurrentUserId, IsAdmin);
+        return !CanDelete
+            ? Tag.IsSystem ? TagDeleteOperationResult.SystemTag : TagDeleteOperationResult.Unauthorized
+            : await _tagDetailData.DeleteTagWithResultAsync(Tag.Id, CurrentUserId, IsAdmin);
     }
 
     /// <summary>

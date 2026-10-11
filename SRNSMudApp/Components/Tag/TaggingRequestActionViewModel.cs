@@ -31,12 +31,7 @@ public class TaggingRequestActionViewModel
     /// </summary>
     public async Task<bool> ApproveRequestAsync(int requestId, string currentUserId)
     {
-        if (string.IsNullOrEmpty(currentUserId))
-        {
-            return false;
-        }
-
-        return await _actions.ApproveAsync(requestId, currentUserId);
+        return string.IsNullOrEmpty(currentUserId) ? false : await _actions.ApproveAsync(requestId, currentUserId);
     }
 
     /// <summary>
@@ -44,12 +39,7 @@ public class TaggingRequestActionViewModel
     /// </summary>
     public async Task<bool> RejectRequestAsync(int requestId, string currentUserId)
     {
-        if (string.IsNullOrEmpty(currentUserId))
-        {
-            return false;
-        }
-
-        return await _actions.RejectViaDialogAsync(requestId, currentUserId);
+        return string.IsNullOrEmpty(currentUserId) ? false : await _actions.RejectViaDialogAsync(requestId, currentUserId);
     }
 
     /// <summary>

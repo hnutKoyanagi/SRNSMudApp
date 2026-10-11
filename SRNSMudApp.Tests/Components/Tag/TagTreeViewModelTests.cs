@@ -1,5 +1,8 @@
+using Moq;
+
 using SRNSMudApp.Components.Tag;
 using SRNSMudApp.Models;
+using SRNSMudApp.Services;
 
 using TagEntity = SRNSMudApp.Data.Tag;
 
@@ -450,5 +453,226 @@ public class TagTreeViewModelTests
 
         Assert.NotNull(json);
         Assert.Contains("\"id\":1,\"name\":\"NormalTag\",\"isLocked\":false", json);
+    }
+
+    [Fact]
+    public async Task DeleteTagsAsync_WhenSelectedIdsEmpty_ReturnsEmptyResultImmediately()
+    {
+        var dataMock = new Mock<ITagTreeDataProvider>();
+        var lockMock = new Mock<ITagLockService>();
+        var sut = new TagTreeViewModel(dataMock.Object, lockMock.Object);
+        sut.SetUser(CurrentUserId, false);
+
+        var result = await sut.DeleteTagsAsync([]);
+
+        Assert.False(result.HasDeleted);
+        Assert.Equal(0, result.DeletedCount);
+        dataMock.Verify(d => d.DeleteTagsAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<int>>(), It.IsAny<bool>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteTagsAsync_WhenCurrentUserIdEmpty_ReturnsEmptyResultImmediately()
+    {
+        var dataMock = new Mock<ITagTreeDataProvider>();
+        var lockMock = new Mock<ITagLockService>();
+        var sut = new TagTreeViewModel(dataMock.Object, lockMock.Object);
+        sut.SetUser(null, false);
+
+        var result = await sut.DeleteTagsAsync([1, 2]);
+
+        Assert.False(result.HasDeleted);
+        Assert.Equal(0, result.DeletedCount);
+        dataMock.Verify(d => d.DeleteTagsAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<int>>(), It.IsAny<bool>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteTagsAsync_WhenValid_CallsDataProviderAndReloadsData()
+    {
+        var dataMock = new Mock<ITagTreeDataProvider>();
+        var lockMock = new Mock<ITagLockService>();
+        dataMock.Setup(d => d.DeleteTagsAsync(CurrentUserId, It.IsAny<IReadOnlyList<int>>(), false))
+            .ReturnsAsync(new TagTreeDeleteResult(true, 2, [], []));
+        dataMock.Setup(d => d.LoadTagsAsync()).ReturnsAsync([]);
+        dataMock.Setup(d => d.LoadPendingTagMovesAsync()).ReturnsAsync([]);
+        lockMock.Setup(l => l.GetAllTagsWithLockStatusAsync(default)).ReturnsAsync([]);
+
+        var sut = new TagTreeViewModel(dataMock.Object, lockMock.Object);
+        sut.SetUser(CurrentUserId, false);
+
+        var result = await sut.DeleteTagsAsync([1, 2]);
+
+        Assert.True(result.HasDeleted);
+        Assert.Equal(2, result.DeletedCount);
+        dataMock.Verify(d => d.DeleteTagsAsync(CurrentUserId, It.Is<IReadOnlyList<int>>(ids => ids.Count == 2), false), Times.Once);
+        dataMock.Verify(d => d.LoadTagsAsync(), Times.Once);
+    }
+
+    [Fact]
+    public void FilterTags_WhenTagOwnerIsBanned_ExcludesBannedOwnerTag()
+    {
+        var bannedUser = new SRNSMudApp.Data.ApplicationUser { Id = "banned-user", IsBanned = true };
+        var activeUser = new SRNSMudApp.Data.ApplicationUser { Id = "active-user", IsBanned = false };
+
+        var bannedTag = new TagEntity { Id = 10, Name = "BannedTag", OwnerId = bannedUser.Id, Owner = bannedUser };
+        var activeTag = new TagEntity { Id = 20, Name = "ActiveTag", OwnerId = activeUser.Id, Owner = activeUser };
+
+        List<TagEntity> tags = [bannedTag, activeTag];
+
+        var filtered = TagTreeViewModel.FilterTags(tags, null, activeUser.Id).ToList();
+
+        Assert.Contains(filtered, t => t.Id == activeTag.Id);
+        Assert.DoesNotContain(filtered, t => t.Id == bannedTag.Id);
+    }
+
+    [Fact]
+    public void FilterTags_WhenSearchTextMatchesNode_IncludesHitNodeAncestorsAndDescendants()
+    {
+        // 階層: Root(1) -> Parent(2) -> HitTag(3) -> Child(4) -> GrandChild(5)
+        // 別系統: Unrelated(6) -> UnrelatedChild(7)
+        List<TagEntity> tags =
+        [
+            NewTag(1, "Root", CurrentUserId),
+            NewTag(2, "Parent", CurrentUserId, parentTagId: 1),
+            NewTag(3, "HitTag", CurrentUserId, parentTagId: 2),
+            NewTag(4, "Child", CurrentUserId, parentTagId: 3),
+            NewTag(5, "GrandChild", CurrentUserId, parentTagId: 4),
+            NewTag(6, "Unrelated", CurrentUserId),
+            NewTag(7, "UnrelatedChild", CurrentUserId, parentTagId: 6)
+        ];
+
+        var filtered = TagTreeViewModel.FilterTags(tags, "HitTag", CurrentUserId).ToList();
+
+        // 祖先 (1, 2)、ヒットノード自身 (3)、サブノード（子・孫 4, 5）が含まれること
+        Assert.Contains(filtered, t => t.Id == 1);
+        Assert.Contains(filtered, t => t.Id == 2);
+        Assert.Contains(filtered, t => t.Id == 3);
+        Assert.Contains(filtered, t => t.Id == 4);
+        Assert.Contains(filtered, t => t.Id == 5);
+
+        // 無関係なノードは含まれないこと
+        Assert.DoesNotContain(filtered, t => t.Id == 6);
+        Assert.DoesNotContain(filtered, t => t.Id == 7);
+    }
+
+    [Fact]
+    public void GetMatchingTagIds_WhenSearchTextMatches_ReturnsOnlyDirectMatches()
+    {
+        List<TagEntity> tags =
+        [
+            NewTag(1, "Root", CurrentUserId),
+            NewTag(2, "HitTag", CurrentUserId, parentTagId: 1),
+            NewTag(3, "ChildOfHit", CurrentUserId, parentTagId: 2),
+            NewTag(4, "AnotherHitTag", CurrentUserId)
+        ];
+
+        var matchingIds = TagTreeViewModel.GetMatchingTagIds(tags, "HitTag");
+
+        Assert.Equal(2, matchingIds.Count);
+        Assert.Contains(2, matchingIds);
+        Assert.Contains(4, matchingIds);
+        Assert.DoesNotContain(1, matchingIds);
+        Assert.DoesNotContain(3, matchingIds);
+    }
+
+    [Fact]
+    public void SerializeTreeData_WhenHighlightedTagIdsProvided_OutputsIsHighlightedTrueForMatchedTagsOnly()
+    {
+        List<TagEntity> tags =
+        [
+            NewTag(1, "Parent", CurrentUserId),
+            NewTag(2, "HitTag", CurrentUserId, parentTagId: 1),
+            NewTag(3, "Child", CurrentUserId, parentTagId: 2)
+        ];
+
+        HashSet<int> highlightedIds = [2];
+
+        var json = TagTreeViewModel.SerializeTreeData(tags, null, CurrentUserId, null, highlightedIds);
+
+        Assert.NotNull(json);
+        Assert.Contains("\"id\":1,\"name\":\"Parent\",\"isLocked\":false,\"isHighlighted\":false", json);
+        Assert.Contains("\"id\":2,\"name\":\"HitTag\",\"isLocked\":false,\"isHighlighted\":true", json);
+        Assert.Contains("\"id\":3,\"name\":\"Child\",\"isLocked\":false,\"isHighlighted\":false", json);
+    }
+
+    [Fact]
+    public async Task AddChildTagAsync_WhenDuplicateTagNameExists_ReturnsErrorWithDuplicateTagId()
+    {
+        var dataMock = new Mock<ITagTreeDataProvider>();
+        var lockMock = new Mock<ITagLockService>();
+        lockMock.Setup(l => l.GetAllTagsWithLockStatusAsync()).ReturnsAsync([]);
+        lockMock.Setup(l => l.IsChildCreationRestrictedAsync(It.IsAny<int?>())).ReturnsAsync(false);
+
+        List<TagEntity> existingTags =
+        [
+            NewTag(1, "Parent", CurrentUserId),
+            NewTag(2, "ExistingChild", CurrentUserId, parentTagId: 1)
+        ];
+        dataMock.Setup(d => d.LoadTagsAsync()).ReturnsAsync(existingTags);
+        dataMock.Setup(d => d.LoadPendingTagMovesAsync()).ReturnsAsync([]);
+
+        var sut = new TagTreeViewModel(dataMock.Object, lockMock.Object);
+        sut.SetUser(CurrentUserId, false);
+        await sut.LoadDataAsync();
+
+        var result = await sut.AddChildTagAsync(1, "ExistingChild", "some content");
+
+        Assert.Equal(SRNSMudApp.Components.UI.TagCardActionResultType.Error, result.Type);
+        Assert.Equal("同じ名前のタグが既に存在します。", result.Message);
+        Assert.Equal(2, result.DuplicateTagId);
+        dataMock.Verify(d => d.AddTagAsync(It.IsAny<TagEntity>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task AddChildTagAsync_WhenDuplicateTagNameCaseInsensitive_ReturnsErrorWithDuplicateTagId()
+    {
+        var dataMock = new Mock<ITagTreeDataProvider>();
+        var lockMock = new Mock<ITagLockService>();
+        lockMock.Setup(l => l.GetAllTagsWithLockStatusAsync()).ReturnsAsync([]);
+        lockMock.Setup(l => l.IsChildCreationRestrictedAsync(It.IsAny<int?>())).ReturnsAsync(false);
+
+        List<TagEntity> existingTags =
+        [
+            NewTag(1, "Parent", CurrentUserId),
+            NewTag(42, "ExistingChild", CurrentUserId, parentTagId: 1)
+        ];
+        dataMock.Setup(d => d.LoadTagsAsync()).ReturnsAsync(existingTags);
+        dataMock.Setup(d => d.LoadPendingTagMovesAsync()).ReturnsAsync([]);
+
+        var sut = new TagTreeViewModel(dataMock.Object, lockMock.Object);
+        sut.SetUser(CurrentUserId, false);
+        await sut.LoadDataAsync();
+
+        var result = await sut.AddChildTagAsync(1, "  existingchild  ", null);
+
+        Assert.Equal(SRNSMudApp.Components.UI.TagCardActionResultType.Error, result.Type);
+        Assert.Equal("同じ名前のタグが既に存在します。", result.Message);
+        Assert.Equal(42, result.DuplicateTagId);
+        dataMock.Verify(d => d.AddTagAsync(It.IsAny<TagEntity>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task AddChildTagAsync_WhenTagNameIsUnique_CallsAddTagAndReturnsSuccess()
+    {
+        var dataMock = new Mock<ITagTreeDataProvider>();
+        var lockMock = new Mock<ITagLockService>();
+        lockMock.Setup(l => l.GetAllTagsWithLockStatusAsync()).ReturnsAsync([]);
+        lockMock.Setup(l => l.IsChildCreationRestrictedAsync(It.IsAny<int?>())).ReturnsAsync(false);
+
+        List<TagEntity> existingTags =
+        [
+            NewTag(1, "Parent", CurrentUserId)
+        ];
+        dataMock.Setup(d => d.LoadTagsAsync()).ReturnsAsync(existingTags);
+        dataMock.Setup(d => d.LoadPendingTagMovesAsync()).ReturnsAsync([]);
+
+        var sut = new TagTreeViewModel(dataMock.Object, lockMock.Object);
+        sut.SetUser(CurrentUserId, false);
+        await sut.LoadDataAsync();
+
+        var result = await sut.AddChildTagAsync(1, "NewUniqueTag", "desc");
+
+        Assert.Equal(SRNSMudApp.Components.UI.TagCardActionResultType.Success, result.Type);
+        Assert.Null(result.DuplicateTagId);
+        dataMock.Verify(d => d.AddTagAsync(It.Is<TagEntity>(t => t.Name == "NewUniqueTag" && t.ParentTagId == 1)), Times.Once);
     }
 }

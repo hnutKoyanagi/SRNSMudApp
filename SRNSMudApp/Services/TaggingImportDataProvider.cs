@@ -71,12 +71,9 @@ public class TaggingImportDataProvider(
             .Where(t => !Tag.VoteTagNames.Contains(t.Name) && !Tag.ReactionTagNames.Contains(t.Name))
             .AsNoTracking();
 
-        if (string.IsNullOrWhiteSpace(query))
-        {
-            return await q.OrderBy(t => t.Name).Take(30).ToListAsync(cancellationToken);
-        }
-
-        return await q.Where(t => t.Name.Contains(query)).OrderBy(t => t.Name).Take(30).ToListAsync(cancellationToken);
+        return string.IsNullOrWhiteSpace(query)
+            ? await q.OrderBy(t => t.Name).Take(30).ToListAsync(cancellationToken)
+            : await q.Where(t => t.Name.Contains(query)).OrderBy(t => t.Name).Take(30).ToListAsync(cancellationToken);
     }
 
     /// <inheritdoc />

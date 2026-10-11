@@ -100,12 +100,7 @@ public sealed class TaggingRequestThreadViewModel
     /// </summary>
     public async Task<bool> ApproveRequestAsync()
     {
-        if (TaggingRequest == null || CurrentUserId == null)
-        {
-            return false;
-        }
-
-        return await _requestActions.ApproveAsync(TaggingRequest.Id, CurrentUserId);
+        return TaggingRequest == null || CurrentUserId == null ? false : await _requestActions.ApproveAsync(TaggingRequest.Id, CurrentUserId);
     }
 
     /// <summary>
@@ -113,11 +108,8 @@ public sealed class TaggingRequestThreadViewModel
     /// </summary>
     public async Task<bool> RejectRequestAsync()
     {
-        if (TaggingRequest == null || CurrentUserId == null)
-        {
-            return false;
-        }
-
-        return await _requestActions.RejectViaDialogAsync(TaggingRequest.Id, CurrentUserId);
+        return TaggingRequest == null || CurrentUserId == null
+            ? false
+            : await _requestActions.RejectViaDialogAsync(TaggingRequest.Id, CurrentUserId);
     }
 }

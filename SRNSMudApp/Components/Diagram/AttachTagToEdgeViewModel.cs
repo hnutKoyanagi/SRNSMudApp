@@ -121,12 +121,9 @@ public sealed class AttachTagToEdgeViewModel
             return new Failure("Weight は 1 以上を指定してください。");
         }
 
-        if (Weight > SelectedAsset.Amount)
-        {
-            return new Failure($"Weight はアセット残量（{SelectedAsset.Amount}）以下を指定してください。");
-        }
-
-        return new Success<(int TagId, int RightAssetId, int Weight)>((
+        return Weight > SelectedAsset.Amount
+            ? new Failure($"Weight はアセット残量（{SelectedAsset.Amount}）以下を指定してください。")
+            : new Success<(int TagId, int RightAssetId, int Weight)>((
             TagId: SelectedTag.Id,
             RightAssetId: SelectedAsset.Id,
             Weight: Weight));

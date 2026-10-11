@@ -437,7 +437,10 @@ public partial class ItemCard : IAsyncDisposable
             {
                 CloseOnEscapeKey = true,
                 MaxWidth = MaxWidth.Small,
-                FullWidth = true
+                FullWidth = true,
+                Position = DialogPosition.BottomRight,
+                CloseButton = true,
+                BackgroundClass = "reaction-toast-dialog-overlay"
             };
             IDialogReference dialog = await DialogLauncher.ShowAsync<ReactionCommentDialog>("リアクションを追加", parameters, options);
             DialogResult? result = await dialog.Result;

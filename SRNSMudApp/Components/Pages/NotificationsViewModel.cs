@@ -438,7 +438,7 @@ public class NotificationsViewModel
         {
             highlightEvents.Add(new TimelineEvent
             {
-                EventType = "Update",
+                ParsedEventType = TimelineEventType.Update,
                 FollowedTagId = notification.HighlightTagId.Value,
                 OwnerId = userId ?? ""
             });

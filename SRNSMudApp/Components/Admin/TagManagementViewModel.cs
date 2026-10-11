@@ -102,12 +102,9 @@ public sealed class TagManagementViewModel
     {
         ArgumentNullException.ThrowIfNull(tags);
 
-        if (string.IsNullOrWhiteSpace(searchString))
-        {
-            return tags;
-        }
-
-        return tags.Where(t =>
+        return string.IsNullOrWhiteSpace(searchString)
+            ? tags
+            : tags.Where(t =>
             t.Name.Contains(searchString, StringComparison.OrdinalIgnoreCase) ||
             (t.ParentTagName?.Contains(searchString, StringComparison.OrdinalIgnoreCase) ?? false) ||
             (t.OwnerUserName?.Contains(searchString, StringComparison.OrdinalIgnoreCase) ?? false));

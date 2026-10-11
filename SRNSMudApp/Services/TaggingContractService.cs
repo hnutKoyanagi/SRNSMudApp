@@ -226,12 +226,9 @@ public class TaggingContractService(
     {
         await using ApplicationDbContext dbContext = await _dbFactory.CreateDbContextAsync();
         Item? item = await dbContext.Items.FindAsync(itemId);
-        if (item == null)
-        {
-            return [];
-        }
-
-        return await dbContext.TaggingRequestEntities
+        return item == null
+            ? []
+            : (IReadOnlyList<TaggingRequestEntity>)await dbContext.TaggingRequestEntities
             .Include(r => r.Target).ThenInclude(t => t.Item)
             .Include(r => r.Owner)
             .Include(r => r.RequestedTag)
@@ -245,12 +242,9 @@ public class TaggingContractService(
     {
         await using ApplicationDbContext dbContext = await _dbFactory.CreateDbContextAsync();
         TagEdge? edge = await dbContext.TagEdges.FindAsync(edgeId);
-        if (edge == null)
-        {
-            return [];
-        }
-
-        return await dbContext.TaggingRequestEntities
+        return edge == null
+            ? []
+            : (IReadOnlyList<TaggingRequestEntity>)await dbContext.TaggingRequestEntities
             .Include(r => r.Target).ThenInclude(t => t.TagEdge)
             .Include(r => r.Owner)
             .Include(r => r.RequestedTag)

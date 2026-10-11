@@ -56,6 +56,7 @@ public class TagHierarchyService(
             .Where(t => !Tag.VoteTagNames.Contains(t.Name) &&
                         !Tag.ReactionTagNames.Contains(t.Name) &&
                         t.Name != Tag.RootTagName)
+            .WhereVisibleToUser()
             .AsNoTracking()
             .ToListAsync(cancellationToken);
 
@@ -102,7 +103,8 @@ public class TagHierarchyService(
         {
             try
             {
-                IJSObjectReference module = await jsRuntime.InvokeAsync<IJSObjectReference>(
+                // LEAK-01: 動的インポートした JS モジュールを確実に破棄し、Circuit およびブラウザのハンドルリークを防止する
+                await using IJSObjectReference module = await jsRuntime.InvokeAsync<IJSObjectReference>(
                     "import", cancellationToken, "./js/tagHierarchy.js");
 
                 // 新規タグも含めて判定させる

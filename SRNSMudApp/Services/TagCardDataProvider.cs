@@ -119,7 +119,7 @@ public class TagCardDataProvider(IDbContextFactory<ApplicationDbContext> dbFacto
             OwnerId = ownerId,
             Target = new TagTarget(targetTagId),
             FollowedTagId = selectedTagId,
-            EventType = "Insert",
+            ParsedEventType = Models.TimelineEventType.Insert,
             NewWeight = 1
         });
         _ = await context.SaveChangesAsync();
@@ -184,7 +184,7 @@ public class TagCardDataProvider(IDbContextFactory<ApplicationDbContext> dbFacto
                     OwnerId = ownerId,
                     Target = new TagTarget(entity.TargetTagId),
                     FollowedTagId = entity.TagId,
-                    EventType = "Delete",
+                    ParsedEventType = Models.TimelineEventType.Delete,
                     PreviousWeight = entity.Weight
                 });
                 _ = await context.SaveChangesAsync();
@@ -319,7 +319,7 @@ public class TagCardDataProvider(IDbContextFactory<ApplicationDbContext> dbFacto
                 OwnerId = ownerId,
                 Target = new TagTarget(entity.TargetTagId),
                 FollowedTagId = entity.TagId,
-                EventType = "Update",
+                ParsedEventType = Models.TimelineEventType.Update,
                 PreviousWeight = entity.Weight - delta,
                 NewWeight = entity.Weight
             });

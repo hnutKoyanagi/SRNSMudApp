@@ -1,4 +1,5 @@
 using SRNSMudApp.Data;
+using SRNSMudApp.Models;
 using SRNSMudApp.Models.Unions;
 
 namespace SRNSMudApp.Services;
@@ -18,7 +19,7 @@ public class TimelineRecorder : ITimelineRecorder
             OwnerId = userId,
             Target = new ItemTarget(itemId),
             FollowedTagId = tagId,
-            EventType = "Insert",
+            ParsedEventType = TimelineEventType.Insert,
             NewWeight = weight
         });
     }
@@ -33,7 +34,7 @@ public class TimelineRecorder : ITimelineRecorder
             OwnerId = userId,
             Target = new ItemTarget(itemId),
             FollowedTagId = tagId,
-            EventType = "Delete",
+            ParsedEventType = TimelineEventType.Delete,
             PreviousWeight = previousWeight
         });
     }
@@ -48,7 +49,7 @@ public class TimelineRecorder : ITimelineRecorder
             OwnerId = userId,
             Target = new ItemTarget(itemId),
             FollowedTagId = tagId,
-            EventType = "Update",
+            ParsedEventType = TimelineEventType.Update,
             PreviousWeight = previousWeight,
             NewWeight = newWeight
         });

@@ -375,12 +375,9 @@ public class AddItemViewModel
             return ItemVisibility.FromBooleans(true, parentItem.TargetUserGroupId);
         }
 
-        if (currentUser is { IsPrivateModeDefault: true })
-        {
-            return ItemVisibility.FromBooleans(true, currentUser.DefaultPrivateUserGroupId);
-        }
-
-        return ItemVisibility.Public();
+        return currentUser is { IsPrivateModeDefault: true }
+            ? ItemVisibility.FromBooleans(true, currentUser.DefaultPrivateUserGroupId)
+            : ItemVisibility.Public();
     }
 
     /// <summary>

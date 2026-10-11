@@ -13,22 +13,39 @@ namespace SRNSMudApp.Services.Providers;
 ///     外部 Web サイト (HTTP / HTTPS) の URL に対応し、
 ///     <see cref="HttpClient"/> による HTML 取得と OGP メタタグ解析によってプレビューを生成するプロバイダー。
 /// </summary>
-public partial class ExternalOgpLinkPreviewProvider(
-    HttpClient httpClient,
-    ILogger<ExternalOgpLinkPreviewProvider> logger) : ILinkPreviewProvider
+public partial class ExternalOgpLinkPreviewProvider : ILinkPreviewProvider
 {
-    private readonly HttpClient _httpClient = ConfigureHttpClient(httpClient);
-    private readonly ILogger<ExternalOgpLinkPreviewProvider> _logger =
-        logger ?? throw new ArgumentNullException(nameof(logger));
+    public const string HttpClientName = "ExternalOgpLinkPreview";
 
-    private static HttpClient ConfigureHttpClient(HttpClient client)
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly ILogger<ExternalOgpLinkPreviewProvider> _logger;
+
+    /// <summary>
+    ///     DI 推奨コンストラクター。<see cref="IHttpClientFactory"/> を受け取ることで
+    ///     シングルトンによる Transient/Scoped な HttpClient のキャプティブ化 (CAPTIVE-01) と DNS Staleness を防止する。
+    /// </summary>
+    public ExternalOgpLinkPreviewProvider(
+        IHttpClientFactory httpClientFactory,
+        ILogger<ExternalOgpLinkPreviewProvider> logger)
     {
-        ArgumentNullException.ThrowIfNull(client);
-        if (!client.DefaultRequestHeaders.Contains("User-Agent"))
-        {
-            client.DefaultRequestHeaders.Add("User-Agent", "SRNSMudApp-LinkPreviewBot/1.0");
-        }
-        return client;
+        _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
+    /// <summary>
+    ///     単体テスト用のコンストラクター。
+    ///     DI の CallSiteFactory によるコンストラクター多重定義の曖昧性例外を防止するため internal とする。
+    /// </summary>
+    internal ExternalOgpLinkPreviewProvider(
+        HttpClient httpClient,
+        ILogger<ExternalOgpLinkPreviewProvider> logger)
+        : this(new SingleHttpClientFactory(httpClient ?? throw new ArgumentNullException(nameof(httpClient))), logger)
+    {
+    }
+
+    private sealed class SingleHttpClientFactory(HttpClient client) : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => client;
     }
 
     /// <inheritdoc />
@@ -53,9 +70,16 @@ public partial class ExternalOgpLinkPreviewProvider(
 
         try
         {
+            HttpClient client = _httpClientFactory.CreateClient(HttpClientName);
+
             using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+            if (!request.Headers.Contains("User-Agent"))
+            {
+                request.Headers.TryAddWithoutValidation("User-Agent", "SRNSMudApp-LinkPreviewBot/1.0");
+            }
+
             using HttpResponseMessage response =
-                await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {

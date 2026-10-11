@@ -160,16 +160,7 @@ public partial class ItemDetail
         }
 
         await ViewModel.LoadDataAsync(ItemId, SelectedRequestIdQuery);
-        _pageState = ViewModel.PageState;
-        _currentUserId = ViewModel.CurrentUserId;
-        _allTags = ViewModel.AllTags;
-        _allTagRelationsToTags = ViewModel.AllTagRelationsToTags;
-        _currentUserGoodTagId = ViewModel.CurrentUserGoodTagId;
-        _currentUserBadTagId = ViewModel.CurrentUserBadTagId;
-        _currentUserShinjiTagId = ViewModel.CurrentUserShinjiTagId;
-        _currentUserZenTagId = ViewModel.CurrentUserZenTagId;
-        _currentUserBiTagId = ViewModel.CurrentUserBiTagId;
-        _selectedRequest = ViewModel.SelectedRequest;
+        SyncStateFromViewModel();
 
         if (_pageState is Loaded<ItemDetailData> loaded)
         {
@@ -184,14 +175,29 @@ public partial class ItemDetail
         _searchQuery = ItemDetailQueryStateFactory.ToSearchQuery(state, _allTags);
     }
 
-    public async Task EnsureSystemTagsExistAsync()
+    private void SyncStateFromViewModel()
     {
-        bool refetch = await ViewModel.EnsureSystemTagsExistAsync();
+        _pageState = ViewModel.PageState;
+        _currentUserId = ViewModel.CurrentUserId;
+        _allTags = ViewModel.AllTags;
+        _allTagRelationsToTags = ViewModel.AllTagRelationsToTags;
+        _selectedRequest = ViewModel.SelectedRequest;
+        SyncSystemTagsFromViewModel();
+    }
+
+    private void SyncSystemTagsFromViewModel()
+    {
         _currentUserGoodTagId = ViewModel.CurrentUserGoodTagId;
         _currentUserBadTagId = ViewModel.CurrentUserBadTagId;
         _currentUserShinjiTagId = ViewModel.CurrentUserShinjiTagId;
         _currentUserZenTagId = ViewModel.CurrentUserZenTagId;
         _currentUserBiTagId = ViewModel.CurrentUserBiTagId;
+    }
+
+    public async Task EnsureSystemTagsExistAsync()
+    {
+        bool refetch = await ViewModel.EnsureSystemTagsExistAsync();
+        SyncSystemTagsFromViewModel();
 
         if (refetch)
         {

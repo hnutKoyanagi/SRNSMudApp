@@ -99,12 +99,7 @@ public class TagEditViewModel
                 SelectedGroupIds,
                 IsAdmin);
 
-            if (updated)
-            {
-                return Result.Ok(true);
-            }
-
-            return Result.Fail<bool>("対象のタグが見つからないか、ロックされているため更新できません。");
+            return updated ? Result.Ok(true) : Result.Fail<bool>("対象のタグが見つからないか、ロックされているため更新できません。");
         }
         catch (Exception ex)
         {
