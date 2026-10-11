@@ -26,12 +26,9 @@ public sealed record UserProfileDto(
     /// </summary>
     public static UserProfileDto? FromEntity(ApplicationUser? user)
     {
-        if (user is null)
-        {
-            return null;
-        }
-
-        return new UserProfileDto(
+        return user is null
+            ? null
+            : new UserProfileDto(
             user.Id,
             user.UserName,
             user.Email,

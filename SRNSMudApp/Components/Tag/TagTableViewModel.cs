@@ -112,12 +112,9 @@ public class TagTableViewModel
             return TagCardActionResult.Success(shouldNotifyChanged: false);
         }
 
-        if (IsTagLocked(tag.Id) && !IsAdmin)
-        {
-            return TagCardActionResult.Warning("このタグまたはその兄弟タグはロックされているため編集できません。");
-        }
-
-        return TagCardActionResult.Error("タグの作成者本人ではないため、編集する権限がありません。");
+        return IsTagLocked(tag.Id) && !IsAdmin
+            ? TagCardActionResult.Warning("このタグまたはその兄弟タグはロックされているため編集できません。")
+            : TagCardActionResult.Error("タグの作成者本人ではないため、編集する権限がありません。");
     }
 
     [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "データ削除時の予期しない例外をUI向けメッセージに変換するため")]

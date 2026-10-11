@@ -65,14 +65,11 @@ public static class ApplicationDbContextTagExtensions
             .Select(g => g.UserGroupId)
             .ToListAsync();
 
-        if (allowedGroupIds.Count > 0)
-        {
-            return await context.UserGroupMembers
+        return allowedGroupIds.Count > 0
+            ? await context.UserGroupMembers
                 .AsNoTracking()
-                .AnyAsync(m => allowedGroupIds.Contains(m.UserGroupId) && m.UserId == currentUserId);
-        }
-
-        return false;
+                .AnyAsync(m => allowedGroupIds.Contains(m.UserGroupId) && m.UserId == currentUserId)
+            : false;
     }
 
     /// <summary>

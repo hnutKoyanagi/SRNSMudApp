@@ -125,12 +125,9 @@ public class TagAddViewModel
     /// </summary>
     public IEnumerable<Data.Tag> SearchParentTags(string? value)
     {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return AllTags.Take(15);
-        }
-
-        return AllTags
+        return string.IsNullOrWhiteSpace(value)
+            ? AllTags.Take(15)
+            : AllTags
             .Where(t => t.Name.Contains(value, StringComparison.OrdinalIgnoreCase) ||
                         t.Content.Contains(value, StringComparison.OrdinalIgnoreCase))
             .Take(15);

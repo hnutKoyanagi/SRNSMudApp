@@ -42,12 +42,9 @@ public class UserLinkPreviewProvider(IDbContextFactory<ApplicationDbContext> dbF
         var user = await db.Users
             .AsNoTracking()
             .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
-        if (user == null)
-        {
-            return new LinkPreviewData { Url = originalUrl, IsSuccess = false };
-        }
-
-        return new LinkPreviewData
+        return user == null
+            ? new LinkPreviewData { Url = originalUrl, IsSuccess = false }
+            : new LinkPreviewData
         {
             Url = originalUrl,
             Title = $"User: {user.UserName}",

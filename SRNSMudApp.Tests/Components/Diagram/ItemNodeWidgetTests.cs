@@ -95,16 +95,14 @@ public class ItemNodeWidgetTests : IAsyncDisposable
                     IsSuccess = true
                 });
             }
-            if (url == "/User/UserDetail/alice")
-            {
-                return Task.FromResult<LinkPreviewData?>(new LinkPreviewData
+            return url == "/User/UserDetail/alice"
+                ? Task.FromResult<LinkPreviewData?>(new LinkPreviewData
                 {
                     Url = url,
                     DisplayText = "@alice",
                     IsSuccess = true
-                });
-            }
-            return Task.FromResult<LinkPreviewData?>(null);
+                })
+                : Task.FromResult<LinkPreviewData?>(null);
         }
 
         // Act

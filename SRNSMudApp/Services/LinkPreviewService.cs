@@ -90,13 +90,10 @@ public sealed partial class LinkPreviewService : ILinkPreviewService
 
     private static string NormalizeUrl(string url)
     {
-        if (!url.StartsWith('/', StringComparison.Ordinal) &&
+        return !url.StartsWith('/', StringComparison.Ordinal) &&
             !url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
-            !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-        {
-            return "https://" + url;
-        }
-
-        return url;
+            !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+            ? "https://" + url
+            : url;
     }
 }

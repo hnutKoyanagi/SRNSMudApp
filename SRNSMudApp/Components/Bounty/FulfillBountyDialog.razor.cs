@@ -45,12 +45,9 @@ public partial class FulfillBountyDialog : ComponentBase
 
     private bool CanSubmit()
     {
-        if (ViewModel.IsLoading)
-        {
-            return false;
-        }
-
-        return ViewModel.CanFulfillAsOwner || (ViewModel.MyValidAssets.Count > 0 && ViewModel.SelectedAsset is not null && _isValid);
+        return ViewModel.IsLoading
+            ? false
+            : ViewModel.CanFulfillAsOwner || (ViewModel.MyValidAssets.Count > 0 && ViewModel.SelectedAsset is not null && _isValid);
     }
 
     private async Task Submit()

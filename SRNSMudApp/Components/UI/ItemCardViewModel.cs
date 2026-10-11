@@ -56,12 +56,7 @@ public static class ItemCardViewModel
     /// </summary>
     public static int GetReplyCount(int? loadedReplyCount, IEnumerable<Data.Item>? replies)
     {
-        if (loadedReplyCount is { } count && count > 0)
-        {
-            return count;
-        }
-
-        return replies?.Count() ?? 0;
+        return loadedReplyCount is { } count && count > 0 ? count : replies?.Count() ?? 0;
     }
 
     /// <summary>

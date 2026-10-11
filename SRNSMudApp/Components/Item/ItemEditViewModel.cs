@@ -69,12 +69,9 @@ public sealed class ItemEditViewModel
     /// </summary>
     public async Task<(bool Success, string? ErrorMessage)> SaveAsync(CancellationToken cancellationToken = default)
     {
-        if (Item == null)
-        {
-            return (false, "対象アイテムが設定されていません。");
-        }
-
-        return await _actionViewModel.UpdateItemContentAsync(Item.Id, EditContent).ConfigureAwait(false);
+        return Item == null
+            ? ((bool Success, string? ErrorMessage))(false, "対象アイテムが設定されていません。")
+            : await _actionViewModel.UpdateItemContentAsync(Item.Id, EditContent).ConfigureAwait(false);
     }
 
     /// <summary>

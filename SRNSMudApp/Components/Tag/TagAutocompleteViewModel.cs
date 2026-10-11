@@ -29,11 +29,8 @@ public sealed class TagAutocompleteViewModel
         Func<string?, CancellationToken, Task<IEnumerable<Tag>>>? customSearchFunc,
         CancellationToken token)
     {
-        if (customSearchFunc != null)
-        {
-            return await customSearchFunc(value, token);
-        }
-
-        return await _tagSearchQueryService.SearchTagsWithFallbackAsync(value, token);
+        return customSearchFunc != null
+            ? await customSearchFunc(value, token)
+            : await _tagSearchQueryService.SearchTagsWithFallbackAsync(value, token);
     }
 }

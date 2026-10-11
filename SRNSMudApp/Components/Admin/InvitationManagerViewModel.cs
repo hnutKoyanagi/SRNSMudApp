@@ -163,12 +163,7 @@ public sealed class InvitationManagerViewModel
             return InvitationStatus.Used;
         }
 
-        if (invitation.ExpirationDate < utcNow)
-        {
-            return InvitationStatus.Expired;
-        }
-
-        return InvitationStatus.Pending;
+        return invitation.ExpirationDate < utcNow ? InvitationStatus.Expired : InvitationStatus.Pending;
     }
 
     /// <summary>

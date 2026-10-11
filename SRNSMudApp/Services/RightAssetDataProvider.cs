@@ -190,12 +190,9 @@ public class RightAssetDataProvider(
                 .Take(count)
                 .ToListAsync(cancellationToken);
 
-            if (fallbackTagIds.Count == 0)
-            {
-                return [];
-            }
-
-            return await MapToTagRightAssetSummariesAsync(
+            return fallbackTagIds.Count == 0
+                ? []
+                : await MapToTagRightAssetSummariesAsync(
                 dbContext,
                 fallbackTagIds.Select(x => (x.TagId, x.TotalAmount, x.HolderCount)).ToList(),
                 cancellationToken);

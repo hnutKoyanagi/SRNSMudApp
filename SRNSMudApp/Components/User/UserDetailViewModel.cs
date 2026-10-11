@@ -144,12 +144,9 @@ public class UserDetailViewModel
     /// </summary>
     public async Task<bool> ToggleFollowAsync(string currentUserId, string targetUserId)
     {
-        if (string.IsNullOrEmpty(currentUserId) || string.IsNullOrEmpty(targetUserId) || currentUserId == targetUserId)
-        {
-            return false;
-        }
-
-        return await _userDataProvider.ToggleFollowUserAsync(currentUserId, targetUserId);
+        return string.IsNullOrEmpty(currentUserId) || string.IsNullOrEmpty(targetUserId) || currentUserId == targetUserId
+            ? false
+            : await _userDataProvider.ToggleFollowUserAsync(currentUserId, targetUserId);
     }
 
     /// <summary>
@@ -174,12 +171,9 @@ public class UserDetailViewModel
             }
 
             ApplicationUser? scopedUser = await scopedUserManager.FindByIdAsync(targetUserId);
-            if (scopedUser == null)
-            {
-                return IdentityResult.Failed(new IdentityError { Description = "ユーザーが見つかりません。" });
-            }
-
-            return await scopedUserManager.AddToRoleAsync(scopedUser, "Admin");
+            return scopedUser == null
+                ? IdentityResult.Failed(new IdentityError { Description = "ユーザーが見つかりません。" })
+                : await scopedUserManager.AddToRoleAsync(scopedUser, "Admin");
         }
 
         if (_userManager == null)
@@ -188,12 +182,9 @@ public class UserDetailViewModel
         }
 
         ApplicationUser? user = await _userManager.FindByIdAsync(targetUserId);
-        if (user == null)
-        {
-            return IdentityResult.Failed(new IdentityError { Description = "ユーザーが見つかりません。" });
-        }
-
-        return await _userManager.AddToRoleAsync(user, "Admin");
+        return user == null
+            ? IdentityResult.Failed(new IdentityError { Description = "ユーザーが見つかりません。" })
+            : await _userManager.AddToRoleAsync(user, "Admin");
     }
 
     private static int GetReactionOrder(string name) => name switch

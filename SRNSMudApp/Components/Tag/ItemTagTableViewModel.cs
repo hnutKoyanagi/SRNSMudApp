@@ -115,12 +115,9 @@ public class ItemTagTableViewModel
     /// </summary>
     public static bool FilterFunc(TagRelation relation, string? search)
     {
-        if (relation.Tag != null && !relation.Tag.IsTagVisibleToUser())
-        {
-            return false;
-        }
-
-        return TagSearchQuery.Parse(search) switch
+        return relation.Tag != null && !relation.Tag.IsTagVisibleToUser()
+            ? false
+            : TagSearchQuery.Parse(search) switch
         {
             EmptySearch => true,
             IncompleteSearch incompleteSearch =>

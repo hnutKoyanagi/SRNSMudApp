@@ -53,12 +53,7 @@ public sealed class VapidOptions
             return PrivateKey;
         }
 
-        if (string.Equals(PublicKey, DefaultPublicKey, StringComparison.Ordinal))
-        {
-            return DefaultPrivateKey;
-        }
-
-        return string.Empty;
+        return string.Equals(PublicKey, DefaultPublicKey, StringComparison.Ordinal) ? DefaultPrivateKey : string.Empty;
     }
 
     /// <summary>

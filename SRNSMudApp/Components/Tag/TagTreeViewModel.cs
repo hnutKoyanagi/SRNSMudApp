@@ -177,12 +177,9 @@ public class TagTreeViewModel
 
         try
         {
-            if (await _tagTreeData.UpdateParentAsync(movedItem.Id, movedItem.ParentTagId))
-            {
-                return TagCardActionResult.Success($"タグ「{movedItem.Name}」の移動リクエストが通りました。");
-            }
-
-            return TagCardActionResult.NoOp();
+            return await _tagTreeData.UpdateParentAsync(movedItem.Id, movedItem.ParentTagId)
+                ? TagCardActionResult.Success($"タグ「{movedItem.Name}」の移動リクエストが通りました。")
+                : TagCardActionResult.NoOp();
         }
         catch (Exception ex)
         {
@@ -240,12 +237,9 @@ public class TagTreeViewModel
     /// </summary>
     public static IReadOnlySet<int> GetMatchingTagIds(IEnumerable<Data.Tag> tags, string? searchText)
     {
-        if (string.IsNullOrWhiteSpace(searchText))
-        {
-            return new HashSet<int>();
-        }
-
-        return tags
+        return string.IsNullOrWhiteSpace(searchText)
+            ? new HashSet<int>()
+            : tags
             .Where(t => t.IsTagVisibleToUser() && t.Name.Contains(searchText, StringComparison.OrdinalIgnoreCase))
             .Select(t => t.Id)
             .ToHashSet();

@@ -100,12 +100,7 @@ public class TriggerPublicOfferViewModel
             var commandResult = await _createTriggerContractHandler.HandleAsync(
                 new CreateTriggerContractCommand(triggerContract), cancellationToken);
 
-            if (commandResult is Failure failure)
-            {
-                return Result.Fail<int>(failure.ErrorMessage);
-            }
-
-            return Result.Ok(triggerContract.Id);
+            return commandResult is Failure failure ? Result.Fail<int>(failure.ErrorMessage) : Result.Ok(triggerContract.Id);
         }
         catch (Exception ex)
         {

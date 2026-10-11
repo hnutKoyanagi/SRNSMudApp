@@ -42,8 +42,7 @@ public class TagResolutionViewModel
             if (Action == TagResolutionAction.UseExisting) return SelectedExistingTag != null;
             if (Action == TagResolutionAction.CreateNew)
             {
-                if (UseSuggestedParent && SuggestedParentTag != null) return true;
-                return SelectedCustomParentTag != null;
+                return UseSuggestedParent && SuggestedParentTag != null ? true : SelectedCustomParentTag != null;
             }
             return false;
         }
@@ -159,12 +158,9 @@ public class TagResolutionViewModel
     /// </summary>
     public async Task<IEnumerable<TagEntity>> SearchExistingTagsAsync(string? value, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(value) && InitialSuggestions.Count > 0)
-        {
-            return InitialSuggestions;
-        }
-
-        return await _dataProvider.SearchTagsAsync(value, cancellationToken);
+        return string.IsNullOrWhiteSpace(value) && InitialSuggestions.Count > 0
+            ? InitialSuggestions
+            : await _dataProvider.SearchTagsAsync(value, cancellationToken);
     }
 
     /// <summary>
@@ -172,12 +168,9 @@ public class TagResolutionViewModel
     /// </summary>
     public async Task<IEnumerable<TagEntity>> SearchParentCandidateTagsAsync(string? value, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(value) && ParentSuggestions.Count > 0)
-        {
-            return ParentSuggestions;
-        }
-
-        return await _dataProvider.SearchParentCandidateTagsAsync(value, cancellationToken);
+        return string.IsNullOrWhiteSpace(value) && ParentSuggestions.Count > 0
+            ? ParentSuggestions
+            : await _dataProvider.SearchParentCandidateTagsAsync(value, cancellationToken);
     }
 
     /// <summary>

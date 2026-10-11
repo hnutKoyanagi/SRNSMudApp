@@ -39,12 +39,9 @@ public partial class AuthController(
     {
         Result<ExternalTokenPayload> result = await tokenService.VerifyTokenAsync(request.Provider, request.Token, cancellationToken);
 
-        if (result is not Success<ExternalTokenPayload> success || success.Value.ProviderKey is null)
-        {
-            return Unauthorized("Invalid token.");
-        }
-
-        return await ProcessRiskAssessmentAsync(request, success.Value, cancellationToken);
+        return result is not Success<ExternalTokenPayload> success || success.Value.ProviderKey is null
+            ? Unauthorized("Invalid token.")
+            : await ProcessRiskAssessmentAsync(request, success.Value, cancellationToken);
     }
 
     private async Task<IActionResult> ProcessRiskAssessmentAsync(ExternalLoginRequest request, ExternalTokenPayload payload, CancellationToken cancellationToken)
@@ -52,12 +49,7 @@ public partial class AuthController(
         var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
         var isRisky = await riskService.IsRequestRiskyAsync(ip, request.DeviceId, payload.Email, cancellationToken);
 
-        if (isRisky)
-        {
-            return Forbid("Risk assessment failed.");
-        }
-
-        return await ProcessUserLoginAsync(request, payload, cancellationToken);
+        return isRisky ? Forbid("Risk assessment failed.") : await ProcessUserLoginAsync(request, payload, cancellationToken);
     }
 
     private async Task<IActionResult> ProcessUserLoginAsync(ExternalLoginRequest request, ExternalTokenPayload payload, CancellationToken cancellationToken)

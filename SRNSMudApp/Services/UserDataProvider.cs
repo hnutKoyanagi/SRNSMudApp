@@ -374,12 +374,7 @@ public class UserDataProvider(
     public async Task<bool> IsUserInRoleAsync(ApplicationUser user, string role)
     {
         ArgumentNullException.ThrowIfNull(user);
-        if (_userManager is null)
-        {
-            return false;
-        }
-
-        return await _userManager.IsInRoleAsync(user, role);
+        return _userManager is null ? false : await _userManager.IsInRoleAsync(user, role);
     }
 
     public async Task<IdentityResult> UpdateUserAdminRoleAsync(string userId, bool isAdmin)
@@ -390,12 +385,9 @@ public class UserDataProvider(
         }
 
         var user = await _userManager.FindByIdAsync(userId);
-        if (user is null)
-        {
-            return IdentityResult.Failed(new IdentityError { Description = "ユーザーが見つかりません。" });
-        }
-
-        return isAdmin
+        return user is null
+            ? IdentityResult.Failed(new IdentityError { Description = "ユーザーが見つかりません。" })
+            : isAdmin
             ? await _userManager.AddToRoleAsync(user, "Admin")
             : await _userManager.RemoveFromRoleAsync(user, "Admin");
     }

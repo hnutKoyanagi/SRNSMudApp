@@ -62,17 +62,14 @@ public partial class JpycTransactionVerifier : IJpycTransactionVerifier
                     AmountJpyc: record.AmountJpyc));
             }
 
-            if (record.AmountJpyc < minimumAmountJpyc)
-            {
-                return Task.FromResult(new JpycTransactionVerificationResult(
+            return record.AmountJpyc < minimumAmountJpyc
+                ? Task.FromResult(new JpycTransactionVerificationResult(
                     IsSuccess: false,
                     ErrorMessage: $"送金額が不足しています。必要額: {minimumAmountJpyc:N0} JPYC, 実際の送金額: {record.AmountJpyc:N0} JPYC",
                     TransactionHash: normalizedTx,
                     RecipientAddress: record.RecipientAddress,
-                    AmountJpyc: record.AmountJpyc));
-            }
-
-            return Task.FromResult(new JpycTransactionVerificationResult(
+                    AmountJpyc: record.AmountJpyc))
+                : Task.FromResult(new JpycTransactionVerificationResult(
                 IsSuccess: true,
                 TransactionHash: normalizedTx,
                 RecipientAddress: record.RecipientAddress,

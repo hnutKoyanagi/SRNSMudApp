@@ -121,11 +121,7 @@ public sealed class NavMenuViewModel : IDisposable
     /// <returns>通知ページの場合は true、それ以外は false。</returns>
     public bool IsNotificationsPage()
     {
-        if (CurrentUrl == null)
-        {
-            return false;
-        }
-        return CurrentUrl.Trim('/').Equals("notifications", StringComparison.OrdinalIgnoreCase);
+        return CurrentUrl == null ? false : CurrentUrl.Trim('/').Equals("notifications", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

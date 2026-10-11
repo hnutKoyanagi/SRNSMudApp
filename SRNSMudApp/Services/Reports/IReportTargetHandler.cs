@@ -139,11 +139,8 @@ public class ReportTargetHandlerFactory(IEnumerable<IReportTargetHandler> handle
     /// <inheritdoc />
     public IReportTargetHandler GetHandler(ReportTargetType targetType)
     {
-        if (_handlers.TryGetValue(targetType, out IReportTargetHandler? handler))
-        {
-            return handler;
-        }
-
-        throw new NotSupportedException($"未対応の通報対象種別です: {targetType}");
+        return _handlers.TryGetValue(targetType, out IReportTargetHandler? handler)
+            ? handler
+            : throw new NotSupportedException($"未対応の通報対象種別です: {targetType}");
     }
 }

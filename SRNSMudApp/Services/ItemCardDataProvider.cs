@@ -174,11 +174,6 @@ public class ItemCardDataProvider(IDbContextFactory<ApplicationDbContext> dbFact
     {
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
         Tag? tag = await context.Tags.FindAsync(tagId);
-        if (tag is null)
-        {
-            return false;
-        }
-
-        return await context.CanUserAttachTagDirectlyAsync(tag, userId);
+        return tag is null ? false : await context.CanUserAttachTagDirectlyAsync(tag, userId);
     }
 }

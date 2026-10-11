@@ -108,15 +108,13 @@ public class TagDiagramDataProvider(
             linkedItemIds.Add(item.QuotedItemId.Value);
         }
 
-        if (linkedItemIds.Count > 0)
-        {
-            return await context.Items
+        return linkedItemIds.Count > 0
+            ? await context.Items
                 .AsNoTracking()
                 .Include(i => i.TagRelations)
                 .Where(i => linkedItemIds.Contains(i.Id))
-                .ToListAsync();
-        }
-        return [];
+                .ToListAsync()
+            : [];
     }
 
     /// <inheritdoc />

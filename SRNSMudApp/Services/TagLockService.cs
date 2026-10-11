@@ -77,12 +77,7 @@ public class TagLockService(IDbContextFactory<ApplicationDbContext> dbFactory) :
         }
 
         var lockedLevel = await GetLockedHierarchyLevelAsync(cancellationToken);
-        if (lockedLevel > 0 && tag.Node is not null && tag.Node.GetLevel() <= lockedLevel)
-        {
-            return true;
-        }
-
-        return false;
+        return lockedLevel > 0 && tag.Node is not null && tag.Node.GetLevel() <= lockedLevel;
     }
 
     /// <inheritdoc />

@@ -23,12 +23,9 @@ public static class TagDiagramFocusBarViewModel
     /// <returns>合致するエッジ。存在しない場合は null。</returns>
     public static TagEdge? GetExistingEdgeBetween(IEnumerable<TagEdge>? edges, int tagId1, int tagId2)
     {
-        if (edges is null)
-        {
-            return null;
-        }
-
-        return edges.FirstOrDefault(e =>
+        return edges is null
+            ? null
+            : edges.FirstOrDefault(e =>
             (e.SourceTagId == tagId1 && e.TargetTagId == tagId2) ||
             (e.SourceTagId == tagId2 && e.TargetTagId == tagId1));
     }
@@ -41,11 +38,6 @@ public static class TagDiagramFocusBarViewModel
     /// <returns>子タグ数。</returns>
     public static int GetChildTagsCount(IEnumerable<TagEntity>? allTags, int tagId)
     {
-        if (allTags is null)
-        {
-            return 0;
-        }
-
-        return allTags.Count(t => t.ParentTagId == tagId);
+        return allTags is null ? 0 : allTags.Count(t => t.ParentTagId == tagId);
     }
 }

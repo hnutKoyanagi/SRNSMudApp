@@ -95,12 +95,7 @@ public sealed class RightAssetOverviewViewModel(
     /// <returns>総数量に対する保有シェアの割合（0.0 〜 100.0）。</returns>
     public static double CalculateShare(int userAmount, int totalActiveAmount)
     {
-        if (totalActiveAmount <= 0)
-        {
-            return 0.0;
-        }
-
-        return (double)userAmount / totalActiveAmount * 100.0;
+        return totalActiveAmount <= 0 ? 0.0 : (double)userAmount / totalActiveAmount * 100.0;
     }
 
     /// <summary>
