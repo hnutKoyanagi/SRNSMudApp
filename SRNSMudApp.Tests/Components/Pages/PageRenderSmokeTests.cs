@@ -123,6 +123,14 @@ public sealed class PageRenderSmokeTests : IAsyncLifetime
         Assert.NotNull(cut.Markup);
     }
 
+    [Fact]
+    public void UserGroupList_Renders_WithoutException()
+    {
+        IRenderedComponent<SRNSMudApp.Components.UserGroup.UserGroupList> cut =
+            _ctx.Render<SRNSMudApp.Components.UserGroup.UserGroupList>();
+        Assert.NotNull(cut.Markup);
+    }
+
     private static AuthenticationState CreateAuthState(string userId)
     {
         Claim[] claims = [new(ClaimTypes.NameIdentifier, userId), new(ClaimTypes.Name, userId)];

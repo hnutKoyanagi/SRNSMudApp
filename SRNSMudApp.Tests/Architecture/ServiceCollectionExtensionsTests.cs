@@ -208,6 +208,9 @@ public class ServiceCollectionExtensionsTests
         Assert.Contains(services, d => d.ServiceType == typeof(global::SRNSMudApp.Components.Tag.TagAddViewModel) && d.Lifetime == ServiceLifetime.Transient);
         Assert.Contains(services, d => d.ServiceType == typeof(global::SRNSMudApp.Components.Tag.TagEditViewModel) && d.Lifetime == ServiceLifetime.Transient);
         Assert.Contains(services, d => d.ServiceType == typeof(global::SRNSMudApp.Components.Bounty.BountyCreateViewModel) && d.Lifetime == ServiceLifetime.Transient);
+        Assert.Contains(services, d => d.ServiceType == typeof(global::SRNSMudApp.Components.UserGroup.UserGroupListViewModel) && d.Lifetime == ServiceLifetime.Transient);
+        Assert.Contains(services, d => d.ServiceType == typeof(global::SRNSMudApp.Components.UserGroup.UserGroupMembersViewModel) && d.Lifetime == ServiceLifetime.Transient);
+        Assert.Contains(services, d => d.ServiceType == typeof(global::SRNSMudApp.Components.Item.QuotedItemListViewModel) && d.Lifetime == ServiceLifetime.Transient);
 
         // Assert: ページ・Circuit 単位の ViewModel が Scoped に登録されていることを検証
         Assert.Contains(services, d => d.ServiceType == typeof(global::SRNSMudApp.Components.Item.ItemDetailViewModel) && d.Lifetime == ServiceLifetime.Scoped);
