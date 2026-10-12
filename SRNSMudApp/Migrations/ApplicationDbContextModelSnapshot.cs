@@ -18,7 +18,7 @@ partial class ApplicationDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20260929084726_AddCommentItemToTagRelation";
+    public override string LastMigrationId => "20261011150100_AddTagPrivateMode";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -813,6 +813,12 @@ partial class ApplicationDbContextModelSnapshot : ModelSnapshot
 
                 SqlServerPropertyBuilderExtensions.UseIdentityColumn(id);
 
+                b.Property<DateTimeOffset?>("AdminHiddenAt")
+                    .HasColumnType("datetimeoffset");
+
+                b.Property<string>("AdminHiddenReason")
+                    .HasColumnType("nvarchar(max)");
+
                 b.Property<bool>("AutoAcceptIncomingTaggingRequests")
                     .HasColumnType("bit");
 
@@ -833,7 +839,13 @@ partial class ApplicationDbContextModelSnapshot : ModelSnapshot
                     .IsRequired()
                     .HasColumnType("nvarchar(max)");
 
+                b.Property<bool>("IsAdminHidden")
+                    .HasColumnType("bit");
+
                 b.Property<bool>("IsLocked")
+                    .HasColumnType("bit");
+
+                b.Property<bool>("IsPrivate")
                     .HasColumnType("bit");
 
                 b.Property<bool>("IsSystem")
@@ -854,6 +866,9 @@ partial class ApplicationDbContextModelSnapshot : ModelSnapshot
                 b.Property<int?>("ParentTagId")
                     .HasColumnType("int");
 
+                b.Property<int?>("TargetUserGroupId")
+                    .HasColumnType("int");
+
                 b.Property<DateTime>("UpdatedDate")
                     .HasColumnType("datetime2");
 
@@ -861,11 +876,17 @@ partial class ApplicationDbContextModelSnapshot : ModelSnapshot
 
                 b.HasIndex("AutoApproveUserGroupId");
 
+                b.HasIndex("IsAdminHidden");
+
+                b.HasIndex("IsPrivate");
+
                 b.HasIndex("Node")
                     .HasDatabaseName("IX_Tags_Node");
 
                 b.HasIndex("OwnerId", "Name")
                     .IsUnique();
+
+                b.HasIndex("TargetUserGroupId");
 
                 b.ToTable("Tags", t =>
                     {
@@ -1945,9 +1966,16 @@ partial class ApplicationDbContextModelSnapshot : ModelSnapshot
                     .OnDelete(DeleteBehavior.Restrict)
                     .IsRequired();
 
+                b.HasOne("SRNSMudApp.Data.UserGroup", "TargetUserGroup")
+                    .WithMany()
+                    .HasForeignKey("TargetUserGroupId")
+                    .OnDelete(DeleteBehavior.NoAction);
+
                 b.Navigation("AutoApproveUserGroup");
 
                 b.Navigation("Owner");
+
+                b.Navigation("TargetUserGroup");
             });
 
         modelBuilder.Entity("SRNSMudApp.Data.TagAutoApproveUserGroup", b =>

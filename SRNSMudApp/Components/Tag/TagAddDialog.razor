@@ -104,6 +104,19 @@
                     }
 
                     <MudTextField @bind-Value="ViewModel.NewTagContent" Label="内容" Lines="3" Immediate="true" />
+
+                    <MudSwitch @bind-Value="ViewModel.IsPrivate" Label="プライベートモード" Color="Color.Primary" />
+
+                    @if (ViewModel.IsPrivate)
+                    {
+                        <MudSelect T="int?" @bind-Value="ViewModel.SelectedGroupId" Label="公開範囲" Dense="true">
+                            <MudSelectItem T="int?" Value="@((int?)null)">フォロワーのみ (デフォルト)</MudSelectItem>
+                            @foreach (var group in ViewModel.UserGroups)
+                            {
+                                <MudSelectItem T="int?" Value="@((int?)group.Id)">グループ: @group.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    }
                 </MudStack>
             </MudTabPanel>
         </MudTabs>

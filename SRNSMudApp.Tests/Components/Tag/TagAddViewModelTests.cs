@@ -307,4 +307,56 @@ public sealed class TagAddViewModelTests
         Assert.Single(_sut.SearchResults);
         Assert.Equal(tag, _sut.SearchResults[0]);
     }
+
+    [Fact]
+    public void SettingParentTag_WhenParentIsPrivate_AutomaticallySetsIsPrivateAndGroupId()
+    {
+        var privateParent = new TagEntity
+        {
+            Id = 20,
+            Name = "PrivateParent",
+            OwnerId = "user-1",
+            IsPrivate = true,
+            TargetUserGroupId = 42
+        };
+
+        _sut.ParentTag = privateParent;
+
+        Assert.True(_sut.IsPrivate);
+        Assert.Equal(42, _sut.SelectedGroupId);
+    }
+
+    [Fact]
+    public async Task CreateChildTagAsync_WhenParentIsPrivate_EnforcesPrivateScope()
+    {
+        var privateParent = new TagEntity
+        {
+            Id = 20,
+            Name = "PrivateParent",
+            OwnerId = "user-1",
+            IsPrivate = true,
+            TargetUserGroupId = 42
+        };
+
+        _sut.NewTagName = "ChildTag";
+        _sut.ParentTag = privateParent;
+        // ユーザーが手動で IsPrivate を false に設定しようとしても親が private の場合は強制
+        _sut.IsPrivate = false;
+
+        _tagLockServiceMock
+            .Setup(l => l.IsChildCreationRestrictedAsync(20, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        _tagSearchQueryServiceMock
+            .Setup(s => s.FindTagByNameAsync("ChildTag"))
+            .ReturnsAsync((TagEntity?)null);
+
+        var result = await _sut.CreateChildTagAsync("user-1", isAdmin: false);
+
+        Assert.NotNull(result);
+        Assert.True(result.IsPrivate);
+        Assert.Equal(42, result.TargetUserGroupId);
+        _tagCommandServiceMock.Verify(c => c.CreateTagAsync(
+            It.Is<TagEntity>(t => t.IsPrivate && t.TargetUserGroupId == 42), false), Times.Once);
+    }
 }

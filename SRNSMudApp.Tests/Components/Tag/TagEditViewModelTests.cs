@@ -181,7 +181,7 @@ public sealed class TagEditViewModelTests
         _sut.SelectedGroupIds = [10, 20];
 
         _tagCommandServiceMock.Setup(s => s.UpdateTagAsync(
-                42, "NewName", "NewContent", true, It.Is<IReadOnlyCollection<int>>(g => g.Count == 2), true))
+                42, "NewName", "NewContent", true, It.Is<IReadOnlyCollection<int>>(g => g.Count == 2), true, It.IsAny<bool?>(), It.IsAny<int?>()))
             .ReturnsAsync(true);
 
         // Act
@@ -190,7 +190,7 @@ public sealed class TagEditViewModelTests
         // Assert
         Assert.True(result is Success<bool>);
         _tagCommandServiceMock.Verify(s => s.UpdateTagAsync(
-            42, "NewName", "NewContent", true, It.IsAny<IReadOnlyCollection<int>>(), true), Times.Once);
+            42, "NewName", "NewContent", true, It.IsAny<IReadOnlyCollection<int>>(), true, It.IsAny<bool?>(), It.IsAny<int?>()), Times.Once);
     }
 
     [Fact]
@@ -201,7 +201,7 @@ public sealed class TagEditViewModelTests
         await _sut.InitializeAsync(tag, "u1", false);
 
         _tagCommandServiceMock.Setup(s => s.UpdateTagAsync(
-                42, "LockedTag", It.IsAny<string?>(), It.IsAny<bool>(), It.IsAny<IReadOnlyCollection<int>?>(), false))
+                42, "LockedTag", It.IsAny<string?>(), It.IsAny<bool>(), It.IsAny<IReadOnlyCollection<int>?>(), false, It.IsAny<bool?>(), It.IsAny<int?>()))
             .ReturnsAsync(false);
 
         // Act
@@ -223,7 +223,7 @@ public sealed class TagEditViewModelTests
         await _sut.InitializeAsync(tag, "u1", false);
 
         _tagCommandServiceMock.Setup(s => s.UpdateTagAsync(
-                42, "Tag", It.IsAny<string?>(), It.IsAny<bool>(), It.IsAny<IReadOnlyCollection<int>?>(), false))
+                42, "Tag", It.IsAny<string?>(), It.IsAny<bool>(), It.IsAny<IReadOnlyCollection<int>?>(), false, It.IsAny<bool?>(), It.IsAny<int?>()))
             .ThrowsAsync(new InvalidOperationException("Database deadlock"));
 
         // Act
@@ -235,5 +235,27 @@ public sealed class TagEditViewModelTests
         {
             Assert.Contains("Database deadlock", failure.ErrorMessage);
         }
+    }
+
+    [Fact]
+    public async Task SaveAsync_WithPrivacySettings_PassesPrivacyParametersToCommandService()
+    {
+        // Arrange
+        var tag = new TagEntity { Id = 50, Name = "PrivateTag", OwnerId = "u1", AutoApproveUserGroups = [] };
+        await _sut.InitializeAsync(tag, "u1", false);
+        _sut.IsPrivate = true;
+        _sut.SelectedTargetGroupId = 77;
+
+        _tagCommandServiceMock.Setup(s => s.UpdateTagAsync(
+                50, "PrivateTag", It.IsAny<string?>(), It.IsAny<bool>(), It.IsAny<IReadOnlyCollection<int>?>(), false, true, 77))
+            .ReturnsAsync(true);
+
+        // Act
+        var result = await _sut.SaveAsync();
+
+        // Assert
+        Assert.True(result is Success<bool>);
+        _tagCommandServiceMock.Verify(s => s.UpdateTagAsync(
+            50, "PrivateTag", It.IsAny<string?>(), It.IsAny<bool>(), It.IsAny<IReadOnlyCollection<int>?>(), false, true, 77), Times.Once);
     }
 }

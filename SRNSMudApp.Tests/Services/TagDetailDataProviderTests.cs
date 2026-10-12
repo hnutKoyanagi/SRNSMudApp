@@ -63,8 +63,9 @@ public class TagDetailDataProviderTests : IAsyncLifetime
             Assert.False(await db.TagRelationToTags.AnyAsync(tr => tr.Id == relation.Id));
 
             // 3. 親タグの TagDetailDataProvider から詳細を取得
-            TagDetailPageData parentResult = await sut.GetTagDetailAsync(parentTagId, userId);
+            TagDetailPageData? parentResult = await sut.GetTagDetailAsync(parentTagId, userId);
 
+            Assert.NotNull(parentResult);
             Assert.NotNull(parentResult.Tag);
             // 親タグ (TargetTagId) に紐づく履歴 (Insert, Delete) が保持されていること
             Assert.Equal(2, parentResult.WeightLedgers.Count);
@@ -73,8 +74,9 @@ public class TagDetailDataProviderTests : IAsyncLifetime
             Assert.All(parentResult.WeightLedgers, l => Assert.Equal($"ChildTag_{tid}", l.TagNameSnapshot));
 
             // 4. 子タグ自身の TagDetailDataProvider から詳細を取得
-            TagDetailPageData childResult = await sut.GetTagDetailAsync(childTagId, userId);
+            TagDetailPageData? childResult = await sut.GetTagDetailAsync(childTagId, userId);
 
+            Assert.NotNull(childResult);
             Assert.NotNull(childResult.Tag);
             // 子タグ (TagId) に紐づく履歴 (Insert, Delete) も取得できること
             Assert.Equal(2, childResult.WeightLedgers.Count);
@@ -95,8 +97,9 @@ public class TagDetailDataProviderTests : IAsyncLifetime
             db.RightAssets.AddRange(asset1, asset2, assetBurned);
             await db.SaveChangesAsync();
 
-            TagDetailPageData result = await sut.GetTagDetailAsync(parentTagId, userId);
+            TagDetailPageData? result = await sut.GetTagDetailAsync(parentTagId, userId);
 
+            Assert.NotNull(result);
             Assert.NotNull(result.RightAssetOverview);
             Assert.Equal(15, result.RightAssetOverview.TotalActiveAmount);
             Assert.Equal(1, result.RightAssetOverview.TotalHoldersCount);

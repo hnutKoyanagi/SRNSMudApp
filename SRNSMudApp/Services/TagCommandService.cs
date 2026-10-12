@@ -47,7 +47,15 @@ public interface ITagCommandService
     Task CreateTagWithoutEmbeddingAsync(Tag newTag, bool isAdmin = false);
 
     /// <summary>タグを更新する。</summary>
-    Task<bool> UpdateTagAsync(int tagId, string name, string? content, bool autoAcceptIncomingTaggingRequests = false, IEnumerable<int>? allowedUserGroupIds = null, bool isAdmin = false);
+    Task<bool> UpdateTagAsync(
+        int tagId,
+        string name,
+        string? content,
+        bool autoAcceptIncomingTaggingRequests = false,
+        IEnumerable<int>? allowedUserGroupIds = null,
+        bool isAdmin = false,
+        bool? isPrivate = null,
+        int? targetUserGroupId = null);
 
     /// <summary>タグを削除する。</summary>
     /// <param name="tagId">削除対象のタグID。</param>
@@ -80,6 +88,7 @@ public class TagCommandService(
     public async Task CreateTagAsync(Tag newTag, bool isAdmin = false)
     {
         ArgumentNullException.ThrowIfNull(newTag);
+        EnforceTagVisibilityConstraints(newTag);
 
         if (_tagLockService != null && !isAdmin)
         {
@@ -110,7 +119,15 @@ public class TagCommandService(
     /// <inheritdoc />
     [SuppressMessage("Design", "CA1031:Do not catch general exception types",
         Justification = "ユーザー入力由来の任意の例外を UI 向けメッセージに変換するため広く捕捉する")]
-    public async Task<bool> UpdateTagAsync(int tagId, string name, string? content, bool autoAcceptIncomingTaggingRequests = false, IEnumerable<int>? allowedUserGroupIds = null, bool isAdmin = false)
+    public async Task<bool> UpdateTagAsync(
+        int tagId,
+        string name,
+        string? content,
+        bool autoAcceptIncomingTaggingRequests = false,
+        IEnumerable<int>? allowedUserGroupIds = null,
+        bool isAdmin = false,
+        bool? isPrivate = null,
+        int? targetUserGroupId = null)
     {
         if (_tagLockService != null && !isAdmin)
         {
@@ -137,6 +154,14 @@ public class TagCommandService(
             tagToUpdate.Name = name;
             tagToUpdate.Content = content ?? "";
             tagToUpdate.AutoAcceptIncomingTaggingRequests = autoAcceptIncomingTaggingRequests;
+
+            if (isPrivate.HasValue)
+            {
+                tagToUpdate.IsPrivate = isPrivate.Value;
+                tagToUpdate.TargetUserGroupId = isPrivate.Value ? targetUserGroupId : null;
+            }
+
+            EnforceTagVisibilityConstraints(tagToUpdate);
 
             if (allowedUserGroupIds is not null)
             {
@@ -211,6 +236,7 @@ public class TagCommandService(
     public async Task CreateTagWithoutEmbeddingAsync(Tag newTag, bool isAdmin = false)
     {
         ArgumentNullException.ThrowIfNull(newTag);
+        EnforceTagVisibilityConstraints(newTag);
 
         if (_tagLockService != null && !isAdmin)
         {
@@ -332,5 +358,14 @@ public class TagCommandService(
         _ = context.Tags.Remove(tagToDelete);
         _ = await context.SaveChangesAsync();
         return TagDeleteOperationResult.Success;
+    }
+
+    private static void EnforceTagVisibilityConstraints(Tag tag)
+    {
+        if (tag.IsSystem || Tag.VoteTagNames.Contains(tag.Name) || Tag.ReactionTagNames.Contains(tag.Name) || tag.Name == Tag.RootTagName)
+        {
+            tag.IsPrivate = false;
+            tag.TargetUserGroupId = null;
+        }
     }
 }

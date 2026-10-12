@@ -30,7 +30,14 @@ public partial class TagAddDialog : ComponentBase
 
     protected override async Task OnInitializedAsync()
     {
-        await ViewModel.InitializeAsync();
+        string? currentUserId = null;
+        if (AuthStateTask is not null)
+        {
+            var authState = await AuthStateTask;
+            currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        }
+
+        await ViewModel.InitializeAsync(currentUserId);
     }
 
     protected override void OnParametersSet()

@@ -15,11 +15,17 @@
             <div class="flex-1">
                 <div class="d-flex justify-space-between align-start">
                     <div>
-                        <div class="resource-name">
+                        <div class="resource-name d-flex align-center gap-2">
                             <MudLink Href="@($"/TagDetail/{Tag.Id}")" Typo="Typo.subtitle1" Class="resource-link">
                                 <MudIcon Icon="@Icons.Material.Filled.LocalOffer" Size="Size.Small" Class="mr-1" />
                                 @Tag.Name
                             </MudLink>
+                            @if (PrivacyBadgeStrategyResolver.Resolve(Tag.IsPrivate, Tag.TargetUserGroup?.Name, Tag.IsAdminHidden) is { } badge)
+                            {
+                                <MudChip T="string" Color="@badge.Color" Icon="@badge.Icon" Size="Size.Small" Variant="Variant.Filled">
+                                    @badge.Text
+                                </MudChip>
+                            }
                         </div>
                         @if (!string.IsNullOrEmpty(Tag.Content))
                         {

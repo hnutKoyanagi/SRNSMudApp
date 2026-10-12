@@ -177,13 +177,21 @@ public class ItemDetailDataProvider(IDbContextFactory<ApplicationDbContext> dbFa
             .AsNoTracking()
             .ToListAsync(cancellationToken);
 
-        List<Tag> allTags = await context.Tags.WhereVisibleToUser().AsNoTracking().ToListAsync(cancellationToken);
+        List<Tag> allTags = await context.Tags
+            .Include(t => t.TargetUserGroup)
+            .WhereVisibleToUser(context, currentUserId, isAdmin)
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+
         List<TagRelationToTag> allTagRelationsToTags =
             await context.TagRelationToTags
                 .Include(ttr => ttr.Tag)
                 .Where(ttr => ttr.Tag.Owner == null || !ttr.Tag.Owner.IsBanned)
                 .AsNoTracking()
                 .ToListAsync(cancellationToken);
+
+        List<Item> allItemsToFilter = [item, .. ancestors, .. replies, .. siblings, .. quotes];
+        await allItemsToFilter.FilterVisibleTagRelationsAsync(context, currentUserId, isAdmin, cancellationToken);
 
         return new ItemDetailPageData(item, allTags, allTagRelationsToTags, ledgers, ancestors, replies, siblings, quotes);
     }

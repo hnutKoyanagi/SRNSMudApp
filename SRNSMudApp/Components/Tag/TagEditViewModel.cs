@@ -31,7 +31,10 @@ public class TagEditViewModel
     public IReadOnlyCollection<int> SelectedGroupIds { get; set; } = [];
     public IReadOnlyList<Data.UserGroup> MyGroups { get; private set; } = [];
     public bool IsAdmin { get; private set; }
+    public bool IsPrivate { get; set; }
+    public int? SelectedTargetGroupId { get; set; }
 
+    public bool IsSystemTag => Tag != null && (Tag.IsSystem || TagEntity.VoteTagNames.Contains(Tag.Name) || TagEntity.ReactionTagNames.Contains(Tag.Name) || Tag.Name == TagEntity.RootTagName);
     public bool CanSave => !string.IsNullOrWhiteSpace(EditName);
 
     /// <summary>
@@ -52,6 +55,8 @@ public class TagEditViewModel
         EditContent = tag.Content;
         SelectedGroupIds = tag.AutoApproveUserGroups?.Select(g => g.UserGroupId).ToHashSet() ?? [];
         IsAdmin = isAdmin;
+        IsPrivate = tag.IsPrivate;
+        SelectedTargetGroupId = tag.TargetUserGroupId;
 
         string? effectiveUserId = currentUserId ?? tag.OwnerId;
         if (!string.IsNullOrEmpty(effectiveUserId))
@@ -97,7 +102,9 @@ public class TagEditViewModel
                 EditContent,
                 Tag.AutoAcceptIncomingTaggingRequests,
                 SelectedGroupIds,
-                IsAdmin);
+                IsAdmin,
+                IsPrivate,
+                SelectedTargetGroupId);
 
             return updated ? Result.Ok(true) : Result.Fail<bool>("対象のタグが見つからないか、ロックされているため更新できません。");
         }

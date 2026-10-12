@@ -118,20 +118,20 @@ public class ItemTagTableViewModel
         return relation.Tag != null && !relation.Tag.IsTagVisibleToUser()
             ? false
             : TagSearchQuery.Parse(search) switch
-        {
-            EmptySearch => true,
-            IncompleteSearch incompleteSearch =>
-                relation.Tag?.Name?.Equals(incompleteSearch.TagName, StringComparison.OrdinalIgnoreCase) == true
-                || relation.Tag?.Name?.Contains(incompleteSearch.TagName, StringComparison.OrdinalIgnoreCase) == true,
-            TagWithUserSearch tagWithUserSearch =>
-                (relation.Tag?.Name?.Equals(tagWithUserSearch.TagName, StringComparison.OrdinalIgnoreCase) == true
-                 || relation.Tag?.Name?.Contains(tagWithUserSearch.TagName, StringComparison.OrdinalIgnoreCase) == true)
-                && MatchUser(relation, tagWithUserSearch.UserName),
-            TagNameSearch tagNameSearch =>
-                relation.Tag?.Name?.Contains(tagNameSearch.TagName, StringComparison.OrdinalIgnoreCase) == true
-                || MatchUser(relation, tagNameSearch.TagName),
-            _ => true
-        };
+            {
+                EmptySearch => true,
+                IncompleteSearch incompleteSearch =>
+                    relation.Tag?.Name?.Equals(incompleteSearch.TagName, StringComparison.OrdinalIgnoreCase) == true
+                    || relation.Tag?.Name?.Contains(incompleteSearch.TagName, StringComparison.OrdinalIgnoreCase) == true,
+                TagWithUserSearch tagWithUserSearch =>
+                    (relation.Tag?.Name?.Equals(tagWithUserSearch.TagName, StringComparison.OrdinalIgnoreCase) == true
+                     || relation.Tag?.Name?.Contains(tagWithUserSearch.TagName, StringComparison.OrdinalIgnoreCase) == true)
+                    && MatchUser(relation, tagWithUserSearch.UserName),
+                TagNameSearch tagNameSearch =>
+                    relation.Tag?.Name?.Contains(tagNameSearch.TagName, StringComparison.OrdinalIgnoreCase) == true
+                    || MatchUser(relation, tagNameSearch.TagName),
+                _ => true
+            };
     }
 
     private static bool MatchUser(TagRelation relation, string userName)

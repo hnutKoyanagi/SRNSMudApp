@@ -7,7 +7,8 @@ namespace SRNSMudApp.Components.UI;
 /// </summary>
 /// <param name="IsPrivate">非公開設定であるかどうか。</param>
 /// <param name="TargetUserGroupName">公開対象のユーザーグループ名（グループ指定がない場合は null）。</param>
-public sealed record PrivacyBadgeContext(bool IsPrivate, string? TargetUserGroupName);
+/// <param name="IsAdminHidden">管理者により強制非公開化されているかどうか。</param>
+public sealed record PrivacyBadgeContext(bool IsPrivate, string? TargetUserGroupName, bool IsAdminHidden = false);
 
 /// <summary>
 ///     公開範囲バッジの UI 表示モデル。
@@ -38,13 +39,26 @@ public interface IPrivacyBadgeStrategy
 }
 
 /// <summary>
+///     管理者非公開用のバッジ Strategy。
+/// </summary>
+public sealed class AdminHiddenPrivacyBadgeStrategy : IPrivacyBadgeStrategy
+{
+    /// <inheritdoc />
+    public bool CanApply(PrivacyBadgeContext context) => context.IsAdminHidden;
+
+    /// <inheritdoc />
+    public PrivacyBadgeModel CreateBadge(PrivacyBadgeContext context) =>
+        new("管理者非公開", Icons.Material.Filled.VisibilityOff, Color.Error);
+}
+
+/// <summary>
 ///     フォロワー限定公開用のバッジ Strategy。
 /// </summary>
 public sealed class FollowersOnlyPrivacyBadgeStrategy : IPrivacyBadgeStrategy
 {
     /// <inheritdoc />
     public bool CanApply(PrivacyBadgeContext context) =>
-        context.IsPrivate && string.IsNullOrEmpty(context.TargetUserGroupName);
+        !context.IsAdminHidden && context.IsPrivate && string.IsNullOrEmpty(context.TargetUserGroupName);
 
     /// <inheritdoc />
     public PrivacyBadgeModel CreateBadge(PrivacyBadgeContext context) =>
@@ -58,7 +72,7 @@ public sealed class GroupPrivacyBadgeStrategy : IPrivacyBadgeStrategy
 {
     /// <inheritdoc />
     public bool CanApply(PrivacyBadgeContext context) =>
-        context.IsPrivate && !string.IsNullOrEmpty(context.TargetUserGroupName);
+        !context.IsAdminHidden && context.IsPrivate && !string.IsNullOrEmpty(context.TargetUserGroupName);
 
     /// <inheritdoc />
     public PrivacyBadgeModel CreateBadge(PrivacyBadgeContext context) =>
@@ -72,6 +86,7 @@ public static class PrivacyBadgeStrategyResolver
 {
     private static readonly IReadOnlyList<IPrivacyBadgeStrategy> Strategies =
     [
+        new AdminHiddenPrivacyBadgeStrategy(),
         new FollowersOnlyPrivacyBadgeStrategy(),
         new GroupPrivacyBadgeStrategy()
     ];
@@ -81,10 +96,11 @@ public static class PrivacyBadgeStrategyResolver
     /// </summary>
     /// <param name="isPrivate">非公開設定であるかどうか。</param>
     /// <param name="targetUserGroupName">対象ユーザーグループ名。</param>
+    /// <param name="isAdminHidden">管理者非公開であるかどうか。</param>
     /// <returns>該当するバッジモデル。公開設定の場合は null。</returns>
-    public static PrivacyBadgeModel? Resolve(bool isPrivate, string? targetUserGroupName)
+    public static PrivacyBadgeModel? Resolve(bool isPrivate, string? targetUserGroupName, bool isAdminHidden = false)
     {
-        var context = new PrivacyBadgeContext(isPrivate, targetUserGroupName);
+        var context = new PrivacyBadgeContext(isPrivate, targetUserGroupName, isAdminHidden);
         IPrivacyBadgeStrategy? strategy = Strategies.FirstOrDefault(candidate => candidate.CanApply(context));
         return strategy?.CreateBadge(context);
     }

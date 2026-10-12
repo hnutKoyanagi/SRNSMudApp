@@ -90,15 +90,15 @@ public class TagDetailViewModel
     /// </summary>
     public async Task LoadDataAsync(int tagId, CancellationToken cancellationToken = default)
     {
-        TagDetailPageData data = await _tagDetailData.GetTagDetailAsync(tagId, CurrentUserId);
-        Tag = data.Tag;
-        IsFollowing = data.IsFollowing;
-        RelatedItems = data.RelatedItems?.ToList() ?? [];
-        RelatedTags = data.RelatedTags?.ToList() ?? [];
-        WeightLedgers = data.WeightLedgers?.ToList() ?? [];
-        PublicOffers = data.PublicOffers?.ToList() ?? [];
-        PendingRequests = data.PendingRequests?.ToList() ?? [];
-        RightAssetOverview = data.RightAssetOverview;
+        TagDetailPageData? data = await _tagDetailData.GetTagDetailAsync(tagId, CurrentUserId, IsAdmin);
+        Tag = data?.Tag;
+        IsFollowing = data?.IsFollowing ?? false;
+        RelatedItems = data?.RelatedItems?.ToList() ?? [];
+        RelatedTags = data?.RelatedTags?.ToList() ?? [];
+        WeightLedgers = data?.WeightLedgers?.ToList() ?? [];
+        PublicOffers = data?.PublicOffers?.ToList() ?? [];
+        PendingRequests = data?.PendingRequests?.ToList() ?? [];
+        RightAssetOverview = data?.RightAssetOverview;
 
         PendingProposals = await _tagContentProposalService.GetPendingProposalsForTagAsync(tagId, cancellationToken);
         PendingNameProposals = await _tagNameProposalService.GetPendingProposalsForTagAsync(tagId, cancellationToken);
