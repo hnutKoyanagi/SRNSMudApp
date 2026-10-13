@@ -10,12 +10,16 @@ using Microsoft.EntityFrameworkCore;
 
 using MudBlazor.Services;
 
+using Sidio.Sitemap.AspNetCore;
+using Sidio.Sitemap.Core.Services;
+
 using SmartComponents.LocalEmbeddings;
 
 using SRNSMudApp.Components;
 using SRNSMudApp.Components.Account;
 using SRNSMudApp.Data;
 using SRNSMudApp.Data.Interceptors;
+using SRNSMudApp.Endpoints;
 using SRNSMudApp.Extensions;
 using SRNSMudApp.Middlewares;
 using SRNSMudApp.Models.Push;
@@ -23,6 +27,7 @@ using SRNSMudApp.Services;
 using SRNSMudApp.Services.Auth;
 using SRNSMudApp.Services.Providers;
 using SRNSMudApp.Services.Push;
+using SRNSMudApp.Services.Sitemap;
 
 #endregion
 
@@ -90,6 +95,11 @@ builder.Services.Configure<VapidOptions>(builder.Configuration.GetSection(VapidO
 builder.Services.Configure<FirebaseOptions>(builder.Configuration.GetSection(FirebaseOptions.SectionName));
 builder.Services.AddSingleton<IPushSubscriptionStore, InMemoryPushSubscriptionStore>();
 builder.Services.AddScoped<IWebPushNotificationService, FirebaseWebPushService>();
+
+// Sidio.Sitemap サイトマップサービスの登録
+builder.Services.AddDefaultSitemapServices();
+builder.Services.AddSingleton<IStaticPageSitemapProvider, StaticPageSitemapProvider>();
+builder.Services.AddScoped<IArticleSitemapProvider, ArticleSitemapProvider>();
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
@@ -165,6 +175,18 @@ if (!builder.Environment.IsEnvironment("Testing"))
         {
             options.AddInterceptors(interceptor);
         }
+    });
+
+    _ = builder.Services.AddDbContext<AppDbContext>(options =>
+    {
+        options.UseSqlServer(connectionString, sqlOptions =>
+        {
+            sqlOptions.CommandTimeout(60);
+            sqlOptions.EnableRetryOnFailure(
+                maxRetryCount: 5,
+                maxRetryDelay: TimeSpan.FromSeconds(30),
+                errorNumbersToAdd: null);
+        });
     });
 }
 
@@ -344,7 +366,7 @@ app.UseAntiforgery();
 
 app.MapStaticAssets();
 
-
+app.MapSitemapEndpoints();
 
 app.MapControllers();
 
