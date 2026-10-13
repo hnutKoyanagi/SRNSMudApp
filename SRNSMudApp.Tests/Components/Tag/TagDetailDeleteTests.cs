@@ -115,7 +115,7 @@ public sealed class TagDetailDeleteTests : IAsyncLifetime
         const string ownerId = "owner-user";
         const string adminId = "admin-user";
         var tag = new TagEntity { Id = 10, Name = "MyTag", OwnerId = ownerId, IsSystem = false };
-        _ = _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(10, adminId))
+        _ = _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(10, adminId, true))
             .ReturnsAsync(CreatePageData(tag));
         _ = _tagLockServiceMock.Setup(l => l.IsTagOrSiblingLockedAsync(10))
             .ReturnsAsync(false);
@@ -135,7 +135,7 @@ public sealed class TagDetailDeleteTests : IAsyncLifetime
         // Arrange
         const string adminId = "admin-user";
         var tag = new TagEntity { Id = 10, Name = "SystemTag", OwnerId = adminId, IsSystem = true };
-        _ = _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(10, adminId))
+        _ = _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(10, adminId, true))
             .ReturnsAsync(CreatePageData(tag));
         _ = _tagLockServiceMock.Setup(l => l.IsTagOrSiblingLockedAsync(10))
             .ReturnsAsync(false);
@@ -173,7 +173,7 @@ public sealed class TagDetailDeleteTests : IAsyncLifetime
         // Arrange
         const string adminId = "admin-user";
         var tag = new TagEntity { Id = 10, Name = "LockedTag", OwnerId = "other-user", IsSystem = false };
-        _ = _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(10, adminId))
+        _ = _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(10, adminId, true))
             .ReturnsAsync(CreatePageData(tag));
         _ = _tagLockServiceMock.Setup(l => l.IsTagOrSiblingLockedAsync(10))
             .ReturnsAsync(true);
@@ -234,7 +234,7 @@ public sealed class TagDetailDeleteTests : IAsyncLifetime
         // Arrange
         const string adminId = "admin-user";
         var tag = new TagEntity { Id = 10, Name = "LockedTag", OwnerId = "other-user", IsSystem = false };
-        _ = _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(10, adminId))
+        _ = _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(10, adminId, true))
             .ReturnsAsync(CreatePageData(tag));
         _ = _tagLockServiceMock.Setup(l => l.IsTagOrSiblingLockedAsync(10))
             .ReturnsAsync(true);

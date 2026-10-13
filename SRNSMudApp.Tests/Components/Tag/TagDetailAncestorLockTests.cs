@@ -95,7 +95,7 @@ public sealed class TagDetailAncestorLockTests : IAsyncLifetime
         };
 
         var pageData = new TagDetailPageData(tag, false, [], [], [], [], []);
-        _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(10, "admin-user")).ReturnsAsync(pageData);
+        _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(10, "admin-user", true)).ReturnsAsync(pageData);
         _tagLockServiceMock.Setup(s => s.AreAncestorsLockedAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(false);
         _tagLockServiceMock.Setup(s => s.IsTagOrSiblingLockedAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(false);
 
@@ -121,7 +121,7 @@ public sealed class TagDetailAncestorLockTests : IAsyncLifetime
         };
 
         var pageData = new TagDetailPageData(tag, false, [], [], [], [], []);
-        _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(10, "admin-user")).ReturnsAsync(pageData);
+        _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(10, "admin-user", true)).ReturnsAsync(pageData);
         _tagLockServiceMock.Setup(s => s.AreAncestorsLockedAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
         _tagLockServiceMock.Setup(s => s.IsTagOrSiblingLockedAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(false);
 
@@ -147,7 +147,7 @@ public sealed class TagDetailAncestorLockTests : IAsyncLifetime
         };
 
         var pageData = new TagDetailPageData(tag, false, [], [], [], [], []);
-        _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(10, "admin-user")).ReturnsAsync(pageData);
+        _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(10, "admin-user", true)).ReturnsAsync(pageData);
         _tagLockServiceMock.Setup(s => s.AreAncestorsLockedAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(false);
         _tagLockServiceMock.Setup(s => s.IsTagOrSiblingLockedAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(false);
         _tagLockServiceMock.Setup(s => s.ToggleTagLockAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
@@ -176,7 +176,7 @@ public sealed class TagDetailAncestorLockTests : IAsyncLifetime
         };
 
         var pageData = new TagDetailPageData(tag, false, [], [], [], [], []);
-        _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(10, "admin-user")).ReturnsAsync(pageData);
+        _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(10, "admin-user", true)).ReturnsAsync(pageData);
         _tagLockServiceMock.Setup(s => s.AreAncestorsLockedAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(false);
         _tagLockServiceMock.Setup(s => s.IsTagOrSiblingLockedAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(false);
 
@@ -204,7 +204,7 @@ public sealed class TagDetailAncestorLockTests : IAsyncLifetime
         };
 
         var pageData = new TagDetailPageData(tag, false, [], [], [], [], []);
-        _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(10, "admin-user")).ReturnsAsync(pageData);
+        _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(10, "admin-user", true)).ReturnsAsync(pageData);
         _tagLockServiceMock.Setup(s => s.AreAncestorsLockedAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(false);
         _tagLockServiceMock.Setup(s => s.IsTagOrSiblingLockedAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
 

@@ -7,6 +7,32 @@ SA_PASSWORD="${1:-P@ssw0rd}"
 
 echo "=== postCreateCommand: 開始 ==="
 
+# 0. Git の safe.directory 設定（/usr/local/bin/git のシステム設定パス /usr/local/etc/gitconfig や GIT_CONFIG_GLOBAL=/dev/null 指定による dubious ownership エラーを防止）
+echo ">>> Git safe.directory を設定中..."
+sudo mkdir -p /usr/local/etc
+sudo git config --file /etc/gitconfig --replace-all safe.directory /workspaces/SRNSWebApp 2>/dev/null || true
+sudo git config --file /etc/gitconfig --add safe.directory '*' 2>/dev/null || true
+sudo chmod 644 /etc/gitconfig 2>/dev/null || true
+sudo cp -f /etc/gitconfig /usr/local/etc/gitconfig 2>/dev/null || true
+sudo chmod 644 /usr/local/etc/gitconfig 2>/dev/null || true
+git config --global --add safe.directory /workspaces/SRNSWebApp 2>/dev/null || true
+git config --global --add safe.directory '*' 2>/dev/null || true
+mkdir -p "$HOME/.config/git"
+git config --file "$HOME/.config/git/config" --replace-all safe.directory /workspaces/SRNSWebApp 2>/dev/null || true
+git config --file "$HOME/.config/git/config" --add safe.directory '*' 2>/dev/null || true
+if [ -x /usr/lib/git-core/git ] && [ ! -f /usr/lib/git-core/git.real ] && ! grep -q "GIT_CONFIG_SYSTEM" /usr/bin/git 2>/dev/null; then
+    sudo cp -p /usr/bin/git /usr/bin/git.real 2>/dev/null || true
+    sudo rm -f /usr/bin/git
+    printf '#!/bin/sh\nunset GIT_CONFIG_NOSYSTEM\nexport GIT_CONFIG_SYSTEM=/etc/gitconfig\n[ "$GIT_CONFIG_GLOBAL" = "/dev/null" ] && export GIT_CONFIG_GLOBAL=/etc/gitconfig\nexec /usr/lib/git-core/git -c safe.directory='\''*'\'' -c safe.directory=/workspaces/SRNSWebApp "$@"\n' | sudo tee /usr/bin/git >/dev/null
+    sudo chmod 755 /usr/bin/git
+fi
+if [ -x /usr/local/libexec/git-core/git ] && [ ! -f /usr/local/libexec/git-core/git.real ] && ! grep -q "GIT_CONFIG_SYSTEM" /usr/local/bin/git 2>/dev/null; then
+    sudo cp -p /usr/local/bin/git /usr/local/bin/git.real 2>/dev/null || true
+    sudo rm -f /usr/local/bin/git
+    printf '#!/bin/sh\nunset GIT_CONFIG_NOSYSTEM\nexport GIT_CONFIG_SYSTEM=/etc/gitconfig\n[ "$GIT_CONFIG_GLOBAL" = "/dev/null" ] && export GIT_CONFIG_GLOBAL=/etc/gitconfig\nexec /usr/local/libexec/git-core/git -c safe.directory='\''*'\'' -c safe.directory=/workspaces/SRNSWebApp "$@"\n' | sudo tee /usr/local/bin/git >/dev/null
+    sudo chmod 755 /usr/local/bin/git
+fi
+
 # 1. HTTPS 開発者証明書の生成（devcontainer 内で証明書が存在しないため）
 echo ">>> HTTPS 開発者証明書を生成中..."
 dotnet dev-certs https 2>/dev/null || true

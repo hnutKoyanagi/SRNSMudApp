@@ -105,6 +105,8 @@ public static class BunitTestSetup
         var dummyOptions = new DbContextOptions<ApplicationDbContext>();
         var dummyContext = new ApplicationDbContext(dummyOptions);
 
+        services.AddSingleton(Mock.Of<Microsoft.AspNetCore.Hosting.IWebHostEnvironment>());
+
         return services
             .AddSingleton<ILinkPreviewService>(sp =>
             {
@@ -122,7 +124,13 @@ public static class BunitTestSetup
             .AddScoped(_ => new Mock<ITagNameProposalService>().Object)
             .AddScoped(_ => new Mock<ITaggingService>().Object)
             .AddScoped(_ => new Mock<ITagEmbeddingService>().Object)
-            .AddScoped(_ => new Mock<INotificationService>().Object)
+            .AddScoped(_ =>
+            {
+                var mock = new Mock<INotificationService>();
+                mock.Setup(s => s.GetUserNotificationsAsync(It.IsAny<string>()))
+                    .ReturnsAsync([]);
+                return mock.Object;
+            })
             .AddScoped(_ => new Mock<ITaggingContractService>().Object)
             .AddScoped(_ => new Mock<ITaggingRequestActions>().Object)
             .AddScoped(_ => new Mock<ISystemTagEnsurer>().Object)
@@ -134,14 +142,39 @@ public static class BunitTestSetup
             .AddScoped(_ => new Mock<ITagTreeDataProvider>().Object)
             .AddScoped(_ => new Mock<ITagTableDataProvider>().Object)
             .AddScoped(_ => new Mock<IHomeDataProvider>().Object)
-            .AddScoped(_ => new Mock<INotificationsDataProvider>().Object)
+            .AddScoped(_ =>
+            {
+                var mock = new Mock<INotificationsDataProvider>();
+                mock.Setup(d => d.GetNotificationRawDataAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(new NotificationRawData([], [], [], [], [], []));
+                mock.Setup(d => d.GetAssociatedItemsAsync(It.IsAny<IReadOnlyList<int>>(), It.IsAny<CancellationToken>()))
+                    .ReturnsAsync([]);
+                return mock.Object;
+            })
             .AddScoped(_ => new Mock<IImportTagDataProvider>().Object)
+            .AddScoped(_ => new Mock<ITaggingImportDataProvider>().Object)
+            .AddScoped(_ =>
+            {
+                var mock = new Mock<ITagDiagramDataProvider>();
+                mock.Setup(d => d.LoadAllTagsAsync())
+                    .ReturnsAsync([]);
+                mock.Setup(d => d.LoadAllEdgesAsync())
+                    .ReturnsAsync([]);
+                return mock.Object;
+            })
+            .AddScoped(_ => new Mock<ITagHierarchyService>().Object)
             .AddScoped(_ => new Mock<IItemDetailDataProvider>().Object)
             .AddScoped(_ => new Mock<ITagSearchQueryService>().Object)
             .AddScoped(_ => new Mock<ITagCommandService>().Object)
             .AddScoped(_ => new Mock<ITagDetailDataProvider>().Object)
             .AddScoped(_ => new Mock<IContractManagementDataProvider>().Object)
-            .AddScoped(_ => new Mock<IBountyDataProvider>().Object)
+            .AddScoped(_ =>
+            {
+                var mock = new Mock<IBountyDataProvider>();
+                mock.Setup(d => d.GetActiveBountiesAsync())
+                    .ReturnsAsync(new BountyBoardData([], []));
+                return mock.Object;
+            })
             .AddScoped(_ => new Mock<IPublicOfferDataProvider>().Object)
             .AddScoped(_ => new Mock<IContractLookupDataProvider>().Object)
             .AddScoped(_ =>
@@ -161,7 +194,15 @@ public static class BunitTestSetup
             })
             .AddScoped(_ => new Mock<IAdminDataProvider>().Object)
             .AddScoped(_ => new Mock<IUserDataProvider>().Object)
-            .AddScoped(_ => new Mock<IRightAssetDataProvider>().Object)
+            .AddScoped(_ =>
+            {
+                var mock = new Mock<IRightAssetDataProvider>();
+                mock.Setup(d => d.GetTopTagsWithRightAssetsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                    .ReturnsAsync([]);
+                mock.Setup(d => d.GetAvailableRightAssetsForUserAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                    .ReturnsAsync([]);
+                return mock.Object;
+            })
             .AddScoped(_ => new Mock<IContentReportService>().Object)
             .AddScoped(_ =>
             {

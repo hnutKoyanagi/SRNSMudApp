@@ -31,12 +31,15 @@ public sealed class TriggerPublicOfferDialogTests : IAsyncLifetime
     private readonly Mock<IContractLookupDataProvider> _contractDataMock = new();
     private readonly Mock<ICommandHandler<CreateTriggerContractCommand, Result<bool>>> _createTriggerContractHandlerMock = new();
 
+    private readonly Mock<ISnackbar> _snackbarMock = new();
+
     public TriggerPublicOfferDialogTests()
     {
         _ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         _ = _ctx.Services.AddMudServices().AddMockSrnsServices();
         _ = _ctx.Services.AddScoped(_ => _contractDataMock.Object);
         _ = _ctx.Services.AddScoped(_ => _createTriggerContractHandlerMock.Object);
+        _ = _ctx.Services.AddScoped(_ => _snackbarMock.Object);
         _ctx.Services.AddAuthorizationCore();
 
         var authState = CreateAuthState(CharlieUserId);
@@ -103,6 +106,101 @@ public sealed class TriggerPublicOfferDialogTests : IAsyncLifetime
                 c.TriggerContract.TagOwnerUserId == AliceUserId &&
                 c.TriggerContract.TargetItemId == charlieItem.Id &&
                 c.TriggerContract.RequestedTagId == aliceTag.Id),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task PaidOffer_WithoutValidAssets_DisplaysWarningAndDisablesSubmit()
+    {
+        var aliceTag = new SRNSMudApp.Data.Tag { Id = 1, Name = "AlicePaidTag", OwnerId = AliceUserId };
+        var offer = new PublicTradeOffer
+        {
+            Id = 51,
+            OwnerId = AliceUserId,
+            OfferedTagId = aliceTag.Id,
+            OfferedTag = aliceTag,
+            RequiredAssetAmount = 3,
+            IsActive = true
+        };
+
+        _ = _contractDataMock
+            .Setup(d => d.GetValidRightAssetsAsync(CharlieUserId, aliceTag.Id, 3))
+            .ReturnsAsync([]);
+
+        IRenderedComponent<AuthDialogHost> host = _ctx.Render<AuthDialogHost>();
+        IDialogService dialogService = _ctx.Services.GetRequiredService<IDialogService>();
+        var parameters = new DialogParameters { { nameof(TriggerPublicOfferDialog.Offer), offer } };
+        _ = await dialogService.ShowAsync<TriggerPublicOfferDialog>("オファーに応じる", parameters);
+
+        host.WaitForState(() => host.Markup.Contains("条件を満たすアセットを所有していません。"));
+
+        Assert.Contains("条件を満たすアセットを所有していません。", host.Markup);
+        IElement triggerButton = host.FindAll("button").First(b => b.TextContent.Contains("実行する"));
+        Assert.True(triggerButton.HasAttribute("disabled"));
+    }
+
+    [Fact]
+    public async Task PaidOffer_WithSelectedAsset_PassesConsumedRightAssetId()
+    {
+        var aliceTag = new SRNSMudApp.Data.Tag { Id = 1, Name = "AlicePaidTag", OwnerId = AliceUserId };
+        var charlieItem = new SRNSMudApp.Data.Item { Id = 10, Content = "Charlie's item", OwnerId = CharlieUserId };
+        var validAsset = new RightAsset
+        {
+            Id = 88,
+            OwnerId = CharlieUserId,
+            TargetTagId = aliceTag.Id,
+            TargetTag = aliceTag,
+            Amount = 5
+        };
+
+        var offer = new PublicTradeOffer
+        {
+            Id = 52,
+            OwnerId = AliceUserId,
+            OfferedTagId = aliceTag.Id,
+            OfferedTag = aliceTag,
+            RequiredAssetAmount = 2,
+            IsActive = true
+        };
+
+        _ = _contractDataMock
+            .Setup(d => d.GetValidRightAssetsAsync(CharlieUserId, aliceTag.Id, 2))
+            .ReturnsAsync([validAsset]);
+        _ = _contractDataMock
+            .Setup(d => d.SearchItemsAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([charlieItem]);
+        _ = _createTriggerContractHandlerMock
+            .Setup(h => h.HandleAsync(It.IsAny<CreateTriggerContractCommand>(), It.IsAny<CancellationToken>()))
+            .Callback<CreateTriggerContractCommand, CancellationToken>((c, _) => c.TriggerContract.Id = 456)
+            .ReturnsAsync(Result.Ok());
+
+        IRenderedComponent<AuthDialogHost> host = _ctx.Render<AuthDialogHost>();
+        IDialogService dialogService = _ctx.Services.GetRequiredService<IDialogService>();
+        var parameters = new DialogParameters { { nameof(TriggerPublicOfferDialog.Offer), offer } };
+        IDialogReference dialog = await dialogService.ShowAsync<TriggerPublicOfferDialog>("オファーに応じる", parameters);
+
+        host.WaitForState(() => host.Markup.Contains("消費するアセット（必須）"));
+
+        IRenderedComponent<MudAutocomplete<SRNSMudApp.Data.Item>> autocomplete =
+            host.FindComponent<MudAutocomplete<SRNSMudApp.Data.Item>>();
+        await host.InvokeAsync(() => autocomplete.Instance.ValueChanged!.InvokeAsync(charlieItem));
+
+        IRenderedComponent<MudSelect<RightAsset>> select =
+            host.FindComponent<MudSelect<RightAsset>>();
+        await host.InvokeAsync(() => select.Instance.ValueChanged.InvokeAsync(validAsset));
+
+        IRenderedComponent<MudForm> form = host.FindComponent<MudForm>();
+        await host.InvokeAsync(() => form.Instance.ValidateAsync());
+
+        IElement triggerButton = host.FindAll("button").First(b => b.TextContent.Contains("実行する"));
+        await host.InvokeAsync(() => triggerButton.Click());
+
+        DialogResult? result = await dialog.Result.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.False(result!.Canceled);
+        _createTriggerContractHandlerMock.Verify(h => h.HandleAsync(
+            It.Is<CreateTriggerContractCommand>(c =>
+                c.TriggerContract.ConsumedRightAssetId == 88 &&
+                c.TriggerContract.TargetItemId == 10),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 

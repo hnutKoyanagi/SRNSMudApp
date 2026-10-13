@@ -197,8 +197,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<TagDetailViewModel>();
         services.AddScoped<ReportManagerViewModel>();
         services.AddScoped<PublicOfferBoardViewModel>();
-        services.AddScoped<QuotedItemListViewModel>();
-        services.AddScoped<UserGroupMembersViewModel>();
         services.AddScoped<BountyBoardViewModel>();
         services.AddScoped<RightAssetOverviewViewModel>();
         services.AddScoped<NotificationBadgeViewModel>();
@@ -206,6 +204,8 @@ public static class ServiceCollectionExtensions
 
         // STATE-01: ダイアログ用・短命アクション用 ViewModel を Transient に登録し、
         // Blazor Circuit 内での入力状態残留・ゴースト表示を防止する
+        services.AddTransient<QuotedItemListViewModel>();
+        services.AddTransient<UserGroupMembersViewModel>();
         services.AddTransient<AddItemViewModel>();
         services.AddTransient<ItemEditViewModel>();
         services.AddTransient<ItemTagChipActionViewModel>();
@@ -225,6 +225,7 @@ public static class ServiceCollectionExtensions
         services.AddTransient<TagContentProposalViewModel>();
         services.AddTransient<TagNameProposalViewModel>();
         services.AddTransient<ReportContentViewModel>();
+        services.AddTransient<UserGroupListViewModel>();
         services.AddTransient<UserGroupCreateEditViewModel>();
         services.AddTransient<BountyCreateViewModel>();
         services.AddTransient<FulfillBountyViewModel>();

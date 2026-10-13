@@ -13,9 +13,11 @@ using MudBlazor;
 using MudBlazor.Services;
 
 using SRNSMudApp.Components.Pages;
+using SRNSMudApp.Components.Tag;
 using SRNSMudApp.Data;
 using SRNSMudApp.Models;
 using SRNSMudApp.Services;
+using SRNSMudApp.Services.Dialogs;
 
 #endregion
 
@@ -26,6 +28,7 @@ public sealed class RightAssetOverviewTests : IAsyncLifetime
     private readonly BunitContext _ctx = new();
     private readonly Mock<IRightAssetDataProvider> _dataProviderMock = new();
     private readonly Mock<ITagSearchQueryService> _tagSearchMock = new();
+    private readonly Mock<IDialogLauncher> _dialogLauncherMock = new();
 
     public RightAssetOverviewTests()
     {
@@ -33,6 +36,7 @@ public sealed class RightAssetOverviewTests : IAsyncLifetime
         _ = _ctx.Services.AddMudServices().AddMockSrnsServices();
         _ = _ctx.Services.AddScoped(_ => _dataProviderMock.Object);
         _ = _ctx.Services.AddScoped(_ => _tagSearchMock.Object);
+        _ = _ctx.Services.AddScoped(_ => _dialogLauncherMock.Object);
     }
 
     public Task InitializeAsync() => Task.CompletedTask;
@@ -160,6 +164,64 @@ public sealed class RightAssetOverviewTests : IAsyncLifetime
         // Assert
         Assert.Contains("EmptyTag", cut.Markup);
         Assert.Contains("このタグを保有しているユーザーはいません", cut.Markup);
+    }
+
+    [Fact]
+    public async Task ClickingPurchaseJpycButton_OpensPurchaseDialogAndReloadsDataWhenConfirmed()
+    {
+        // Arrange
+        var tag = new SRNSMudApp.Data.Tag
+        {
+            Id = 42,
+            Name = "Solana",
+            CachedWeight = 10,
+            OwnerId = "system"
+        };
+
+        var overviewData = new RightAssetOverviewData(
+            Tag: tag,
+            TotalHoldersCount: 1,
+            TotalActiveAmount: 100,
+            TotalActiveAssetsCount: 1,
+            TotalBurnedAmount: 0,
+            Holders: [new("user-1", "Alice", 100, 1, 0, 0, DateTime.UtcNow)],
+            Assets: []
+        );
+
+        _dataProviderMock.Setup(p => p.GetTopTagsWithRightAssetsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        _dataProviderMock.Setup(p => p.GetRightAssetOverviewByTagIdAsync(42, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(overviewData);
+
+        var dialogRefMock = new Mock<IDialogReference>();
+        dialogRefMock.Setup(r => r.Result).ReturnsAsync(DialogResult.Ok(true));
+        _dialogLauncherMock
+            .Setup(l => l.ShowAsync(
+                typeof(PurchaseRightAssetDialog),
+                "操作権限の購入 (JPYC)",
+                It.IsAny<DialogParameters>(),
+                It.IsAny<DialogOptions>()))
+            .ReturnsAsync(dialogRefMock.Object);
+
+        var nav = _ctx.Services.GetRequiredService<NavigationManager>();
+        nav.NavigateTo("/RightAsset/Overview?tagId=42");
+
+        IRenderedComponent<MudPopoverProvider> _ = _ctx.Render<MudPopoverProvider>();
+        IRenderedComponent<RightAssetOverview> cut = _ctx.Render<RightAssetOverview>();
+
+        // Act
+        IElement purchaseBtn = cut.Find("[data-testid='overview-purchase-jpyc-button']");
+        await cut.InvokeAsync(() => purchaseBtn.Click());
+
+        // Assert
+        _dialogLauncherMock.Verify(
+            l => l.ShowAsync(
+                typeof(PurchaseRightAssetDialog),
+                "操作権限の購入 (JPYC)",
+                It.IsAny<DialogParameters>(),
+                It.IsAny<DialogOptions>()),
+            Times.Once);
+        _dataProviderMock.Verify(p => p.GetRightAssetOverviewByTagIdAsync(42, It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
     public async Task DisposeAsync()

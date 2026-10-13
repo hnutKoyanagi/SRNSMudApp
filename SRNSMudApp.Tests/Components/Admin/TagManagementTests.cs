@@ -121,6 +121,36 @@ public sealed class TagManagementTests : IAsyncLifetime
 
         // Assert
         _tagLockServiceMock.Verify(s => s.ToggleTagLockAsync(5, It.IsAny<CancellationToken>()), Times.Once);
+        _snackbarMock.Verify(s => s.Add(
+            It.Is<string>(msg => msg.Contains("個別ロック")),
+            Severity.Success,
+            It.IsAny<Action<SnackbarOptions>?>(),
+            It.IsAny<string?>()), Times.Once);
+    }
+
+    [Fact]
+    public void TagManagement_RootTag_ShowsRootFixedBadge_AndHidesToggleButton()
+    {
+        // Arrange
+        _ = _tagLockServiceMock.Setup(s => s.GetLockedHierarchyLevelAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0);
+
+        var testTags = new List<TagLockItemDto>
+        {
+            new(1, SRNSMudApp.Data.Tag.RootTagName, 0, null, null, "system", true, false, false, true)
+        };
+        _ = _tagLockServiceMock.Setup(s => s.GetAllTagsWithLockStatusAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(testTags);
+
+        var httpContext = new DefaultHttpContext();
+
+        // Act
+        IRenderedComponent<TagManagement> component =
+            _ctx.Render<TagManagement>(parameters => parameters.AddCascadingValue(httpContext));
+
+        // Assert
+        Assert.Contains("ルート固定", component.Markup);
+        Assert.Empty(component.FindAll("button.mud-button-outlined"));
     }
 
     public async Task DisposeAsync()

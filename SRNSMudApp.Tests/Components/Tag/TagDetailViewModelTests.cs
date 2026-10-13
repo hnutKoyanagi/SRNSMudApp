@@ -146,7 +146,7 @@ public sealed class TagDetailViewModelTests
         var tag = new TagEntity { Id = tagId, Name = "TestTag", OwnerId = "owner-1", IsLocked = false };
         _sut.SetUserContext("admin-1", true);
 
-        _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(tagId, "admin-1"))
+        _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(tagId, "admin-1", true))
             .ReturnsAsync(CreateSamplePageData(tag));
         _tagLockServiceMock.Setup(l => l.ToggleTagLockAsync(tagId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
@@ -171,7 +171,7 @@ public sealed class TagDetailViewModelTests
         var tag = new TagEntity { Id = tagId, Name = "TestTag", OwnerId = "owner-1", IsLocked = false };
         _sut.SetUserContext("admin-1", true);
 
-        _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(tagId, "admin-1"))
+        _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(tagId, "admin-1", true))
             .ReturnsAsync(CreateSamplePageData(tag));
         _tagLockServiceMock.Setup(l => l.ToggleTagLockAsync(tagId, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("DB error"));
@@ -208,7 +208,7 @@ public sealed class TagDetailViewModelTests
         var tag = new TagEntity { Id = tagId, Name = "TestTag", OwnerId = "owner-1" };
         _sut.SetUserContext("admin-1", true);
 
-        _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(tagId, "admin-1"))
+        _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(tagId, "admin-1", true))
             .ReturnsAsync(CreateSamplePageData(tag));
 
         await _sut.LoadDataAsync(tagId);
@@ -230,7 +230,7 @@ public sealed class TagDetailViewModelTests
         var tag = new TagEntity { Id = tagId, Name = "TestTag", OwnerId = "owner-1" };
         _sut.SetUserContext("admin-1", true);
 
-        _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(tagId, "admin-1"))
+        _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(tagId, "admin-1", true))
             .ReturnsAsync(CreateSamplePageData(tag));
 
         await _sut.LoadDataAsync(tagId);
@@ -356,7 +356,7 @@ public sealed class TagDetailViewModelTests
         var tag = new TagEntity { Id = tagId, Name = "TestTag", OwnerId = "admin-1", IsSystem = true };
         _sut.SetUserContext("admin-1", true);
 
-        _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(tagId, "admin-1"))
+        _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(tagId, "admin-1", true))
             .ReturnsAsync(CreateSamplePageData(tag));
 
         await _sut.LoadDataAsync(tagId);

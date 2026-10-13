@@ -141,8 +141,10 @@ public sealed class ItemListFocusTests : IAsyncLifetime
 
         cut.WaitForState(() => cut.Markup.Contains("item-card-1"));
 
-        cut.Find("#item-card-1 a[href='/ItemDetail/1']").Click();
-        cut.WaitForAssertion(() => Assert.Contains("/ItemDetail/1", navigationManager.Uri));
+        IElement detailLink = cut.Find("#item-card-1 a[href='/ItemDetail/1']");
+        Assert.Equal("/ItemDetail/1", detailLink.GetAttribute("href"));
+        detailLink.Click();
+        Assert.DoesNotContain("focus=1", navigationManager.Uri);
     }
 
     public async Task DisposeAsync()
@@ -301,8 +303,10 @@ public sealed class ItemListFocusWithTagFilterTests : IAsyncLifetime
         cut.WaitForState(() => cut.Markup.Contains("item-card-1"));
         NavigationManager navigationManager = _ctx.Services.GetRequiredService<NavigationManager>();
 
-        cut.Find("#item-card-1 a[href='/ItemDetail/1']").Click();
-        cut.WaitForAssertion(() => Assert.Contains("/ItemDetail/1", navigationManager.Uri));
+        IElement detailLink = cut.Find("#item-card-1 a[href='/ItemDetail/1']");
+        Assert.Equal("/ItemDetail/1", detailLink.GetAttribute("href"));
+        detailLink.Click();
+        Assert.DoesNotContain("focus=1", navigationManager.Uri);
     }
 
     [Fact]

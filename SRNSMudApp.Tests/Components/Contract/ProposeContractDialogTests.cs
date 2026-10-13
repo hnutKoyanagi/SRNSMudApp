@@ -160,6 +160,96 @@ public sealed class ProposeContractDialogTests : IAsyncLifetime
         Assert.False(result.Canceled);
     }
 
+    [Fact]
+    public async Task WhenMutualTabSelected_SubmittingWithoutOfferedFields_ShowsValidationError()
+    {
+        var targetItem = new SRNSMudApp.Data.Item { Id = 10, Content = "テスト対象アイテム", OwnerId = "user-1" };
+        var requestedTag = new SRNSMudApp.Data.Tag { Id = 20, Name = "テストタグ", OwnerId = "tag-owner" };
+
+        IRenderedComponent<DialogHost> host = _ctx.Render<DialogHost>();
+        IDialogService dialogService = _ctx.Services.GetRequiredService<IDialogService>();
+
+        var parameters = new DialogParameters<ProposeContractDialog>
+        {
+            { x => x.TargetItem, targetItem },
+            { x => x.RequestedTag, requestedTag }
+        };
+
+        _ = await dialogService.ShowAsync<ProposeContractDialog>("コントラクトの提案", parameters);
+
+        host.WaitForState(() => host.Markup.Contains("相互タグ付け (Mutual)"));
+
+        IRenderedComponent<MudTabs> tabs = host.FindComponent<MudTabs>();
+        await host.InvokeAsync(() => tabs.Instance.ActivatePanelAsync(1));
+
+        IElement submitButton = host.FindAll("button").First(b => b.TextContent.Trim() == "提案する");
+        await host.InvokeAsync(() => submitButton.Click());
+
+        _snackbarMock.Verify(
+            s => s.Add("相互タグ付けに必要な項目を入力してください。", Severity.Error, It.IsAny<Action<SnackbarOptions>>(), It.IsAny<string>()),
+            Times.Once);
+        _contractServiceMock.Verify(
+            s => s.ProposeMutualContractAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(),
+                It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<TaggingRequestType>(), It.IsAny<int>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task WhenMutualTabSelected_WithAllRequiredFields_ProposesMutualContractSuccessfully()
+    {
+        var targetItem = new SRNSMudApp.Data.Item { Id = 10, Content = "テスト対象アイテム", OwnerId = "user-1" };
+        var requestedTag = new SRNSMudApp.Data.Tag { Id = 20, Name = "テストタグ", OwnerId = "tag-owner" };
+        var offeredItem = new SRNSMudApp.Data.Item { Id = 40, Content = "提供アイテム", OwnerId = "tag-owner" };
+        var offeredTag = new SRNSMudApp.Data.Tag { Id = 50, Name = "提供タグ", OwnerId = "user-1" };
+        var asset = new RightAsset { Id = 60, OwnerId = "user-1", TargetTagId = 50, TargetTag = offeredTag, Amount = 1 };
+
+        _contractDataMock.Setup(d => d.GetAvailableRightAssetsAsync("user-1"))
+            .ReturnsAsync([asset]);
+        _contractServiceMock.Setup(s => s.ProposeMutualContractAsync(
+                "user-1", "tag-owner", 10, 20, 40, 50, 60, TaggingRequestType.Add, 1))
+            .ReturnsAsync(new Success<TaggingRequestEntity>(new TaggingRequestEntity { OwnerId = "user-1" }));
+
+        IRenderedComponent<DialogHost> host = _ctx.Render<DialogHost>();
+        IDialogService dialogService = _ctx.Services.GetRequiredService<IDialogService>();
+
+        var parameters = new DialogParameters<ProposeContractDialog>
+        {
+            { x => x.TargetItem, targetItem },
+            { x => x.RequestedTag, requestedTag }
+        };
+
+        IDialogReference dialog = await dialogService.ShowAsync<ProposeContractDialog>("コントラクトの提案", parameters);
+
+        host.WaitForState(() => host.Markup.Contains("相互タグ付け (Mutual)"));
+
+        IRenderedComponent<MudTabs> tabs = host.FindComponent<MudTabs>();
+        await host.InvokeAsync(() => tabs.Instance.ActivatePanelAsync(1));
+
+        IRenderedComponent<MudAutocomplete<SRNSMudApp.Data.Item>> itemAutocomplete =
+            host.FindComponent<MudAutocomplete<SRNSMudApp.Data.Item>>();
+        await host.InvokeAsync(() => itemAutocomplete.Instance.ValueChanged.InvokeAsync(offeredItem));
+
+        IRenderedComponent<MudAutocomplete<SRNSMudApp.Data.Tag>> tagAutocomplete =
+            host.FindComponent<MudAutocomplete<SRNSMudApp.Data.Tag>>();
+        await host.InvokeAsync(() => tagAutocomplete.Instance.ValueChanged.InvokeAsync(offeredTag));
+
+        IRenderedComponent<MudSelect<RightAsset>> assetSelect =
+            host.FindComponent<MudSelect<RightAsset>>();
+        await host.InvokeAsync(() => assetSelect.Instance.ValueChanged.InvokeAsync(asset));
+
+        IElement submitButton = host.FindAll("button").First(b => b.TextContent.Trim() == "提案する");
+        await host.InvokeAsync(() => submitButton.Click());
+
+        _contractServiceMock.Verify(
+            s => s.ProposeMutualContractAsync("user-1", "tag-owner", 10, 20, 40, 50, 60, TaggingRequestType.Add, 1),
+            Times.Once);
+
+        DialogResult? result = await dialog.Result;
+        Assert.NotNull(result);
+        Assert.False(result.Canceled);
+    }
+
     public async Task DisposeAsync()
     {
         await _ctx.DisposeAsync();

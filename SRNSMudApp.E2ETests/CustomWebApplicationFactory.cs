@@ -47,6 +47,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
     private IHost? _host;
     private IDisposable? _containerSlot;
     private MsSqlContainer? _msSqlContainer;
+    private DockerSocketSqlProxy? _sqlProxy;
 
     public string ServerAddress { get; private set; } = "http://localhost";
 
@@ -100,9 +101,35 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             _containerSlot = ContainerLimiter.AcquireSlotAsync().GetAwaiter().GetResult();
             try
             {
-                _msSqlContainer = new MsSqlBuilder().Build();
+                _msSqlContainer = new MsSqlBuilder()
+                    .WithCleanUp(false)
+                    .WithAutoRemove(true)
+                    .Build();
                 _msSqlContainer.StartAsync().GetAwaiter().GetResult();
-                _connectionString = _msSqlContainer.GetConnectionString();
+
+                string containerId = _msSqlContainer.Id;
+                AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+                {
+                    try
+                    {
+                        using var proc = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("docker")
+                        {
+                            ArgumentList = { "rm", "-f", containerId },
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = true,
+                            UseShellExecute = false
+                        });
+                        proc?.WaitForExit(5000);
+                    }
+                    catch
+                    {
+                    }
+                };
+
+                (_connectionString, _sqlProxy) = DockerSocketSqlProxy
+                    .EnsureReachableAsync(_msSqlContainer.Id, _msSqlContainer.GetConnectionString())
+                    .GetAwaiter()
+                    .GetResult();
             }
             catch
             {
@@ -196,6 +223,14 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
         if (disposing)
         {
+            try
+            {
+                _sqlProxy?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+            catch
+            {
+            }
+
             try
             {
                 _msSqlContainer?.DisposeAsync().AsTask().GetAwaiter().GetResult();
