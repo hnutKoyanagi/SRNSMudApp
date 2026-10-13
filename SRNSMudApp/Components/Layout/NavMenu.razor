@@ -21,14 +21,13 @@
     <AuthorizeView>
         <Authorized>
             <MudNavLink Href="notifications" Match="NavLinkMatch.Prefix">
-                <div class="d-flex align-center">
                     <MudBadge Content="@ViewModel.UnreadNotificationCount" Color="Color.Error" Overlap="true"
                               Visible="@(ViewModel.UnreadNotificationCount > 0)" Class="mr-3"
                               data-testid="nav-notifications-badge">
                         <MudIcon Icon="@Icons.Material.Filled.Notifications" />
                     </MudBadge>
-                    <span>Notifications</span>
-                </div>
+                    Notifications
+                
             </MudNavLink>
             <MudNavLink Href="@($"User/UserDetail/{_currentUserId}")" Match="NavLinkMatch.Prefix"
                         Icon="@Icons.Material.Filled.AccountCircle">
