@@ -19,19 +19,22 @@ public class TagAddViewModel
     private readonly ITagLockService _tagLockService;
     private readonly ITagSimilarityService _tagSimilarityService;
     private readonly ISnackbar _snackbar;
+    private readonly IUserGroupDataProvider? _userGroupData;
 
     public TagAddViewModel(
         ITagSearchQueryService tagSearchQueryService,
         ITagCommandService tagCommandService,
         ITagLockService tagLockService,
         ITagSimilarityService tagSimilarityService,
-        ISnackbar snackbar)
+        ISnackbar snackbar,
+        IUserGroupDataProvider? userGroupData = null)
     {
         _tagSearchQueryService = tagSearchQueryService;
         _tagCommandService = tagCommandService;
         _tagLockService = tagLockService;
         _tagSimilarityService = tagSimilarityService;
         _snackbar = snackbar;
+        _userGroupData = userGroupData;
     }
 
     public IReadOnlyList<Data.Tag> AllTags { get; private set; } = [];
@@ -40,7 +43,27 @@ public class TagAddViewModel
     public bool IsSearching { get; private set; }
     public Data.Tag? SelectedTag { get; set; }
 
-    public Data.Tag? ParentTag { get; set; }
+    private Data.Tag? _parentTag;
+    public Data.Tag? ParentTag
+    {
+        get => _parentTag;
+        set
+        {
+            if (_parentTag != value)
+            {
+                _parentTag = value;
+                if (_parentTag?.IsPrivate == true)
+                {
+                    IsPrivate = true;
+                    SelectedGroupId = _parentTag.TargetUserGroupId;
+                }
+            }
+        }
+    }
+
+    public bool IsPrivate { get; set; }
+    public int? SelectedGroupId { get; set; }
+    public IReadOnlyList<Data.UserGroup> UserGroups { get; private set; } = [];
 
     private string _newTagName = string.Empty;
 
@@ -67,9 +90,22 @@ public class TagAddViewModel
     /// <summary>
     ///     全タグリストを取得して初期化する。
     /// </summary>
-    public async Task InitializeAsync()
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types",
+        Justification = "グループ取得失敗時にもタグ追加自体は継続可能にするため例外を捕捉する")]
+    public async Task InitializeAsync(string? currentUserId = null)
     {
-        AllTags = await _tagSearchQueryService.GetAllTagsAsync();
+        AllTags = await _tagSearchQueryService.GetAllTagsAsync(currentUserId);
+        if (_userGroupData != null && !string.IsNullOrEmpty(currentUserId))
+        {
+            try
+            {
+                UserGroups = await _userGroupData.GetUserGroupsForUserAsync(currentUserId);
+            }
+            catch
+            {
+                UserGroups = [];
+            }
+        }
         UpdateSimilarTags();
     }
 
@@ -171,6 +207,12 @@ public class TagAddViewModel
             return null;
         }
 
+        if (ParentTag.IsPrivate)
+        {
+            IsPrivate = true;
+            SelectedGroupId = ParentTag.TargetUserGroupId;
+        }
+
         try
         {
             var newTag = new Data.Tag
@@ -179,7 +221,9 @@ public class TagAddViewModel
                 Content = NewTagContent ?? string.Empty,
                 OwnerId = userId,
                 ParentTagId = ParentTag.Id,
-                CachedWeight = 0
+                CachedWeight = 0,
+                IsPrivate = IsPrivate,
+                TargetUserGroupId = IsPrivate ? SelectedGroupId : null
             };
 
             await _tagCommandService.CreateTagAsync(newTag, isAdmin);

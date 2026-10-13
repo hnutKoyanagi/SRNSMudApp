@@ -30,8 +30,17 @@ public partial class TagLinkPreviewProvider(IDbContextFactory<ApplicationDbConte
     }
 
     /// <inheritdoc />
+    public Task<LinkPreviewData> GetPreviewAsync(Uri uri, string originalUrl, CancellationToken cancellationToken = default) =>
+        GetPreviewAsync(uri, originalUrl, null, false, cancellationToken);
+
+    /// <inheritdoc />
     [SuppressMessage("Design", "CA1054:URI parameters should not be strings", Justification = "Original URL representation")]
-    public async Task<LinkPreviewData> GetPreviewAsync(Uri uri, string originalUrl, CancellationToken cancellationToken = default)
+    public async Task<LinkPreviewData> GetPreviewAsync(
+        Uri uri,
+        string originalUrl,
+        string? currentUserId,
+        bool isAdmin = false,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(uri);
         ArgumentNullException.ThrowIfNull(originalUrl);
@@ -47,6 +56,7 @@ public partial class TagLinkPreviewProvider(IDbContextFactory<ApplicationDbConte
         var tag = await db.Tags
             .AsNoTracking()
             .Include(t => t.Owner)
+            .Include(t => t.TargetUserGroup)
             .FirstOrDefaultAsync(t => t.Id == tagId, cancellationToken);
 
         if (tag == null)
@@ -54,21 +64,74 @@ public partial class TagLinkPreviewProvider(IDbContextFactory<ApplicationDbConte
             return new LinkPreviewData { Url = originalUrl, IsSuccess = false };
         }
 
-        var text = string.IsNullOrWhiteSpace(tag.Content) ? "タグ詳細" : WhitespaceRegex().Replace(tag.Content, " ").Trim();
+        Tag? displayTag = null;
+        if (await tag.IsTagVisibleToUserAsync(db, currentUserId, isAdmin))
+        {
+            displayTag = tag;
+        }
+        else
+        {
+            // 不可視モードのタグの場合、一番近い祖先で可視なタグを探索
+            if (tag.Node != null)
+            {
+                displayTag = await db.Tags
+                    .AsNoTracking()
+                    .Include(t => t.Owner)
+                    .Include(t => t.TargetUserGroup)
+                    .Where(t => t.Id != tag.Id && tag.Node.IsDescendantOf(t.Node))
+                    .WhereVisibleToUser(db, currentUserId, isAdmin)
+                    .OrderByDescending(t => t.Node.GetLevel())
+                    .FirstOrDefaultAsync(cancellationToken);
+            }
+
+            // Node がない場合や HierarchyId クエリで見つからなかった場合のフォールバック（ParentTagId を再帰探索）
+            if (displayTag == null && tag.ParentTagId.HasValue)
+            {
+                int? currentParentId = tag.ParentTagId;
+                while (currentParentId.HasValue)
+                {
+                    var parent = await db.Tags
+                        .AsNoTracking()
+                        .Include(t => t.Owner)
+                        .Include(t => t.TargetUserGroup)
+                        .FirstOrDefaultAsync(t => t.Id == currentParentId.Value, cancellationToken);
+
+                    if (parent == null)
+                    {
+                        break;
+                    }
+
+                    if (await parent.IsTagVisibleToUserAsync(db, currentUserId, isAdmin))
+                    {
+                        displayTag = parent;
+                        break;
+                    }
+
+                    currentParentId = parent.ParentTagId;
+                }
+            }
+        }
+
+        if (displayTag == null)
+        {
+            return new LinkPreviewData { Url = originalUrl, IsSuccess = false };
+        }
+
+        var text = string.IsNullOrWhiteSpace(displayTag.Content) ? "タグ詳細" : WhitespaceRegex().Replace(displayTag.Content, " ").Trim();
         if (text.Length > 200)
         {
             text = $"{text.AsSpan(0, 200)}...";
         }
 
-        var ownerName = tag.Owner?.UserName ?? (tag.GetKind() is Models.Unions.SystemClassificationTag ? "system" : "unknown");
+        var ownerName = displayTag.Owner?.UserName ?? (displayTag.GetKind() is Models.Unions.SystemClassificationTag ? "system" : "unknown");
 
         return new LinkPreviewData
         {
             Url = originalUrl,
-            Title = $"Tag: {tag.Name} ({ownerName})",
+            Title = $"Tag: {displayTag.Name} ({ownerName})",
             Description = text,
-            DisplayText = $"{tag.Name}:{ownerName}",
-            Tags = [new TagPreviewItem(tag.Id, tag.Name, ownerName, 0)],
+            DisplayText = $"{displayTag.Name}:{ownerName}",
+            Tags = [new TagPreviewItem(displayTag.Id, displayTag.Name, ownerName, 0)],
             SiteName = "SRNSMudApp",
             IsSuccess = true
         };

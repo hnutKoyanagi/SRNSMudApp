@@ -23,7 +23,7 @@ public sealed record TagTreeDeleteResult(
 public interface ITagTreeDataProvider
 {
     /// <summary>VoteTag / ReactionTag 以外を読み込む。</summary>
-    Task<List<Tag>> LoadTagsAsync();
+    Task<List<Tag>> LoadTagsAsync(string? currentUserId = null, bool isAdmin = false);
 
     Task<TagTreeDeleteResult> DeleteTagsAsync(string userId, IReadOnlyList<int> selectedIds, bool isAdmin = false);
 
@@ -50,12 +50,14 @@ public class TagTreeDataProvider(
     private readonly IDbContextFactory<ApplicationDbContext> _dbFactory =
         dbFactory ?? throw new ArgumentNullException(nameof(dbFactory));
     private readonly ITagLockService? _tagLockService = tagLockService;
-    public async Task<List<Tag>> LoadTagsAsync()
+    public async Task<List<Tag>> LoadTagsAsync(string? currentUserId = null, bool isAdmin = false)
     {
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
         return await context.Tags
+            .Include(t => t.Owner)
+            .Include(t => t.TargetUserGroup)
             .Where(t => !Tag.VoteTagNames.Contains(t.Name) && !Tag.ReactionTagNames.Contains(t.Name))
-            .WhereVisibleToUser()
+            .WhereVisibleToUser(context, currentUserId, isAdmin)
             .OrderBy(t => t.Node)
             .AsNoTracking()
             .ToListAsync();
@@ -190,22 +192,34 @@ public class TagTreeDataProvider(
             }
         }
 
+        if (tag.IsSystem || Tag.VoteTagNames.Contains(tag.Name) || Tag.ReactionTagNames.Contains(tag.Name) || tag.Name == Tag.RootTagName)
+        {
+            tag.IsPrivate = false;
+            tag.TargetUserGroupId = null;
+        }
+
         if (tag.ParentTagId.HasValue)
         {
-            HierarchyId? parentNode = await context.Tags
+            var parent = await context.Tags
                 .Where(t => t.Id == tag.ParentTagId.Value)
-                .Select(t => (HierarchyId?)t.Node)
+                .Select(t => new { Node = (HierarchyId?)t.Node, t.IsPrivate, t.TargetUserGroupId })
                 .FirstOrDefaultAsync();
 
-            if (parentNode != null)
+            if (parent?.Node != null)
             {
+                if (parent.IsPrivate && !tag.IsPrivate)
+                {
+                    tag.IsPrivate = true;
+                    tag.TargetUserGroupId = parent.TargetUserGroupId;
+                }
+
                 HierarchyId? lastChild = await context.Tags
-                    .Where(t => t.Node.GetAncestor(1) == parentNode)
+                    .Where(t => t.Node.GetAncestor(1) == parent.Node)
                     .OrderByDescending(t => t.Node)
                     .Select(t => (HierarchyId?)t.Node)
                     .FirstOrDefaultAsync();
 
-                tag.Node = parentNode.GetDescendant(lastChild, null);
+                tag.Node = parent.Node.GetDescendant(lastChild, null);
             }
         }
         else if (tag.Name == Tag.RootTagName)

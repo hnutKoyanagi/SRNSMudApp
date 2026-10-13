@@ -14,7 +14,7 @@ namespace SRNSMudApp.Services;
 /// </summary>
 public interface ITagTableDataProvider
 {
-    Task<List<Tag>> GetAllTagsAsync();
+    Task<List<Tag>> GetAllTagsAsync(string? currentUserId = null, bool isAdmin = false);
 
     /// <summary>タグ間リレーションを追加する。既存の場合は <see cref="TagCardOperationResult.AlreadyExists" />。</summary>
     Task<TagCardOperationResult> AddRelationAsync(int targetTagId, int selectedTagId, string ownerId);
@@ -35,10 +35,15 @@ public class TagTableDataProvider(
         dbFactory ?? throw new ArgumentNullException(nameof(dbFactory));
     private readonly ITagLockService? _tagLockService = tagLockService;
     private readonly ITagCommandService? _tagCommandService = tagCommandService;
-    public async Task<List<Tag>> GetAllTagsAsync()
+    public async Task<List<Tag>> GetAllTagsAsync(string? currentUserId = null, bool isAdmin = false)
     {
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
-        return await context.Tags.WhereVisibleToUser().AsNoTracking().ToListAsync();
+        return await context.Tags
+            .Include(t => t.Owner)
+            .Include(t => t.TargetUserGroup)
+            .WhereVisibleToUser(context, currentUserId, isAdmin)
+            .AsNoTracking()
+            .ToListAsync();
     }
 
     public async Task<TagCardOperationResult> AddRelationAsync(int targetTagId, int selectedTagId, string ownerId)

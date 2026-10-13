@@ -30,7 +30,7 @@
                 <div class="d-flex justify-space-between align-start">
                     <div class="flex-grow-1">
                         @* 本文・URL プレビュー・メタ情報は表示専用子コンポーネントへ委譲 *@
-                        <ItemCardContent ItemId="Item.Id" LoadPreview="PreviewService.GetPreviewAsync"
+                        <ItemCardContent ItemId="Item.Id" LoadPreview="@(url => PreviewService.GetPreviewAsync(url, CurrentUserId, IsAdmin))"
                                          Content="@Item.Content" OwnerId="@Item.OwnerId" OwnerUserName="@(Item.Owner?.UserName)"
                                          UpdatedDate="Item.UpdatedDate" IsPrivate="Item.IsPrivate" IsAdminHidden="Item.IsAdminHidden"
                                          TargetUserGroupName="@(Item.TargetUserGroup?.Name)" EnableNavigation="EnableNavigation" />

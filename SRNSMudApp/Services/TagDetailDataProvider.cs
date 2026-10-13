@@ -28,11 +28,12 @@ public sealed record TagDetailPageData(
 /// </summary>
 public interface ITagDetailDataProvider
 {
-    /// <summary>タグ詳細の表示データを取得する。</summary>
+    /// <summary>タグ詳細の表示データを取得する。権限がない場合または存在しない場合は null。</summary>
     /// <param name="tagId">取得対象のタグID。</param>
     /// <param name="currentUserId">現在のログインユーザーID（未ログイン時は null）。</param>
-    /// <returns>タグ詳細、関連アイテム、関連タグ、履歴などの集約データ。</returns>
-    Task<TagDetailPageData> GetTagDetailAsync(int tagId, string? currentUserId);
+    /// <param name="isAdmin">管理者権限フラグ。</param>
+    /// <returns>タグ詳細、関連アイテム、関連タグ、履歴などの集約データ。不可視時は null。</returns>
+    Task<TagDetailPageData?> GetTagDetailAsync(int tagId, string? currentUserId, bool isAdmin = false);
 
     /// <summary>タグのフォロー状態を切り替え、切替後の状態を返す。</summary>
     /// <param name="tagId">フォロー対象のタグID。</param>
@@ -66,19 +67,25 @@ public class TagDetailDataProvider(
     private readonly ITagCommandService? _tagCommandService = tagCommandService;
     private readonly IRightAssetDataProvider _rightAssetDataProvider =
         rightAssetDataProvider ?? new RightAssetDataProvider(dbFactory);
-    public async Task<TagDetailPageData> GetTagDetailAsync(int tagId, string? currentUserId)
+    public async Task<TagDetailPageData?> GetTagDetailAsync(int tagId, string? currentUserId, bool isAdmin = false)
     {
         await using ApplicationDbContext context = await _dbFactory.CreateDbContextAsync();
         Tag? tag = await context.Tags
             .Include(t => t.Owner)
+            .Include(t => t.TargetUserGroup)
             .Include(t => t.AutoApproveUserGroups)
                 .ThenInclude(g => g.UserGroup)
-            .WhereVisibleToUser()
+            .WhereVisibleToUser(context, currentUserId, isAdmin)
             .AsNoTracking()
             .FirstOrDefaultAsync(t => t.Id == tagId);
 
+        if (tag is null)
+        {
+            return null;
+        }
+
         var isFollowing = false;
-        if (tag is not null && currentUserId is not null)
+        if (currentUserId is not null)
         {
             isFollowing = await context.UserTagFollows!
                 .AnyAsync(utf => utf.TagId == tagId && utf.OwnerId == currentUserId);
@@ -96,18 +103,19 @@ public class TagDetailDataProvider(
             .Include(i => i.AsRequestOf)
             .ThenInclude(r => r.RequestedTag)
             .Where(i => i.TagRelations.Any(tr => tr.TagId == tagId))
-            .WhereVisibleToUser(context, currentUserId)
+            .WhereVisibleToUser(context, currentUserId, isAdmin)
             .OrderByDescending(i => i.UpdatedDate)
             .AsNoTracking()
             .ToListAsync();
 
         List<Tag> relatedTags = await context.Tags
             .Include(t => t.Owner)
+            .Include(t => t.TargetUserGroup)
             .Include(t => t.TargetTagRelations)
             .ThenInclude(tr => tr.Tag)
             .ThenInclude(t => t.Owner)
             .Where(t => t.TargetTagRelations.Any(tr => tr.TagId == tagId))
-            .WhereVisibleToUser()
+            .WhereVisibleToUser(context, currentUserId, isAdmin)
             .OrderByDescending(t => t.UpdatedDate)
             .AsNoTracking()
             .ToListAsync();

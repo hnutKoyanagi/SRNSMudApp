@@ -98,10 +98,18 @@
 
         <MudCard Outlined="true" Class="mb-4 rounded-xl">
             <MudCardContent>
-                <MudText Typo="Typo.h4" Class="d-flex align-center">
-                    <MudIcon Icon="@Icons.Material.Filled.LocalOffer" Class="mr-2" />
-                    @_tag.Name
-                </MudText>
+                <div class="d-flex align-center gap-2">
+                    <MudText Typo="Typo.h4" Class="d-flex align-center">
+                        <MudIcon Icon="@Icons.Material.Filled.LocalOffer" Class="mr-2" />
+                        @_tag.Name
+                    </MudText>
+                    @if (PrivacyBadgeStrategyResolver.Resolve(_tag.IsPrivate, _tag.TargetUserGroup?.Name, _tag.IsAdminHidden) is { } badge)
+                    {
+                        <MudChip T="string" Color="@badge.Color" Icon="@badge.Icon" Variant="Variant.Filled">
+                            @badge.Text
+                        </MudChip>
+                    }
+                </div>
                 @if (!string.IsNullOrEmpty(_tag.Content))
                 {
                     <MudText Typo="Typo.body1" Class="mt-4">@_tag.Content</MudText>

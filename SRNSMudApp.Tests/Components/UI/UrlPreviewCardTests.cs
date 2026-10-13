@@ -90,4 +90,37 @@ public class UrlPreviewCardTests : IAsyncDisposable
         Assert.Equal("タグなし本文", pill.TextContent.Trim());
         Assert.Empty(component.FindComponents<MudBlazor.MudTooltip>());
     }
+
+    [Fact]
+    public void UrlPreviewCard_WhenTagIsRedirectedToVisibleAncestor_RendersRedirectedTagNameInPill()
+    {
+        // Arrange: 不可視タグからリダイレクトされた祖先タグ情報を持つプレビューデータ
+        const string invisibleTagUrl = "/TagDetail/999";
+        const string redirectedTagName = "PublicAncestorCategory";
+        const string ownerName = "alice";
+
+        var redirectedPreviewData = new LinkPreviewData
+        {
+            Url = invisibleTagUrl,
+            Title = $"Tag: {redirectedTagName} ({ownerName})",
+            DisplayText = $"{redirectedTagName}:{ownerName}",
+            Description = "祖先タグの説明文",
+            Tags = [new TagPreviewItem(10, redirectedTagName, ownerName, 0)],
+            SiteName = "SRNSMudApp",
+            IsSuccess = true
+        };
+
+        // Act: 不可視タグの URL に対する UrlPreviewCard をレンダリング
+        IRenderedComponent<UrlPreviewCard> component = _ctx.Render<UrlPreviewCard>(parameters => parameters
+            .Add(p => p.Url, invisibleTagUrl)
+            .Add(p => p.LoadPreview, _ => Task.FromResult<LinkPreviewData?>(redirectedPreviewData))
+        );
+
+        // Assert: 画面上のピル表示がリダイレクトしたタグ名になっていること
+        var pill = component.Find("[data-testid='internal-link-preview-pill']");
+        Assert.NotNull(pill);
+        Assert.Equal($"{redirectedTagName}:{ownerName}", pill.TextContent.Trim());
+        Assert.Contains(redirectedTagName, pill.TextContent);
+        Assert.DoesNotContain("Secret", pill.TextContent);
+    }
 }

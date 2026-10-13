@@ -35,25 +35,41 @@ public class TagSearchQueryService(
     private const string LinkConversionCandidatesCacheKey = "TagSearchQueryService_CandidateTagsForLinkConversion";
     private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(3);
 
-    public async Task<List<Tag>> GetAllTagsAsync()
+    public async Task<List<Tag>> GetAllTagsAsync(string? currentUserId = null, bool isAdmin = false)
     {
         await using ApplicationDbContext dbContext = await _dbFactory.CreateDbContextAsync().ConfigureAwait(false);
-        return await dbContext.Tags.AsNoTracking().ToListAsync().ConfigureAwait(false);
+        return await dbContext.Tags
+            .Include(t => t.Owner)
+            .Include(t => t.TargetUserGroup)
+            .WhereVisibleToUser(dbContext, currentUserId, isAdmin)
+            .AsNoTracking()
+            .ToListAsync()
+            .ConfigureAwait(false);
     }
 
-    public async Task<List<Tag>> SearchTagsAsync(string searchText)
+    public async Task<List<Tag>> SearchTagsAsync(string searchText, string? currentUserId = null, bool isAdmin = false)
     {
         float[] queryVector = (await _tagEmbeddingService.GenerateEmbeddingAsync(searchText).ConfigureAwait(false)).ToArray();
 
         await using ApplicationDbContext dbContext = await _dbFactory.CreateDbContextAsync().ConfigureAwait(false);
 
         List<Tag> textMatches = await dbContext.Tags
+            .Include(t => t.Owner)
+            .Include(t => t.TargetUserGroup)
+            .WhereVisibleToUser(dbContext, currentUserId, isAdmin)
             .Where(x => x.Name.Contains(searchText) || x.Content.Contains(searchText))
             .AsNoTracking()
             .ToListAsync()
             .ConfigureAwait(false);
 
-        List<Tag> vectorTags = await dbContext.Tags.Where(x => x.Embedding != null).AsNoTracking().ToListAsync().ConfigureAwait(false);
+        List<Tag> vectorTags = await dbContext.Tags
+            .Include(t => t.Owner)
+            .Include(t => t.TargetUserGroup)
+            .WhereVisibleToUser(dbContext, currentUserId, isAdmin)
+            .Where(x => x.Embedding != null)
+            .AsNoTracking()
+            .ToListAsync()
+            .ConfigureAwait(false);
 
         List<Tag> vectorMatches = vectorTags
             .Where(x => x.Embedding.Length == queryVector.Length)
@@ -69,15 +85,23 @@ public class TagSearchQueryService(
         ];
     }
 
-    public async Task<Tag?> FindTagByNameAsync(string tagName)
+    public async Task<Tag?> FindTagByNameAsync(string tagName, string? currentUserId = null, bool isAdmin = false)
     {
         await using ApplicationDbContext dbContext = await _dbFactory.CreateDbContextAsync().ConfigureAwait(false);
-        return await dbContext.Tags.FirstOrDefaultAsync(t => t.Name == tagName).ConfigureAwait(false);
+        return await dbContext.Tags
+            .Include(t => t.Owner)
+            .Include(t => t.TargetUserGroup)
+            .WhereVisibleToUser(dbContext, currentUserId, isAdmin)
+            .FirstOrDefaultAsync(t => t.Name == tagName)
+            .ConfigureAwait(false);
     }
+
+    public Task<List<Tag>> SearchTagsWithFallbackAsync(string? value, CancellationToken token = default) =>
+        SearchTagsWithFallbackAsync(value, null, false, token);
 
     [SuppressMessage("Design", "CA1031:Do not catch general exception types",
         Justification = "検索失敗時にテキスト検索へフォールバックするため広く捕捉する")]
-    public async Task<List<Tag>> SearchTagsWithFallbackAsync(string? value, CancellationToken token = default)
+    public async Task<List<Tag>> SearchTagsWithFallbackAsync(string? value, string? currentUserId, bool isAdmin = false, CancellationToken token = default)
     {
         if (token.IsCancellationRequested)
         {
@@ -85,7 +109,11 @@ public class TagSearchQueryService(
         }
 
         await using ApplicationDbContext dbContext = await _dbFactory.CreateDbContextAsync(token).ConfigureAwait(false);
-        IQueryable<Tag> query = dbContext.Tags.Include(t => t.Owner).AsQueryable();
+        IQueryable<Tag> query = dbContext.Tags
+            .Include(t => t.Owner)
+            .Include(t => t.TargetUserGroup)
+            .WhereVisibleToUser(dbContext, currentUserId, isAdmin)
+            .AsQueryable();
 
         if (string.IsNullOrEmpty(value))
         {
@@ -135,14 +163,16 @@ public class TagSearchQueryService(
         }
     }
 
-    public async Task<List<Tag>> GetTagsWithDetailsAsync()
+    public async Task<List<Tag>> GetTagsWithDetailsAsync(string? currentUserId = null, bool isAdmin = false)
     {
         await using ApplicationDbContext dbContext = await _dbFactory.CreateDbContextAsync().ConfigureAwait(false);
         return await dbContext.Tags
             .Include(t => t.Owner)
+            .Include(t => t.TargetUserGroup)
             .Include(t => t.TargetTagRelations)
             .ThenInclude(tr => tr.Tag)
             .ThenInclude(t => t.Owner)
+            .WhereVisibleToUser(dbContext, currentUserId, isAdmin)
             .AsNoTracking()
             .ToListAsync()
             .ConfigureAwait(false);
@@ -159,7 +189,7 @@ public class TagSearchQueryService(
 
         List<Tag> tags = await dbContext.Tags
             .AsNoTracking()
-            .Where(t => t.Name != Tag.RootTagName)
+            .Where(t => t.Name != Tag.RootTagName && !t.IsPrivate)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 

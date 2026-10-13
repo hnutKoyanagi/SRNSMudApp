@@ -67,4 +67,72 @@ public sealed class TagVisibilityExtensionsTests
         Assert.Contains(visibleTags, t => t.Id == 3);
         Assert.DoesNotContain(visibleTags, t => t.Id == 2);
     }
+
+    [Fact]
+    public void IsTagVisibleInMemory_WhenAdmin_ReturnsTrueEvenIfAdminHidden()
+    {
+        var tag = new Tag { Name = "HiddenTag", OwnerId = "user1", IsAdminHidden = true };
+        Assert.True(tag.IsTagVisibleInMemory("other_user", isAdmin: true, followedUserIds: null, memberGroupIds: null));
+    }
+
+    [Fact]
+    public void IsTagVisibleInMemory_WhenAdminHiddenAndNotAdmin_ReturnsFalse()
+    {
+        var tag = new Tag { Name = "HiddenTag", OwnerId = "user1", IsAdminHidden = true };
+        Assert.False(tag.IsTagVisibleInMemory("user1", isAdmin: false, followedUserIds: null, memberGroupIds: null));
+    }
+
+    [Fact]
+    public void IsTagVisibleInMemory_WhenPublicTag_ReturnsTrueForAnyone()
+    {
+        var tag = new Tag { Name = "PublicTag", OwnerId = "user1", IsPrivate = false };
+        Assert.True(tag.IsTagVisibleInMemory(null, isAdmin: false, followedUserIds: null, memberGroupIds: null));
+        Assert.True(tag.IsTagVisibleInMemory("stranger", isAdmin: false, followedUserIds: null, memberGroupIds: null));
+    }
+
+    [Fact]
+    public void IsTagVisibleInMemory_WhenPrivateTag_ReturnsFalseForAnonymous()
+    {
+        var tag = new Tag { Name = "PrivateTag", OwnerId = "user1", IsPrivate = true };
+        Assert.False(tag.IsTagVisibleInMemory(null, isAdmin: false, followedUserIds: null, memberGroupIds: null));
+    }
+
+    [Fact]
+    public void IsTagVisibleInMemory_WhenPrivateTag_ReturnsTrueForOwner()
+    {
+        var tag = new Tag { Name = "PrivateTag", OwnerId = "user1", IsPrivate = true };
+        Assert.True(tag.IsTagVisibleInMemory("user1", isAdmin: false, followedUserIds: null, memberGroupIds: null));
+    }
+
+    [Fact]
+    public void IsTagVisibleInMemory_WhenFollowersOnly_ReturnsTrueOnlyForFollowers()
+    {
+        var tag = new Tag { Name = "FollowersTag", OwnerId = "user1", IsPrivate = true, TargetUserGroupId = null };
+        var followerIds = new HashSet<string> { "user1" }; // user2 follows user1
+        Assert.True(tag.IsTagVisibleInMemory("user2", isAdmin: false, followedUserIds: followerIds, memberGroupIds: null));
+
+        var notFollowerIds = new HashSet<string> { "user3" }; // user4 does not follow user1
+        Assert.False(tag.IsTagVisibleInMemory("user4", isAdmin: false, followedUserIds: notFollowerIds, memberGroupIds: null));
+    }
+
+    [Fact]
+    public void IsTagVisibleInMemory_WhenGroupOnly_ReturnsTrueOnlyForGroupMembers()
+    {
+        var tag = new Tag { Name = "GroupTag", OwnerId = "user1", IsPrivate = true, TargetUserGroupId = 42 };
+        var memberGroupIds = new HashSet<int> { 42 };
+        Assert.True(tag.IsTagVisibleInMemory("member", isAdmin: false, followedUserIds: null, memberGroupIds: memberGroupIds));
+
+        var otherGroupIds = new HashSet<int> { 99 };
+        Assert.False(tag.IsTagVisibleInMemory("non_member", isAdmin: false, followedUserIds: null, memberGroupIds: otherGroupIds));
+    }
+
+    [Fact]
+    public void IsTagVisibleInMemory_WhenSystemTag_AlwaysReturnsTrue()
+    {
+        var rootTag = new Tag { Name = Tag.RootTagName, OwnerId = "user1", IsPrivate = true };
+        Assert.True(rootTag.IsTagVisibleInMemory(null, isAdmin: false, followedUserIds: null, memberGroupIds: null));
+
+        var goodTag = new Tag { Name = "good", OwnerId = "user1", IsPrivate = true };
+        Assert.True(goodTag.IsTagVisibleInMemory(null, isAdmin: false, followedUserIds: null, memberGroupIds: null));
+    }
 }

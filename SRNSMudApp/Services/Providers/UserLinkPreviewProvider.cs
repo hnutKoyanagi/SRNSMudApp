@@ -45,14 +45,14 @@ public class UserLinkPreviewProvider(IDbContextFactory<ApplicationDbContext> dbF
         return user == null
             ? new LinkPreviewData { Url = originalUrl, IsSuccess = false }
             : new LinkPreviewData
-        {
-            Url = originalUrl,
-            Title = $"User: {user.UserName}",
-            Description = $"@{user.UserName}",
-            DisplayText = $"@{user.UserName}",
-            SiteName = "SRNSMudApp",
-            IsSuccess = true
-        };
+            {
+                Url = originalUrl,
+                Title = $"User: {user.UserName}",
+                Description = $"@{user.UserName}",
+                DisplayText = $"@{user.UserName}",
+                SiteName = "SRNSMudApp",
+                IsSuccess = true
+            };
     }
 
     private static string GetNormalizedPath(Uri uri) =>

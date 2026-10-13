@@ -6,6 +6,26 @@
         <MudTextField T="string" @bind-Value="ViewModel.EditContent" Label="内容" Variant="Variant.Outlined" Lines="3"
                       MaxLines="5" Class="mb-4" />
 
+        <MudSwitch @bind-Value="ViewModel.IsPrivate"
+                   Label="プライベートモード"
+                   Color="Color.Primary"
+                   Disabled="@ViewModel.IsSystemTag"
+                   Class="mb-2" />
+
+        @if (ViewModel.IsPrivate)
+        {
+            <MudSelect T="int?" @bind-Value="ViewModel.SelectedTargetGroupId"
+                       Label="公開範囲"
+                       Variant="Variant.Outlined"
+                       Class="mb-4">
+                <MudSelectItem T="int?" Value="@((int?)null)">フォロワーのみ (デフォルト)</MudSelectItem>
+                @foreach (var group in ViewModel.MyGroups)
+                {
+                    <MudSelectItem T="int?" Value="@((int?)group.Id)">グループ: @group.Name</MudSelectItem>
+                }
+            </MudSelect>
+        }
+
         <MudSelect T="int" @bind-SelectedValues="ViewModel.SelectedGroupIds" Label="自動承認を許可するユーザーグループ"
                    MultiSelection="true" Variant="Variant.Outlined" Clearable="true"
                    HelperText="選択されたいずれかのグループに所属するユーザーからのタグ付けリクエストが自動承認されます。">

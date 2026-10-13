@@ -133,6 +133,21 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .OnDelete(DeleteBehavior.SetNull);
 #pragma warning restore CS0618
 
+        _ = builder.Entity<Tag>()
+            .HasOne(t => t.TargetUserGroup)
+            .WithMany()
+            .HasForeignKey(t => t.TargetUserGroupId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        _ = builder.Entity<Tag>()
+            .HasIndex(t => t.IsPrivate);
+
+        _ = builder.Entity<Tag>()
+            .HasIndex(t => t.IsAdminHidden);
+
+        _ = builder.Entity<Tag>()
+            .HasIndex(t => t.TargetUserGroupId);
+
         // Node (hierarchyid) のインデックス設定
         _ = builder.Entity<Tag>()
             .HasIndex(t => t.Node)

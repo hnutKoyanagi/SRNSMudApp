@@ -349,10 +349,11 @@ public class ItemListDataProvider(
             .AsNoTracking()
             .AsSplitQuery()
             .Include(t => t.Owner)
+            .Include(t => t.TargetUserGroup)
             .Include(t => t.TargetTagRelations)
             .ThenInclude(tr => tr.Tag)
             .ThenInclude(t => t.Owner)
-            .WhereVisibleToUser()
+            .WhereVisibleToUser(context, currentUserId, isAdmin)
             .AsQueryable();
 
         // タグフィルタ適用（AND 検索: 選択した全タグ/ユーザーの条件を満たす Item/Tag のみ）
@@ -452,6 +453,8 @@ public class ItemListDataProvider(
             // スプリットクエリ実行中の並行データ変更による相関不整合時は再試行する
             items = await ApplyItemSort(query, sorts).ToListAsync();
         }
+
+        await items.FilterVisibleTagRelationsAsync(context, currentUserId, isAdmin);
         return new ItemListPageData(items, foundTags);
     }
 

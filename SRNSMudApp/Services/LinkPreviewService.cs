@@ -35,11 +35,20 @@ public sealed partial class LinkPreviewService : ILinkPreviewService
 
     /// <inheritdoc />
     [SuppressMessage("Design", "CA1054:URI parameters should not be strings", Justification = "Handles relative internal and external URLs")]
-    public Task<LinkPreviewData> GetPreviewAsync(string url) => GetPreviewAsync(url, CancellationToken.None);
+    public Task<LinkPreviewData> GetPreviewAsync(string url) => GetPreviewAsync(url, null, false, CancellationToken.None);
 
     /// <inheritdoc />
     [SuppressMessage("Design", "CA1054:URI parameters should not be strings", Justification = "Handles relative internal and external URLs")]
-    public async Task<LinkPreviewData> GetPreviewAsync(string url, CancellationToken cancellationToken)
+    public Task<LinkPreviewData> GetPreviewAsync(string url, CancellationToken cancellationToken) =>
+        GetPreviewAsync(url, null, false, cancellationToken);
+
+    /// <inheritdoc />
+    [SuppressMessage("Design", "CA1054:URI parameters should not be strings", Justification = "Handles relative internal and external URLs")]
+    public async Task<LinkPreviewData> GetPreviewAsync(
+        string url,
+        string? currentUserId,
+        bool isAdmin = false,
+        CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(url))
         {
@@ -47,8 +56,9 @@ public sealed partial class LinkPreviewService : ILinkPreviewService
         }
 
         var normalizedUrl = NormalizeUrl(url);
+        var cacheKey = $"{currentUserId ?? "__anon__"}:{(isAdmin ? "1" : "0")}:{normalizedUrl}";
 
-        if (_cache.TryGetValue(normalizedUrl, out LinkPreviewData? cachedData))
+        if (_cache.TryGetValue(cacheKey, out LinkPreviewData? cachedData))
         {
             return cachedData;
         }
@@ -67,10 +77,10 @@ public sealed partial class LinkPreviewService : ILinkPreviewService
 
             try
             {
-                var result = await provider.GetPreviewAsync(uri, url, cancellationToken);
+                var result = await provider.GetPreviewAsync(uri, url, currentUserId, isAdmin, cancellationToken);
                 if (result.IsSuccess)
                 {
-                    _cache[normalizedUrl] = result;
+                    _cache[cacheKey] = result;
                     return result;
                 }
             }

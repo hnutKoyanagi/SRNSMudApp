@@ -31,4 +31,22 @@ public interface ILinkPreviewProvider
     /// <returns>生成された <see cref="LinkPreviewData"/>。</returns>
     [SuppressMessage("Design", "CA1054:URI parameters should not be strings", Justification = "Original URL representation")]
     Task<LinkPreviewData> GetPreviewAsync(Uri uri, string originalUrl, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     リンクプレビューデータを非同期で生成・取得する（ユーザー認証コンテキスト対応）。
+    /// </summary>
+    /// <param name="uri">解析対象の URI。</param>
+    /// <param name="originalUrl">リクエスト元の元 URL 文字列。</param>
+    /// <param name="currentUserId">閲覧ユーザーID。未ログイン時は null。</param>
+    /// <param name="isAdmin">管理者権限フラグ。</param>
+    /// <param name="cancellationToken">キャンセレーショントークン。</param>
+    /// <returns>生成された <see cref="LinkPreviewData"/>。</returns>
+    [SuppressMessage("Design", "CA1054:URI parameters should not be strings", Justification = "Original URL representation")]
+    Task<LinkPreviewData> GetPreviewAsync(
+        Uri uri,
+        string originalUrl,
+        string? currentUserId,
+        bool isAdmin = false,
+        CancellationToken cancellationToken = default) =>
+        GetPreviewAsync(uri, originalUrl, cancellationToken);
 }

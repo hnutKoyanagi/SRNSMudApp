@@ -94,4 +94,22 @@ public class Tag : BaseEntity
 
     [SuppressMessage("Usage", "CA2227:Collection properties should be read only")]
     public ICollection<TagWeightLedger> TagWeightLedgers { get; set; } = [];
+
+    /// <summary>プライベートモード（非公開）かどうか。</summary>
+    public bool IsPrivate { get; set; }
+
+    /// <summary>公開対象とするユーザーグループID（null の場合はフォロワー限定）。</summary>
+    public int? TargetUserGroupId { get; set; }
+
+    /// <summary>公開対象ユーザーグループへのナビゲーションプロパティ。</summary>
+    public UserGroup? TargetUserGroup { get; set; }
+
+    /// <summary>管理者によって強制的に非公開化されたかどうか。</summary>
+    public bool IsAdminHidden { get; set; }
+
+    /// <summary>管理者によって非公開化された日時（UTC）。</summary>
+    public DateTimeOffset? AdminHiddenAt { get; set; }
+
+    /// <summary>管理者による非公開化の理由。</summary>
+    public string? AdminHiddenReason { get; set; }
 }

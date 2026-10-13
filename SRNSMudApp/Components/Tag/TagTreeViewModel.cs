@@ -238,7 +238,7 @@ public class TagTreeViewModel
     public static IReadOnlySet<int> GetMatchingTagIds(IEnumerable<Data.Tag> tags, string? searchText)
     {
         return string.IsNullOrWhiteSpace(searchText)
-            ? new HashSet<int>()
+            ? []
             : tags
             .Where(t => t.IsTagVisibleToUser() && t.Name.Contains(searchText, StringComparison.OrdinalIgnoreCase))
             .Select(t => t.Id)
