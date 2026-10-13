@@ -54,6 +54,7 @@ public class ComponentArchitectureRuleTests
             foreach (var prop in injectedProperties)
             {
                 if (typeof(DbContext).IsAssignableFrom(prop.PropertyType) ||
+                    typeof(DbContextOptions).IsAssignableFrom(prop.PropertyType) ||
                     prop.PropertyType == typeof(ApplicationDbContext))
                 {
                     violations.Add($"[Inject Property] '{type.FullName}.{prop.Name}' directly injects '{prop.PropertyType.Name}'. Use IDbContextFactory or IDataProvider instead.");
@@ -67,6 +68,7 @@ public class ComponentArchitectureRuleTests
                 foreach (var param in ctor.GetParameters())
                 {
                     if (typeof(DbContext).IsAssignableFrom(param.ParameterType) ||
+                        typeof(DbContextOptions).IsAssignableFrom(param.ParameterType) ||
                         param.ParameterType == typeof(ApplicationDbContext))
                     {
                         violations.Add($"[Constructor Parameter] '{type.FullName}(...{param.Name}...)' directly injects '{param.ParameterType.Name}'. Use IDbContextFactory or IDataProvider instead.");
@@ -129,7 +131,8 @@ public class ComponentArchitectureRuleTests
     }
 
     /// <summary>
-    ///     ダイアログで使用される ViewModel は、ダイアログを閉じて再オープンした際の状態汚染を防ぐため、
+    ///     ダイアログコンポーネント（末尾が Dialog または IMudDialogInstance を CascadingParameter に持つコンポーネント）で
+    ///     使用される全ての ViewModel は、ダイアログを閉じて再オープンした際の状態汚染を防ぐため、
     ///     必ず Transient ライフタイムで登録されていることを検証する (STATE-01)。
     /// </summary>
     [Fact]
@@ -138,21 +141,52 @@ public class ComponentArchitectureRuleTests
         var services = new ServiceCollection();
         services.AddViewModels();
 
-        var dialogViewModelTypes = services
-            .Where(d => d.ServiceType.Name.Contains("Dialog", StringComparison.OrdinalIgnoreCase) ||
-                        d.ServiceType.Name.Contains("CreateEdit", StringComparison.OrdinalIgnoreCase) ||
-                        d.ServiceType.Name.Contains("Members", StringComparison.OrdinalIgnoreCase))
+        var dialogComponents = GetAllComponentAndViewModelTypes()
+            .Where(t => typeof(IComponent).IsAssignableFrom(t) && IsDialogComponent(t))
             .ToList();
 
-        var nonTransientDialogs = dialogViewModelTypes
-            .Where(d => d.Lifetime != ServiceLifetime.Transient)
-            .Select(d => $"{d.ServiceType.FullName} (Registered as {d.Lifetime}, expected Transient)")
+        var injectedDialogViewModelTypes = dialogComponents
+            .SelectMany(GetInjectedProperties)
+            .Select(p => p.PropertyType)
+            .Where(pt => pt.Name.EndsWith("ViewModel", StringComparison.Ordinal))
+            .Distinct()
             .ToList();
 
         Assert.True(
-            nonTransientDialogs.Count == 0,
-            $"Found {nonTransientDialogs.Count} dialog ViewModel(s) not registered as Transient:{Environment.NewLine}" +
-            string.Join(Environment.NewLine, nonTransientDialogs));
+            injectedDialogViewModelTypes.Count >= 20,
+            $"Expected at least 20 dialog ViewModels to be discovered via reflection, but found {injectedDialogViewModelTypes.Count}.");
+
+        var violations = new List<string>();
+        foreach (var vmType in injectedDialogViewModelTypes)
+        {
+            var descriptor = services.LastOrDefault(d => d.ServiceType == vmType);
+            if (descriptor is null)
+            {
+                violations.Add($"{vmType.FullName} (Not registered in AddViewModels())");
+            }
+            else if (descriptor.Lifetime != ServiceLifetime.Transient)
+            {
+                violations.Add($"{vmType.FullName} (Registered as {descriptor.Lifetime}, expected Transient)");
+            }
+        }
+
+        Assert.True(
+            violations.Count == 0,
+            $"Found {violations.Count} dialog ViewModel(s) not registered as Transient:{Environment.NewLine}" +
+            string.Join(Environment.NewLine, violations));
+    }
+
+    private static bool IsDialogComponent(Type componentType)
+    {
+        if (componentType.Name.EndsWith("Dialog", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        var properties = componentType.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        return properties.Any(p =>
+            p.PropertyType == typeof(IMudDialogInstance) &&
+            p.GetCustomAttributes(typeof(CascadingParameterAttribute), inherit: true).Length != 0);
     }
 
     private static List<Type> GetAllComponentAndViewModelTypes()

@@ -74,10 +74,18 @@ public class InteractivePageDialogE2ETests : PageTest
             .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 10000 });
         await Expect(Page.GetByText($"グループ「{groupName}」を作成しました。"))
             .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 10000 });
+
+        // 作成されたグループの「メンバー」ボタンをクリックし、UserGroupMembersDialog がポップアップすることを確認
+        var membersButton = Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "メンバー" });
+        await Expect(membersButton).ToBeVisibleAsync();
+        await membersButton.ClickAsync();
+
+        await Expect(Page.GetByText("新規メンバー追加"))
+            .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 10000 });
     }
 
     [Test]
-    public async Task ContractManagement_SwitchesTabsInteractively()
+    public async Task ContractManagement_SwitchesTabsInteractively_AndBountyBoardOpensCreateDialog()
     {
         var uniqueId = Guid.NewGuid().ToString("N")[..8];
         var email = $"e2e_cm_{uniqueId}@example.com";
@@ -108,5 +116,28 @@ public class InteractivePageDialogE2ETests : PageTest
         }
 
         await Expect(Page.GetByText("現在、送信したコントラクトの提案はありません。")).ToBeVisibleAsync();
+
+        // /Bounty/BountyBoard に遷移し、「タグ付けを依頼する」ボタンから BountyCreateDialog が開くことを確認
+        _ = await Page.GotoAsync($"{_serverAddress}/Bounty/BountyBoard");
+        var bountyCreateBtn = Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "タグ付けを依頼する" });
+        await Expect(bountyCreateBtn).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 10000 });
+
+        var submitBountyBtn = Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "依頼を作成" });
+        for (int attempt = 0; attempt < 5; attempt++)
+        {
+            await bountyCreateBtn.ClickAsync();
+            try
+            {
+                await Expect(submitBountyBtn)
+                    .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 2000 });
+                break;
+            }
+            catch when (attempt < 4)
+            {
+                await Task.Delay(500);
+            }
+        }
+
+        await Expect(submitBountyBtn).ToBeVisibleAsync();
     }
 }
