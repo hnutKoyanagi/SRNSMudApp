@@ -271,4 +271,41 @@ public class TagCqsServiceTests : IAsyncLifetime
             Assert.Empty(reloaded.AutoApproveUserGroups);
         }
     }
+
+    [Fact]
+    public async Task GetTagsWithDetailsAsync_WhenUserIsOwnerOfPrivateTag_ReturnsPrivateTagForOwner()
+    {
+        var (dbContext, queryService, _, _, tid) = CreateScope();
+        await using (dbContext)
+        {
+            var userOwner = $"u_owner_{tid}";
+            var userOther = $"u_other_{tid}";
+            await dbContext.SeedUsersAsync(userOwner, userOther);
+
+            var publicTag = new Tag { Name = $"Public_{tid}", OwnerId = userOwner, IsPrivate = false };
+            var privateOwnerTag = new Tag { Name = $"PrivateOwner_{tid}", OwnerId = userOwner, IsPrivate = true };
+            var privateOtherTag = new Tag { Name = $"PrivateOther_{tid}", OwnerId = userOther, IsPrivate = true };
+
+            dbContext.Tags.AddRange(publicTag, privateOwnerTag, privateOtherTag);
+            await dbContext.SaveChangesAsync();
+
+            // オーナー本人が取得する場合：パブリックタグと自身のプライベートタグが含まれ、他人のプライベートタグは含まれない
+            var ownerResult = await queryService.GetTagsWithDetailsAsync(userOwner, isAdmin: false);
+            Assert.Contains(ownerResult, t => t.Id == publicTag.Id);
+            Assert.Contains(ownerResult, t => t.Id == privateOwnerTag.Id);
+            Assert.DoesNotContain(ownerResult, t => t.Id == privateOtherTag.Id);
+
+            // 未ログイン（null）で取得する場合：パブリックタグのみ含まれ、プライベートタグは一切含まれない
+            var anonResult = await queryService.GetTagsWithDetailsAsync(null, isAdmin: false);
+            Assert.Contains(anonResult, t => t.Id == publicTag.Id);
+            Assert.DoesNotContain(anonResult, t => t.Id == privateOwnerTag.Id);
+            Assert.DoesNotContain(anonResult, t => t.Id == privateOtherTag.Id);
+
+            // 管理者で取得する場合：すべてのタグが含まれる
+            var adminResult = await queryService.GetTagsWithDetailsAsync(userOther, isAdmin: true);
+            Assert.Contains(adminResult, t => t.Id == publicTag.Id);
+            Assert.Contains(adminResult, t => t.Id == privateOwnerTag.Id);
+            Assert.Contains(adminResult, t => t.Id == privateOtherTag.Id);
+        }
+    }
 }

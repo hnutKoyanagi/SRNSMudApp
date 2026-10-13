@@ -221,7 +221,7 @@ public class TagTableViewModelTests
         var dataMock = new Mock<ITagTableDataProvider>();
         var lockMock = new Mock<ITagLockService>();
 
-        dataMock.Setup(d => d.GetAllTagsAsync())
+        dataMock.Setup(d => d.GetAllTagsAsync(It.IsAny<string?>(), It.IsAny<bool>()))
             .ReturnsAsync([CreateTag(1, "Tag1"), CreateTag(2, "Tag2")]);
         lockMock.Setup(l => l.GetAllTagsWithLockStatusAsync(default))
             .ReturnsAsync([new TagLockItemDto(1, "Tag1", 1, null, null, "u1", true, false, false, true)]);
@@ -232,6 +232,25 @@ public class TagTableViewModelTests
         Assert.Equal(2, vm.AllTagsCache.Count);
         Assert.True(vm.IsTagLocked(1));
         Assert.False(vm.IsTagLocked(2));
+    }
+
+    [Fact]
+    public async Task InitializeAsync_WithUser_PassesCurrentUserIdAndIsAdminToDataProvider()
+    {
+        var dataMock = new Mock<ITagTableDataProvider>();
+        var lockMock = new Mock<ITagLockService>();
+
+        dataMock.Setup(d => d.GetAllTagsAsync("user-42", true))
+            .ReturnsAsync([CreateTag(1, "Tag1")]);
+        lockMock.Setup(l => l.GetAllTagsWithLockStatusAsync(default))
+            .ReturnsAsync([]);
+
+        var vm = new TagTableViewModel(dataMock.Object, lockMock.Object);
+        vm.SetUser("user-42", true);
+        await vm.InitializeAsync();
+
+        Assert.Single(vm.AllTagsCache);
+        dataMock.Verify(d => d.GetAllTagsAsync("user-42", true), Times.Once);
     }
 
     [Fact]
