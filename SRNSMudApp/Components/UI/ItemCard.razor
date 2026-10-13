@@ -33,6 +33,7 @@
                         <ItemCardContent ItemId="Item.Id" LoadPreview="@(url => PreviewService.GetPreviewAsync(url, CurrentUserId, IsAdmin))"
                                          Content="@Item.Content" OwnerId="@Item.OwnerId" OwnerUserName="@(Item.Owner?.UserName)"
                                          UpdatedDate="Item.UpdatedDate" IsPrivate="Item.IsPrivate" IsAdminHidden="Item.IsAdminHidden"
+                                         TargetUserGroupId="Item.TargetUserGroupId"
                                          TargetUserGroupName="@(Item.TargetUserGroup?.Name)" EnableNavigation="EnableNavigation" />
 
                         @* 引用元アイテムプレビュー *@

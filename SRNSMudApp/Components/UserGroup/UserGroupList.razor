@@ -58,7 +58,9 @@
                         <MudAvatar Color="Color.Primary" Size="Size.Small">
                             @(context.Name.FirstOrDefault().ToString().ToUpperInvariant())
                         </MudAvatar>
-                        <strong>@context.Name</strong>
+                        <MudLink Href="@($"/UserGroup/Members/{context.Id}")" Color="Color.Inherit" Underline="Underline.Hover">
+                            <strong>@context.Name</strong>
+                        </MudLink>
                         @if (context.OwnerId == CurrentUserId)
                         {
                             <MudChip T="string" Color="Color.Info" Size="Size.Small">管理者</MudChip>

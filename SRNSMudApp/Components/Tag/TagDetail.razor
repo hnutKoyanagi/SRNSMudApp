@@ -103,9 +103,9 @@
                         <MudIcon Icon="@Icons.Material.Filled.LocalOffer" Class="mr-2" />
                         @_tag.Name
                     </MudText>
-                    @if (PrivacyBadgeStrategyResolver.Resolve(_tag.IsPrivate, _tag.TargetUserGroup?.Name, _tag.IsAdminHidden) is { } badge)
+                    @if (PrivacyBadgeStrategyResolver.Resolve(_tag.IsPrivate, _tag.TargetUserGroup?.Name, _tag.IsAdminHidden, _tag.TargetUserGroupId) is { } badge)
                     {
-                        <MudChip T="string" Color="@badge.Color" Icon="@badge.Icon" Variant="Variant.Filled">
+                        <MudChip T="string" Color="@badge.Color" Icon="@badge.Icon" Variant="Variant.Filled" Href="@badge.Href">
                             @badge.Text
                         </MudChip>
                     }
@@ -123,7 +123,7 @@
                         {
                             @foreach (var g in _tag.AutoApproveUserGroups)
                             {
-                                <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Outlined">
+                                <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Outlined" Href="@($"/UserGroup/Members/{g.UserGroupId}")">
                                     @(g.UserGroup?.Name ?? "不明なグループ")
                                 </MudChip>
                             }

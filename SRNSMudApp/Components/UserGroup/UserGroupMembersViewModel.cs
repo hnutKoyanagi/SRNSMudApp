@@ -56,6 +56,42 @@ public sealed class UserGroupMembersViewModel
     }
 
     /// <summary>
+    ///     グループIDからグループ情報を読み込み、メンバー一覧を初期化する。
+    /// </summary>
+    public async Task InitializeAsync(
+        int groupId,
+        string currentUserId,
+        CancellationToken cancellationToken = default)
+    {
+        CurrentUserId = currentUserId ?? string.Empty;
+        SelectedUser = null;
+        IsAdding = false;
+        IsRemoving = false;
+
+        IsLoading = true;
+        try
+        {
+            UserGroupEntity? group = await _userGroupDataProvider.GetUserGroupByIdAsync(groupId, cancellationToken);
+            Group = group;
+            if (group is not null)
+            {
+                Members = group.Members
+                    .OrderBy(m => m.UserId == group.OwnerId ? 0 : 1)
+                    .ThenBy(m => m.CreatedDate)
+                    .ToList();
+            }
+            else
+            {
+                Members = [];
+            }
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    /// <summary>
     ///     最新のグループ情報を取得し、メンバー一覧をソートして保持する。
     /// </summary>
     public async Task LoadMembersAsync(CancellationToken cancellationToken = default)

@@ -8,7 +8,12 @@ namespace SRNSMudApp.Components.UI;
 /// <param name="IsPrivate">非公開設定であるかどうか。</param>
 /// <param name="TargetUserGroupName">公開対象のユーザーグループ名（グループ指定がない場合は null）。</param>
 /// <param name="IsAdminHidden">管理者により強制非公開化されているかどうか。</param>
-public sealed record PrivacyBadgeContext(bool IsPrivate, string? TargetUserGroupName, bool IsAdminHidden = false);
+/// <param name="TargetUserGroupId">公開対象のユーザーグループID（グループ指定がない場合は null）。</param>
+public sealed record PrivacyBadgeContext(
+    bool IsPrivate,
+    string? TargetUserGroupName,
+    bool IsAdminHidden = false,
+    int? TargetUserGroupId = null);
 
 /// <summary>
 ///     公開範囲バッジの UI 表示モデル。
@@ -16,7 +21,8 @@ public sealed record PrivacyBadgeContext(bool IsPrivate, string? TargetUserGroup
 /// <param name="Text">バッジに表示するテキスト。</param>
 /// <param name="Icon">バッジに表示する MudBlazor アイコン。</param>
 /// <param name="Color">バッジの表示色。</param>
-public sealed record PrivacyBadgeModel(string Text, string Icon, Color Color);
+/// <param name="Href">バッジタップ時の遷移先 URL（遷移不要な場合は null）。</param>
+public sealed record PrivacyBadgeModel(string Text, string Icon, Color Color, string? Href = null);
 
 /// <summary>
 ///     公開範囲バッジ生成のための Strategy インターフェース。
@@ -75,8 +81,13 @@ public sealed class GroupPrivacyBadgeStrategy : IPrivacyBadgeStrategy
         !context.IsAdminHidden && context.IsPrivate && !string.IsNullOrEmpty(context.TargetUserGroupName);
 
     /// <inheritdoc />
-    public PrivacyBadgeModel CreateBadge(PrivacyBadgeContext context) =>
-        new($"グループ: {context.TargetUserGroupName}", Icons.Material.Filled.Group, Color.Info);
+    public PrivacyBadgeModel CreateBadge(PrivacyBadgeContext context)
+    {
+        string href = context.TargetUserGroupId.HasValue
+            ? $"/UserGroup/Members/{context.TargetUserGroupId.Value}"
+            : "/UserGroup/List";
+        return new($"グループ: {context.TargetUserGroupName}", Icons.Material.Filled.Group, Color.Info, href);
+    }
 }
 
 /// <summary>
@@ -97,10 +108,15 @@ public static class PrivacyBadgeStrategyResolver
     /// <param name="isPrivate">非公開設定であるかどうか。</param>
     /// <param name="targetUserGroupName">対象ユーザーグループ名。</param>
     /// <param name="isAdminHidden">管理者非公開であるかどうか。</param>
+    /// <param name="targetUserGroupId">対象ユーザーグループID。</param>
     /// <returns>該当するバッジモデル。公開設定の場合は null。</returns>
-    public static PrivacyBadgeModel? Resolve(bool isPrivate, string? targetUserGroupName, bool isAdminHidden = false)
+    public static PrivacyBadgeModel? Resolve(
+        bool isPrivate,
+        string? targetUserGroupName,
+        bool isAdminHidden = false,
+        int? targetUserGroupId = null)
     {
-        var context = new PrivacyBadgeContext(isPrivate, targetUserGroupName, isAdminHidden);
+        var context = new PrivacyBadgeContext(isPrivate, targetUserGroupName, isAdminHidden, targetUserGroupId);
         IPrivacyBadgeStrategy? strategy = Strategies.FirstOrDefault(candidate => candidate.CanApply(context));
         return strategy?.CreateBadge(context);
     }
