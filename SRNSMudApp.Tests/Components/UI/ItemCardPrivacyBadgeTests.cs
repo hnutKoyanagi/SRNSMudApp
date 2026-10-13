@@ -70,9 +70,24 @@ public sealed class ItemCardPrivacyBadgeTests : IAsyncLifetime
             .Add(p => p.ItemId, 3)
             .Add(p => p.Content, "Group Only Content")
             .Add(p => p.IsPrivate, true)
+            .Add(p => p.TargetUserGroupId, 7)
             .Add(p => p.TargetUserGroupName, "開発チーム"));
 
         Assert.Contains("グループ: 開発チーム", cut.Markup);
+        Assert.Contains("href=\"/UserGroup/Members/7\"", cut.Markup);
+    }
+
+    [Fact]
+    public void ItemCardContent_WhenPrivateGroupOnlyWithoutGroupId_FallsBackToGroupList()
+    {
+        IRenderedComponent<ItemCardContent> cut = _ctx.Render<ItemCardContent>(parameters => parameters
+            .Add(p => p.ItemId, 3)
+            .Add(p => p.Content, "Group Only Content")
+            .Add(p => p.IsPrivate, true)
+            .Add(p => p.TargetUserGroupName, "開発チーム"));
+
+        Assert.Contains("グループ: 開発チーム", cut.Markup);
+        Assert.Contains("href=\"/UserGroup/List\"", cut.Markup);
     }
 
     [Fact]
@@ -96,10 +111,36 @@ public sealed class ItemCardPrivacyBadgeTests : IAsyncLifetime
     public void PrivacyBadgeStrategyResolver_SelectsBadgeStrategyByContext()
     {
         PrivacyBadgeModel? followersBadge = PrivacyBadgeStrategyResolver.Resolve(true, null);
-        PrivacyBadgeModel? groupBadge = PrivacyBadgeStrategyResolver.Resolve(true, "開発チーム");
+        PrivacyBadgeModel? groupBadgeWithoutId = PrivacyBadgeStrategyResolver.Resolve(true, "開発チーム");
+        PrivacyBadgeModel? groupBadgeWithId = PrivacyBadgeStrategyResolver.Resolve(true, "開発チーム", targetUserGroupId: 12);
 
         Assert.Equal("フォロワー限定", followersBadge?.Text);
-        Assert.Equal("グループ: 開発チーム", groupBadge?.Text);
+        Assert.Null(followersBadge?.Href);
+        Assert.Equal("グループ: 開発チーム", groupBadgeWithoutId?.Text);
+        Assert.Equal("/UserGroup/List", groupBadgeWithoutId?.Href);
+        Assert.Equal("グループ: 開発チーム", groupBadgeWithId?.Text);
+        Assert.Equal("/UserGroup/Members/12", groupBadgeWithId?.Href);
+    }
+
+    [Fact]
+    public void TagCard_WhenPrivateGroupOnly_RendersGroupBadgeWithNavigation()
+    {
+        _ctx.Services.AddScoped<TagCardViewModel>();
+        var tag = new SRNSMudApp.Data.Tag
+        {
+            Id = 10,
+            Name = "機密タグ",
+            OwnerId = UserId,
+            IsPrivate = true,
+            TargetUserGroupId = 5,
+            TargetUserGroup = new SRNSMudApp.Data.UserGroup { Id = 5, Name = "コア開発チーム", OwnerId = UserId }
+        };
+
+        IRenderedComponent<TagCard> cut = _ctx.Render<TagCard>(parameters => parameters
+            .Add(p => p.Tag, tag));
+
+        Assert.Contains("グループ: コア開発チーム", cut.Markup);
+        Assert.Contains("href=\"/UserGroup/Members/5\"", cut.Markup);
     }
 
     public async Task DisposeAsync()

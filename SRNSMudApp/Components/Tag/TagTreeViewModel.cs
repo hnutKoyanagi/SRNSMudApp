@@ -44,7 +44,7 @@ public class TagTreeViewModel
 
     public async Task LoadDataAsync()
     {
-        Tags = await _tagTreeData.LoadTagsAsync();
+        Tags = await _tagTreeData.LoadTagsAsync(CurrentUserId, IsAdmin);
         PendingMoves = await _tagTreeData.LoadPendingTagMovesAsync();
         var allStatus = await _tagLockService.GetAllTagsWithLockStatusAsync();
         _lockedTagIds = allStatus.Where(s => s.IsLockedEffective).Select(s => s.Id).ToHashSet();
@@ -235,11 +235,14 @@ public class TagTreeViewModel
     ///     検索語に合致する表示可能タグのID集合を取得する。
     ///     検索語が空または空白の場合は空の集合を返す。
     /// </summary>
-    public static IReadOnlySet<int> GetMatchingTagIds(IEnumerable<Data.Tag> tags, string? searchText)
+    public static IReadOnlySet<int> GetMatchingTagIds(IEnumerable<Data.Tag>? tags, string? searchText)
     {
-        return string.IsNullOrWhiteSpace(searchText)
-            ? []
-            : tags
+        if (tags is null || string.IsNullOrWhiteSpace(searchText))
+        {
+            return new HashSet<int>();
+        }
+
+        return tags
             .Where(t => t.IsTagVisibleToUser() && t.Name.Contains(searchText, StringComparison.OrdinalIgnoreCase))
             .Select(t => t.Id)
             .ToHashSet();
@@ -249,8 +252,13 @@ public class TagTreeViewModel
     ///     検索語でタグを絞り込む。空の場合は自分のタグを優先して上位 2000 件返す。BAN されたユーザーのタグは除外する。
     ///     検索語が指定されている場合、合致したタグ自身、その祖先ノード（ルートまでの経路）、およびその配下のサブノード（子孫）を含める。
     /// </summary>
-    public static IEnumerable<Data.Tag> FilterTags(IReadOnlyList<Data.Tag> tags, string? searchText, string? currentUserId)
+    public static IEnumerable<Data.Tag> FilterTags(IReadOnlyList<Data.Tag>? tags, string? searchText, string? currentUserId)
     {
+        if (tags is null)
+        {
+            return [];
+        }
+
         var visibleTags = tags.Where(t => t.IsTagVisibleToUser()).ToList();
         if (string.IsNullOrWhiteSpace(searchText))
         {

@@ -20,11 +20,22 @@
                                 <MudIcon Icon="@Icons.Material.Filled.LocalOffer" Size="Size.Small" Class="mr-1" />
                                 @Tag.Name
                             </MudLink>
-                            @if (PrivacyBadgeStrategyResolver.Resolve(Tag.IsPrivate, Tag.TargetUserGroup?.Name, Tag.IsAdminHidden) is { } badge)
+                            @if (PrivacyBadgeStrategyResolver.Resolve(Tag.IsPrivate, Tag.TargetUserGroup?.Name, Tag.IsAdminHidden, Tag.TargetUserGroupId) is { } badge)
                             {
-                                <MudChip T="string" Color="@badge.Color" Icon="@badge.Icon" Size="Size.Small" Variant="Variant.Filled">
-                                    @badge.Text
-                                </MudChip>
+                                @if (!string.IsNullOrEmpty(badge.Href))
+                                {
+                                    <span @onclick:stopPropagation="true">
+                                        <MudChip T="string" Color="@badge.Color" Icon="@badge.Icon" Size="Size.Small" Variant="Variant.Filled" Href="@badge.Href">
+                                            @badge.Text
+                                        </MudChip>
+                                    </span>
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Color="@badge.Color" Icon="@badge.Icon" Size="Size.Small" Variant="Variant.Filled">
+                                        @badge.Text
+                                    </MudChip>
+                                }
                             }
                         </div>
                         @if (!string.IsNullOrEmpty(Tag.Content))

@@ -317,4 +317,51 @@ public class UserGroupMembersViewModelTests
 
         Assert.False(_sut.IsRemoving);
     }
+
+    [Fact]
+    public async Task InitializeAsync_WithGroupId_LoadsAndSortsMembers()
+    {
+        // Arrange
+        var group = new UserGroupEntity
+        {
+            Id = 10,
+            Name = "Beta",
+            OwnerId = "owner-10",
+            Members =
+            [
+                new UserGroupMember { UserId = "m1", OwnerId = "owner-10", CreatedDate = DateTime.UtcNow.AddMinutes(5) },
+                new UserGroupMember { UserId = "owner-10", OwnerId = "owner-10", CreatedDate = DateTime.UtcNow }
+            ]
+        };
+        _userGroupDataProviderMock.Setup(p => p.GetUserGroupByIdAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(group);
+
+        // Act
+        await _sut.InitializeAsync(10, "owner-10");
+
+        // Assert
+        Assert.Equal(group, _sut.Group);
+        Assert.Equal("owner-10", _sut.CurrentUserId);
+        Assert.True(_sut.IsOwner);
+        Assert.Equal(2, _sut.Members.Count);
+        Assert.Equal("owner-10", _sut.Members[0].UserId);
+        Assert.False(_sut.IsLoading);
+    }
+
+    [Fact]
+    public async Task InitializeAsync_WithGroupId_WhenNotFound_SetsNullGroup()
+    {
+        // Arrange
+        _userGroupDataProviderMock.Setup(p => p.GetUserGroupByIdAsync(99, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((UserGroupEntity?)null);
+
+        // Act
+        await _sut.InitializeAsync(99, "user-1");
+
+        // Assert
+        Assert.Null(_sut.Group);
+        Assert.Empty(_sut.Members);
+        Assert.False(_sut.IsOwner);
+        Assert.False(_sut.IsLoading);
+    }
 }

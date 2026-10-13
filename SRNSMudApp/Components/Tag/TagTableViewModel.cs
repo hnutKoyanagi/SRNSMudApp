@@ -52,7 +52,7 @@ public class TagTableViewModel
 
     public async Task InitializeAsync()
     {
-        AllTagsCache = await _tagTableData.GetAllTagsAsync();
+        AllTagsCache = await _tagTableData.GetAllTagsAsync(CurrentUserId, IsAdmin);
         await ReloadLockStatusAsync();
     }
 

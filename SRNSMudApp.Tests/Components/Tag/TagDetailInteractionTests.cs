@@ -206,4 +206,31 @@ public sealed class TagDetailInteractionTests : IAsyncLifetime
                 It.IsAny<DialogOptions>()),
             Times.Once);
     }
+
+    [Fact]
+    public void TagDetail_WhenPrivateGroupOnly_RendersGroupBadgeWithNavigation()
+    {
+        // Arrange
+        const string userId = "viewer-user";
+        var tag = new TagEntity
+        {
+            Id = 50,
+            Name = "グループ限定タグ",
+            OwnerId = "owner-user",
+            IsPrivate = true,
+            TargetUserGroupId = 3,
+            TargetUserGroup = new SRNSMudApp.Data.UserGroup { Id = 3, Name = "デザイン部", OwnerId = "owner-user" }
+        };
+        _ = _tagDetailDataMock.Setup(d => d.GetTagDetailAsync(50, userId))
+            .ReturnsAsync(CreatePageData(tag));
+        _ = _tagLockServiceMock.Setup(l => l.IsTagOrSiblingLockedAsync(50))
+            .ReturnsAsync(false);
+
+        // Act
+        var cut = RenderTagDetail(50, userId);
+
+        // Assert
+        Assert.Contains("グループ: デザイン部", cut.Markup);
+        Assert.Contains("href=\"/UserGroup/Members/3\"", cut.Markup);
+    }
 }

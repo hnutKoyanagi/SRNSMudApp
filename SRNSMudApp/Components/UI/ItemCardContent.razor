@@ -70,8 +70,13 @@
             }
             else
             {
-                <MudChip T="string" Size="Size.Small" Color="Color.Info" Icon="@Icons.Material.Filled.Group"
-                         Variant="Variant.Outlined" Class="ml-1">グループ: @TargetUserGroupName</MudChip>
+                var groupHref = TargetUserGroupId.HasValue
+                    ? $"/UserGroup/Members/{TargetUserGroupId.Value}"
+                    : "/UserGroup/List";
+                <span @onclick:stopPropagation="true">
+                    <MudChip T="string" Size="Size.Small" Color="Color.Info" Icon="@Icons.Material.Filled.Group"
+                             Variant="Variant.Outlined" Class="ml-1" Href="@groupHref">グループ: @TargetUserGroupName</MudChip>
+                </span>
             }
         }
         @if (IsAdminHidden)

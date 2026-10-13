@@ -24,6 +24,7 @@ public partial class ItemCardContent : ComponentBase, IAsyncDisposable
     [Parameter] public DateTime UpdatedDate { get; set; }
     [Parameter] public bool IsPrivate { get; set; }
     [Parameter] public bool IsAdminHidden { get; set; }
+    [Parameter] public int? TargetUserGroupId { get; set; }
     [Parameter] public string? TargetUserGroupName { get; set; }
     [Parameter] public bool EnableNavigation { get; set; } = true;
 

@@ -1,0 +1,111 @@
+@page "/UserGroup/Members/{GroupId:int}"
+@page "/UserGroup/{GroupId:int}/Members"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@namespace SRNSMudApp.Components.UserGroup
+@rendermode InteractiveServer
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-6">
+    <div class="mb-4">
+        <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ArrowBack"
+                   Href="/UserGroup/List">
+            ユーザーグループ一覧に戻る
+        </MudButton>
+    </div>
+
+    @if (ViewModel.IsLoading)
+    {
+        <div class="d-flex justify-center my-8">
+            <MudProgressCircular Indeterminate="true" />
+        </div>
+    }
+    else if (ViewModel.Group == null)
+    {
+        <MudAlert Severity="Severity.Error" Class="my-4">
+            指定されたユーザーグループが見つかりませんでした。
+        </MudAlert>
+    }
+    else
+    {
+        <div class="d-flex align-center justify-space-between mb-4">
+            <div>
+                <MudText Typo="Typo.h5" Class="d-flex align-center gap-2">
+                    <MudIcon Icon="@Icons.Material.Filled.Group" Color="Color.Primary" />
+                    @ViewModel.Group.Name
+                </MudText>
+                @if (!string.IsNullOrEmpty(ViewModel.Group.Description))
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">
+                        @ViewModel.Group.Description
+                    </MudText>
+                }
+            </div>
+            @if (ViewModel.IsOwner)
+            {
+                <MudChip T="string" Color="Color.Info" Size="Size.Small">管理者</MudChip>
+            }
+        </div>
+
+        @if (ViewModel.IsOwner)
+        {
+            <MudPaper Elevation="0" Outlined="true" Class="pa-4 mb-6 rounded-lg">
+                <MudText Typo="Typo.subtitle2" Class="mb-2">新規メンバー追加</MudText>
+                <div class="d-flex align-center gap-2">
+                    <MudAutocomplete T="ApplicationUser" @bind-Value="ViewModel.SelectedUser" SearchFunc="@SearchUsersAsync"
+                                     ToStringFunc="@(u => u?.UserName ?? string.Empty)" Label="ユーザー名で検索" Variant="Variant.Outlined"
+                                     Dense="true" Margin="Margin.Dense" Class="flex-grow-1" Placeholder="追加するユーザーを検索..." />
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@AddMemberAsync"
+                               Disabled="@(!ViewModel.CanAddMember)">
+                        @if (ViewModel.IsAdding)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-1" />
+                            <span>追加中...</span>
+                        }
+                        else
+                        {
+                            <span>追加</span>
+                        }
+                    </MudButton>
+                </div>
+            </MudPaper>
+        }
+
+        <MudPaper Elevation="1" Class="pa-4 rounded-xl">
+            <MudText Typo="Typo.h6" Class="mb-3">
+                メンバー一覧 (@ViewModel.Members.Count 人)
+            </MudText>
+            <MudList T="UserGroupMember" Dense="true">
+                @foreach (var member in ViewModel.Members)
+                {
+                    <MudListItem T="UserGroupMember">
+                        <div class="d-flex align-center justify-space-between width-100">
+                            <div class="d-flex align-center gap-3">
+                                <MudAvatar Color="Color.Secondary" Size="Size.Medium">
+                                    @(member.User?.UserName?.FirstOrDefault().ToString().ToUpperInvariant() ?? "U")
+                                </MudAvatar>
+                                <div>
+                                    <MudText Typo="Typo.body1">
+                                        @member.User?.UserName
+                                        @if (member.UserId == ViewModel.Group.OwnerId)
+                                        {
+                                            <MudChip T="string" Color="Color.Info" Size="Size.Small" Class="ml-2">オーナー</MudChip>
+                                        }
+                                    </MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        参加: @member.CreatedDate.ToLocalTime().ToString("g")
+                                    </MudText>
+                                </div>
+                            </div>
+                            @if (ViewModel.IsOwner && member.UserId != ViewModel.Group.OwnerId)
+                            {
+                                <MudIconButton Icon="@Icons.Material.Filled.PersonRemove" Color="Color.Error" Size="Size.Small"
+                                               Title="メンバーから削除" OnClick="@(() => RemoveMemberAsync(member.UserId))"
+                                               Disabled="@ViewModel.IsRemoving" />
+                            }
+                        </div>
+                    </MudListItem>
+                }
+            </MudList>
+        </MudPaper>
+    }
+</MudContainer>
+

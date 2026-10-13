@@ -492,7 +492,7 @@ public class TagTreeViewModelTests
         var lockMock = new Mock<ITagLockService>();
         dataMock.Setup(d => d.DeleteTagsAsync(CurrentUserId, It.IsAny<IReadOnlyList<int>>(), false))
             .ReturnsAsync(new TagTreeDeleteResult(true, 2, [], []));
-        dataMock.Setup(d => d.LoadTagsAsync()).ReturnsAsync([]);
+        dataMock.Setup(d => d.LoadTagsAsync(It.IsAny<string?>(), It.IsAny<bool>())).ReturnsAsync([]);
         dataMock.Setup(d => d.LoadPendingTagMovesAsync()).ReturnsAsync([]);
         lockMock.Setup(l => l.GetAllTagsWithLockStatusAsync(default)).ReturnsAsync([]);
 
@@ -504,7 +504,26 @@ public class TagTreeViewModelTests
         Assert.True(result.HasDeleted);
         Assert.Equal(2, result.DeletedCount);
         dataMock.Verify(d => d.DeleteTagsAsync(CurrentUserId, It.Is<IReadOnlyList<int>>(ids => ids.Count == 2), false), Times.Once);
-        dataMock.Verify(d => d.LoadTagsAsync(), Times.Once);
+        dataMock.Verify(d => d.LoadTagsAsync(CurrentUserId, false), Times.Once);
+    }
+
+    [Fact]
+    public async Task LoadDataAsync_PassesCurrentUserIdAndIsAdminToDataProvider()
+    {
+        var dataMock = new Mock<ITagTreeDataProvider>();
+        var lockMock = new Mock<ITagLockService>();
+        dataMock.Setup(d => d.LoadTagsAsync("user-99", true)).ReturnsAsync([NewTag(1, "PrivateTag", "user-99")]);
+        dataMock.Setup(d => d.LoadPendingTagMovesAsync()).ReturnsAsync([]);
+        lockMock.Setup(l => l.GetAllTagsWithLockStatusAsync(default)).ReturnsAsync([]);
+
+        var sut = new TagTreeViewModel(dataMock.Object, lockMock.Object);
+        sut.SetUser("user-99", true);
+
+        await sut.LoadDataAsync();
+
+        Assert.Single(sut.Tags);
+        Assert.Equal("PrivateTag", sut.Tags[0].Name);
+        dataMock.Verify(d => d.LoadTagsAsync("user-99", true), Times.Once);
     }
 
     [Fact]
@@ -607,7 +626,7 @@ public class TagTreeViewModelTests
             NewTag(1, "Parent", CurrentUserId),
             NewTag(2, "ExistingChild", CurrentUserId, parentTagId: 1)
         ];
-        dataMock.Setup(d => d.LoadTagsAsync()).ReturnsAsync(existingTags);
+        dataMock.Setup(d => d.LoadTagsAsync(It.IsAny<string?>(), It.IsAny<bool>())).ReturnsAsync(existingTags);
         dataMock.Setup(d => d.LoadPendingTagMovesAsync()).ReturnsAsync([]);
 
         var sut = new TagTreeViewModel(dataMock.Object, lockMock.Object);
@@ -635,7 +654,7 @@ public class TagTreeViewModelTests
             NewTag(1, "Parent", CurrentUserId),
             NewTag(42, "ExistingChild", CurrentUserId, parentTagId: 1)
         ];
-        dataMock.Setup(d => d.LoadTagsAsync()).ReturnsAsync(existingTags);
+        dataMock.Setup(d => d.LoadTagsAsync(It.IsAny<string?>(), It.IsAny<bool>())).ReturnsAsync(existingTags);
         dataMock.Setup(d => d.LoadPendingTagMovesAsync()).ReturnsAsync([]);
 
         var sut = new TagTreeViewModel(dataMock.Object, lockMock.Object);
@@ -662,7 +681,7 @@ public class TagTreeViewModelTests
         [
             NewTag(1, "Parent", CurrentUserId)
         ];
-        dataMock.Setup(d => d.LoadTagsAsync()).ReturnsAsync(existingTags);
+        dataMock.Setup(d => d.LoadTagsAsync(It.IsAny<string?>(), It.IsAny<bool>())).ReturnsAsync(existingTags);
         dataMock.Setup(d => d.LoadPendingTagMovesAsync()).ReturnsAsync([]);
 
         var sut = new TagTreeViewModel(dataMock.Object, lockMock.Object);

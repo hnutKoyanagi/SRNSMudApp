@@ -125,7 +125,7 @@ public sealed class TagTreeTests : IAsyncLifetime
         };
 
         _ = _treeDataMock
-            .Setup(d => d.LoadTagsAsync())
+            .Setup(d => d.LoadTagsAsync(It.IsAny<string?>(), It.IsAny<bool>()))
             .ReturnsAsync([rootTag, otherTag, targetTag]);
 
         _ = _treeDataMock
@@ -173,7 +173,7 @@ public sealed class TagTreeTests : IAsyncLifetime
         };
 
         _ = _treeDataMock
-            .Setup(d => d.LoadTagsAsync())
+            .Setup(d => d.LoadTagsAsync(It.IsAny<string?>(), It.IsAny<bool>()))
             .ReturnsAsync([rootTag, ownTag, targetTag]);
 
         _ = _treeDataMock
@@ -245,7 +245,7 @@ public sealed class TagTreeTests : IAsyncLifetime
             .ReturnsAsync(new Success<string>("移動リクエストをキャンセルしました。"));
 
         _treeDataMock
-            .Setup(d => d.LoadTagsAsync())
+            .Setup(d => d.LoadTagsAsync(It.IsAny<string?>(), It.IsAny<bool>()))
             .ReturnsAsync([]);
 
         _treeDataMock
@@ -276,7 +276,7 @@ public sealed class TagTreeTests : IAsyncLifetime
         NavigationManager navigationManager = _ctx.Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo("http://localhost/tag-tree");
 
-        _treeDataMock.Setup(d => d.LoadTagsAsync()).ReturnsAsync([]);
+        _treeDataMock.Setup(d => d.LoadTagsAsync(It.IsAny<string?>(), It.IsAny<bool>())).ReturnsAsync([]);
 
         IRenderedComponent<TagTree> component = _ctx.Render<TagTree>();
         component.WaitForAssertion(() => Assert.NotNull(component.Instance));
@@ -304,7 +304,7 @@ public sealed class TagTreeTests : IAsyncLifetime
         var child1 = new SRNSMudApp.Data.Tag { Id = 2, Name = "Child1", ParentTagId = 1, IsSystem = false, OwnerId = "test-user-id" };
         var child2 = new SRNSMudApp.Data.Tag { Id = 3, Name = "Child2", ParentTagId = 1, IsSystem = false, OwnerId = "test-user-id" };
 
-        _treeDataMock.Setup(d => d.LoadTagsAsync()).ReturnsAsync([rootTag, child1, child2]);
+        _treeDataMock.Setup(d => d.LoadTagsAsync(It.IsAny<string?>(), It.IsAny<bool>())).ReturnsAsync([rootTag, child1, child2]);
 
         List<JSRuntimeInvocation> jsInteropInvocations = [];
         _ctx.JSInterop.SetupVoid("jqTreeInterop.init", invocation =>
@@ -341,7 +341,7 @@ public sealed class TagTreeTests : IAsyncLifetime
         var rootTag = new SRNSMudApp.Data.Tag { Id = 1, Name = "Root", IsSystem = false, OwnerId = "test-user-id" };
         var child1 = new SRNSMudApp.Data.Tag { Id = 2, Name = "Child1", ParentTagId = 1, IsSystem = false, OwnerId = "test-user-id" };
 
-        _treeDataMock.Setup(d => d.LoadTagsAsync()).ReturnsAsync([rootTag, child1]);
+        _treeDataMock.Setup(d => d.LoadTagsAsync(It.IsAny<string?>(), It.IsAny<bool>())).ReturnsAsync([rootTag, child1]);
 
         NavigationManager navigationManager = _ctx.Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo("http://localhost/tag-tree?q=Child1");
@@ -370,7 +370,7 @@ public sealed class TagTreeTests : IAsyncLifetime
         NavigationManager navigationManager = _ctx.Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo("http://localhost/tag-tree?tagId=99");
 
-        _treeDataMock.Setup(d => d.LoadTagsAsync()).ReturnsAsync([]);
+        _treeDataMock.Setup(d => d.LoadTagsAsync(It.IsAny<string?>(), It.IsAny<bool>())).ReturnsAsync([]);
 
         IRenderedComponent<TagTree> component = _ctx.Render<TagTree>();
         component.WaitForAssertion(() => Assert.NotNull(component.Instance));
@@ -396,7 +396,7 @@ public sealed class TagTreeTests : IAsyncLifetime
         var child1 = new SRNSMudApp.Data.Tag { Id = 2, Name = "Child1", ParentTagId = 1, IsSystem = false, OwnerId = "test-user-id" };
         var child2 = new SRNSMudApp.Data.Tag { Id = 3, Name = "Child2", ParentTagId = 1, IsSystem = false, OwnerId = "test-user-id" };
 
-        _treeDataMock.Setup(d => d.LoadTagsAsync()).ReturnsAsync([rootTag, child1, child2]);
+        _treeDataMock.Setup(d => d.LoadTagsAsync(It.IsAny<string?>(), It.IsAny<bool>())).ReturnsAsync([rootTag, child1, child2]);
 
         List<JSRuntimeInvocation> loadDataInvocations = [];
         _ctx.JSInterop.SetupVoid("jqTreeInterop.loadData", invocation =>
