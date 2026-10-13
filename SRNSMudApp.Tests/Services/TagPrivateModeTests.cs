@@ -363,6 +363,335 @@ public class TagPrivateModeTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public async Task TagSearchQueryService_GetAllTagsAsync_RespectsPrivateVisibility()
+    {
+        var (db, stubFactory, _, _, _, _, _, authorId, followerId, strangerId, groupMemberId, groupId) = await CreateScopeAsync();
+        await using (db)
+        {
+            var adminId = $"admin_{Guid.NewGuid().ToString("N")[..8]}";
+            await db.SeedUsersAsync(adminId);
+
+            var embeddingMock = new Mock<ITagEmbeddingService>();
+            var queryService = new TagSearchQueryService(stubFactory, embeddingMock.Object);
+
+            var publicTag = new Tag { Name = $"Pub_{Guid.NewGuid():N}", OwnerId = authorId, IsPrivate = false };
+            var followerTag = new Tag { Name = $"Fol_{Guid.NewGuid():N}", OwnerId = authorId, IsPrivate = true, TargetUserGroupId = null };
+            var groupTag = new Tag { Name = $"Grp_{Guid.NewGuid():N}", OwnerId = authorId, IsPrivate = true, TargetUserGroupId = groupId };
+
+            db.Tags.AddRange(publicTag, followerTag, groupTag);
+            await db.SaveChangesAsync();
+
+            // 1. オーナー本人: すべて取得
+            var authorTags = await queryService.GetAllTagsAsync(authorId, isAdmin: false);
+            Assert.Contains(authorTags, t => t.Id == publicTag.Id);
+            Assert.Contains(authorTags, t => t.Id == followerTag.Id);
+            Assert.Contains(authorTags, t => t.Id == groupTag.Id);
+
+            // 2. フォロワー: パブリック + フォロワー限定 (グループ限定は不可視)
+            var followerTags = await queryService.GetAllTagsAsync(followerId, isAdmin: false);
+            Assert.Contains(followerTags, t => t.Id == publicTag.Id);
+            Assert.Contains(followerTags, t => t.Id == followerTag.Id);
+            Assert.DoesNotContain(followerTags, t => t.Id == groupTag.Id);
+
+            // 3. グループメンバー: パブリック + グループ限定 (フォロワー限定は不可視)
+            var memberTags = await queryService.GetAllTagsAsync(groupMemberId, isAdmin: false);
+            Assert.Contains(memberTags, t => t.Id == publicTag.Id);
+            Assert.DoesNotContain(memberTags, t => t.Id == followerTag.Id);
+            Assert.Contains(memberTags, t => t.Id == groupTag.Id);
+
+            // 4. 部外者: パブリックのみ
+            var strangerTags = await queryService.GetAllTagsAsync(strangerId, isAdmin: false);
+            Assert.Contains(strangerTags, t => t.Id == publicTag.Id);
+            Assert.DoesNotContain(strangerTags, t => t.Id == followerTag.Id);
+            Assert.DoesNotContain(strangerTags, t => t.Id == groupTag.Id);
+
+            // 5. 未ログイン: パブリックのみ
+            var anonTags = await queryService.GetAllTagsAsync(null, isAdmin: false);
+            Assert.Contains(anonTags, t => t.Id == publicTag.Id);
+            Assert.DoesNotContain(anonTags, t => t.Id == followerTag.Id);
+            Assert.DoesNotContain(anonTags, t => t.Id == groupTag.Id);
+
+            // 6. 管理者: すべて取得
+            var adminTags = await queryService.GetAllTagsAsync(adminId, isAdmin: true);
+            Assert.Contains(adminTags, t => t.Id == publicTag.Id);
+            Assert.Contains(adminTags, t => t.Id == followerTag.Id);
+            Assert.Contains(adminTags, t => t.Id == groupTag.Id);
+        }
+    }
+
+    [Fact]
+    public async Task TagSearchQueryService_SearchTagsAsync_RespectsPrivateVisibility()
+    {
+        var (db, stubFactory, _, _, _, _, _, authorId, followerId, strangerId, groupMemberId, groupId) = await CreateScopeAsync();
+        await using (db)
+        {
+            var adminId = $"admin_{Guid.NewGuid().ToString("N")[..8]}";
+            await db.SeedUsersAsync(adminId);
+
+            var keyword = $"Target_{Guid.NewGuid().ToString("N")[..8]}";
+            var embeddingMock = new Mock<ITagEmbeddingService>();
+            embeddingMock.Setup(e => e.GenerateEmbeddingAsync(It.IsAny<string>()))
+                .ReturnsAsync(new ReadOnlyMemory<float>(new float[] { 0.1f }));
+
+            var queryService = new TagSearchQueryService(stubFactory, embeddingMock.Object);
+
+            var followerTag = new Tag { Name = $"Fol_{keyword}", Content = "Content", OwnerId = authorId, IsPrivate = true, TargetUserGroupId = null };
+            var groupTag = new Tag { Name = $"Grp_{keyword}", Content = "Content", OwnerId = authorId, IsPrivate = true, TargetUserGroupId = groupId };
+
+            db.Tags.AddRange(followerTag, groupTag);
+            await db.SaveChangesAsync();
+
+            // フォロワーによる検索: フォロワー限定タグのみヒット
+            var followerResult = await queryService.SearchTagsAsync(keyword, followerId, isAdmin: false);
+            Assert.Contains(followerResult, t => t.Id == followerTag.Id);
+            Assert.DoesNotContain(followerResult, t => t.Id == groupTag.Id);
+
+            // グループメンバーによる検索: グループ限定タグのみヒット
+            var memberResult = await queryService.SearchTagsAsync(keyword, groupMemberId, isAdmin: false);
+            Assert.DoesNotContain(memberResult, t => t.Id == followerTag.Id);
+            Assert.Contains(memberResult, t => t.Id == groupTag.Id);
+
+            // 部外者・未ログインによる検索: どちらもヒットしない
+            var strangerResult = await queryService.SearchTagsAsync(keyword, strangerId, isAdmin: false);
+            Assert.DoesNotContain(strangerResult, t => t.Id == followerTag.Id);
+            Assert.DoesNotContain(strangerResult, t => t.Id == groupTag.Id);
+
+            var anonResult = await queryService.SearchTagsAsync(keyword, null, isAdmin: false);
+            Assert.DoesNotContain(anonResult, t => t.Id == followerTag.Id);
+            Assert.DoesNotContain(anonResult, t => t.Id == groupTag.Id);
+
+            // 管理者による検索: 両方ヒット
+            var adminResult = await queryService.SearchTagsAsync(keyword, adminId, isAdmin: true);
+            Assert.Contains(adminResult, t => t.Id == followerTag.Id);
+            Assert.Contains(adminResult, t => t.Id == groupTag.Id);
+        }
+    }
+
+    [Fact]
+    public async Task TagSearchQueryService_FindTagByNameAsync_RespectsPrivateVisibility()
+    {
+        var (db, stubFactory, _, _, _, _, _, authorId, followerId, strangerId, groupMemberId, groupId) = await CreateScopeAsync();
+        await using (db)
+        {
+            var adminId = $"admin_{Guid.NewGuid().ToString("N")[..8]}";
+            await db.SeedUsersAsync(adminId);
+
+            var embeddingMock = new Mock<ITagEmbeddingService>();
+            var queryService = new TagSearchQueryService(stubFactory, embeddingMock.Object);
+
+            var secretFollowerTagName = $"SecretFol_{Guid.NewGuid():N}";
+            var secretGroupTagName = $"SecretGrp_{Guid.NewGuid():N}";
+
+            var followerTag = new Tag { Name = secretFollowerTagName, OwnerId = authorId, IsPrivate = true, TargetUserGroupId = null };
+            var groupTag = new Tag { Name = secretGroupTagName, OwnerId = authorId, IsPrivate = true, TargetUserGroupId = groupId };
+
+            db.Tags.AddRange(followerTag, groupTag);
+            await db.SaveChangesAsync();
+
+            // フォロワー限定タグの名前検索
+            Assert.NotNull(await queryService.FindTagByNameAsync(secretFollowerTagName, authorId, isAdmin: false));
+            Assert.NotNull(await queryService.FindTagByNameAsync(secretFollowerTagName, followerId, isAdmin: false));
+            Assert.Null(await queryService.FindTagByNameAsync(secretFollowerTagName, strangerId, isAdmin: false));
+            Assert.Null(await queryService.FindTagByNameAsync(secretFollowerTagName, null, isAdmin: false));
+            Assert.NotNull(await queryService.FindTagByNameAsync(secretFollowerTagName, adminId, isAdmin: true));
+
+            // グループ限定タグの名前検索
+            Assert.NotNull(await queryService.FindTagByNameAsync(secretGroupTagName, authorId, isAdmin: false));
+            Assert.NotNull(await queryService.FindTagByNameAsync(secretGroupTagName, groupMemberId, isAdmin: false));
+            Assert.Null(await queryService.FindTagByNameAsync(secretGroupTagName, followerId, isAdmin: false));
+            Assert.Null(await queryService.FindTagByNameAsync(secretGroupTagName, strangerId, isAdmin: false));
+            Assert.NotNull(await queryService.FindTagByNameAsync(secretGroupTagName, adminId, isAdmin: true));
+        }
+    }
+
+    [Fact]
+    public async Task TagTreeDataProvider_LoadTagsAsync_RespectsPrivateVisibility()
+    {
+        var (db, _, _, _, tagTreeProvider, _, _, authorId, followerId, strangerId, groupMemberId, groupId) = await CreateScopeAsync();
+        await using (db)
+        {
+            var adminId = $"admin_{Guid.NewGuid().ToString("N")[..8]}";
+            await db.SeedUsersAsync(adminId);
+
+            var followerTag = new Tag { Name = $"TreeFol_{Guid.NewGuid():N}", OwnerId = authorId, IsPrivate = true, TargetUserGroupId = null };
+            var groupTag = new Tag { Name = $"TreeGrp_{Guid.NewGuid():N}", OwnerId = authorId, IsPrivate = true, TargetUserGroupId = groupId };
+
+            db.Tags.AddRange(followerTag, groupTag);
+            await db.SaveChangesAsync();
+
+            // 1. オーナー: 両方取得可能
+            var authorTree = await tagTreeProvider.LoadTagsAsync(authorId, isAdmin: false);
+            Assert.Contains(authorTree, t => t.Id == followerTag.Id);
+            Assert.Contains(authorTree, t => t.Id == groupTag.Id);
+
+            // 2. フォロワー: フォロワー限定のみ取得可能
+            var followerTree = await tagTreeProvider.LoadTagsAsync(followerId, isAdmin: false);
+            Assert.Contains(followerTree, t => t.Id == followerTag.Id);
+            Assert.DoesNotContain(followerTree, t => t.Id == groupTag.Id);
+
+            // 3. グループメンバー: グループ限定のみ取得可能
+            var memberTree = await tagTreeProvider.LoadTagsAsync(groupMemberId, isAdmin: false);
+            Assert.DoesNotContain(memberTree, t => t.Id == followerTag.Id);
+            Assert.Contains(memberTree, t => t.Id == groupTag.Id);
+
+            // 4. 部外者・未ログイン: 不可視
+            var strangerTree = await tagTreeProvider.LoadTagsAsync(strangerId, isAdmin: false);
+            Assert.DoesNotContain(strangerTree, t => t.Id == followerTag.Id);
+            Assert.DoesNotContain(strangerTree, t => t.Id == groupTag.Id);
+
+            var anonTree = await tagTreeProvider.LoadTagsAsync(null, isAdmin: false);
+            Assert.DoesNotContain(anonTree, t => t.Id == followerTag.Id);
+            Assert.DoesNotContain(anonTree, t => t.Id == groupTag.Id);
+
+            // 5. 管理者: 両方取得可能
+            var adminTree = await tagTreeProvider.LoadTagsAsync(adminId, isAdmin: true);
+            Assert.Contains(adminTree, t => t.Id == followerTag.Id);
+            Assert.Contains(adminTree, t => t.Id == groupTag.Id);
+        }
+    }
+
+    [Fact]
+    public async Task TagVisibilityExtensions_IsTagVisibleToUserAsync_EvaluatesCorrectly()
+    {
+        var (db, _, _, _, _, _, _, authorId, followerId, strangerId, groupMemberId, groupId) = await CreateScopeAsync();
+        await using (db)
+        {
+            var adminId = $"admin_{Guid.NewGuid().ToString("N")[..8]}";
+            await db.SeedUsersAsync(adminId);
+
+            var followerTag = new Tag { Name = "FolTag", OwnerId = authorId, IsPrivate = true, TargetUserGroupId = null };
+            var groupTag = new Tag { Name = "GrpTag", OwnerId = authorId, IsPrivate = true, TargetUserGroupId = groupId };
+            var adminHiddenTag = new Tag { Name = "AdminHidden", OwnerId = authorId, IsPrivate = false, IsAdminHidden = true };
+
+            db.Tags.AddRange(followerTag, groupTag, adminHiddenTag);
+            await db.SaveChangesAsync();
+
+            // フォロワー限定タグの判定
+            Assert.True(await followerTag.IsTagVisibleToUserAsync(db, authorId, isAdmin: false));
+            Assert.True(await followerTag.IsTagVisibleToUserAsync(db, followerId, isAdmin: false));
+            Assert.False(await followerTag.IsTagVisibleToUserAsync(db, strangerId, isAdmin: false));
+            Assert.False(await followerTag.IsTagVisibleToUserAsync(db, null, isAdmin: false));
+            Assert.True(await followerTag.IsTagVisibleToUserAsync(db, adminId, isAdmin: true));
+
+            // グループ限定タグの判定
+            Assert.True(await groupTag.IsTagVisibleToUserAsync(db, authorId, isAdmin: false));
+            Assert.True(await groupTag.IsTagVisibleToUserAsync(db, groupMemberId, isAdmin: false));
+            Assert.False(await groupTag.IsTagVisibleToUserAsync(db, followerId, isAdmin: false));
+            Assert.False(await groupTag.IsTagVisibleToUserAsync(db, strangerId, isAdmin: false));
+            Assert.False(await groupTag.IsTagVisibleToUserAsync(db, null, isAdmin: false));
+            Assert.True(await groupTag.IsTagVisibleToUserAsync(db, adminId, isAdmin: true));
+
+            // 管理者非公開タグの判定
+            Assert.False(await adminHiddenTag.IsTagVisibleToUserAsync(db, authorId, isAdmin: false));
+            Assert.False(await adminHiddenTag.IsTagVisibleToUserAsync(db, strangerId, isAdmin: false));
+            Assert.True(await adminHiddenTag.IsTagVisibleToUserAsync(db, adminId, isAdmin: true));
+        }
+    }
+
+    [Fact]
+    public async Task TagTableDataProvider_GetAllTagsAsync_RespectsGroupAndFollowerVisibility()
+    {
+        var (db, _, tagTableProvider, _, _, _, _, authorId, followerId, strangerId, groupMemberId, groupId) = await CreateScopeAsync();
+        await using (db)
+        {
+            var adminId = $"admin_{Guid.NewGuid().ToString("N")[..8]}";
+            await db.SeedUsersAsync(adminId);
+
+            var followerTag = new Tag { Name = $"TableFol_{Guid.NewGuid():N}", OwnerId = authorId, IsPrivate = true, TargetUserGroupId = null };
+            var groupTag = new Tag { Name = $"TableGrp_{Guid.NewGuid():N}", OwnerId = authorId, IsPrivate = true, TargetUserGroupId = groupId };
+
+            db.Tags.AddRange(followerTag, groupTag);
+            await db.SaveChangesAsync();
+
+            // 1. オーナー: 両方取得
+            var authorTags = await tagTableProvider.GetAllTagsAsync(authorId, isAdmin: false);
+            Assert.Contains(authorTags, t => t.Id == followerTag.Id);
+            Assert.Contains(authorTags, t => t.Id == groupTag.Id);
+
+            // 2. フォロワー: フォロワー限定のみ
+            var followerTags = await tagTableProvider.GetAllTagsAsync(followerId, isAdmin: false);
+            Assert.Contains(followerTags, t => t.Id == followerTag.Id);
+            Assert.DoesNotContain(followerTags, t => t.Id == groupTag.Id);
+
+            // 3. グループメンバー: グループ限定のみ
+            var memberTags = await tagTableProvider.GetAllTagsAsync(groupMemberId, isAdmin: false);
+            Assert.DoesNotContain(memberTags, t => t.Id == followerTag.Id);
+            Assert.Contains(memberTags, t => t.Id == groupTag.Id);
+
+            // 4. 部外者・未ログイン: どちらも不可視
+            var strangerTags = await tagTableProvider.GetAllTagsAsync(strangerId, isAdmin: false);
+            Assert.DoesNotContain(strangerTags, t => t.Id == followerTag.Id);
+            Assert.DoesNotContain(strangerTags, t => t.Id == groupTag.Id);
+
+            var anonTags = await tagTableProvider.GetAllTagsAsync(null, isAdmin: false);
+            Assert.DoesNotContain(anonTags, t => t.Id == followerTag.Id);
+            Assert.DoesNotContain(anonTags, t => t.Id == groupTag.Id);
+
+            // 5. 管理者: 両方取得
+            var adminTags = await tagTableProvider.GetAllTagsAsync(adminId, isAdmin: true);
+            Assert.Contains(adminTags, t => t.Id == followerTag.Id);
+            Assert.Contains(adminTags, t => t.Id == groupTag.Id);
+        }
+    }
+
+    [Fact]
+    public async Task FilterVisibleTagRelationsAsync_MasksPrivateTagsForStrangersAndExposesToAuthorized()
+    {
+        var (db, _, _, _, _, _, _, authorId, followerId, strangerId, groupMemberId, groupId) = await CreateScopeAsync();
+        await using (db)
+        {
+            var adminId = $"admin_{Guid.NewGuid().ToString("N")[..8]}";
+            await db.SeedUsersAsync(adminId);
+
+            var followerTag = new Tag { Name = "FolMask", OwnerId = authorId, IsPrivate = true, TargetUserGroupId = null };
+            var groupTag = new Tag { Name = "GrpMask", OwnerId = authorId, IsPrivate = true, TargetUserGroupId = groupId };
+            var publicTag = new Tag { Name = "PubMask", OwnerId = authorId, IsPrivate = false };
+
+            db.Tags.AddRange(followerTag, groupTag, publicTag);
+            await db.SaveChangesAsync();
+
+            Item CreateTestItem() => new()
+            {
+                Content = "Post",
+                OwnerId = authorId,
+                TagRelations =
+                [
+                    new TagRelation { TagId = followerTag.Id, Tag = followerTag, OwnerId = authorId },
+                    new TagRelation { TagId = groupTag.Id, Tag = groupTag, OwnerId = authorId },
+                    new TagRelation { TagId = publicTag.Id, Tag = publicTag, OwnerId = authorId }
+                ]
+            };
+
+            // 1. 部外者: パブリックタグのリレーションのみ残り、フォロワー限定・グループ限定は除外
+            var strangerItem = CreateTestItem();
+            await new[] { strangerItem }.FilterVisibleTagRelationsAsync(db, strangerId, isAdmin: false);
+            Assert.Single(strangerItem.TagRelations);
+            Assert.Equal(publicTag.Id, strangerItem.TagRelations.First().TagId);
+
+            // 2. フォロワー: パブリック + フォロワー限定が残り、グループ限定は除外
+            var followerItem = CreateTestItem();
+            await new[] { followerItem }.FilterVisibleTagRelationsAsync(db, followerId, isAdmin: false);
+            Assert.Equal(2, followerItem.TagRelations.Count);
+            Assert.Contains(followerItem.TagRelations, tr => tr.TagId == followerTag.Id);
+            Assert.Contains(followerItem.TagRelations, tr => tr.TagId == publicTag.Id);
+            Assert.DoesNotContain(followerItem.TagRelations, tr => tr.TagId == groupTag.Id);
+
+            // 3. グループメンバー: パブリック + グループ限定が残り、フォロワー限定は除外
+            var memberItem = CreateTestItem();
+            await new[] { memberItem }.FilterVisibleTagRelationsAsync(db, groupMemberId, isAdmin: false);
+            Assert.Equal(2, memberItem.TagRelations.Count);
+            Assert.Contains(memberItem.TagRelations, tr => tr.TagId == groupTag.Id);
+            Assert.Contains(memberItem.TagRelations, tr => tr.TagId == publicTag.Id);
+            Assert.DoesNotContain(memberItem.TagRelations, tr => tr.TagId == followerTag.Id);
+
+            // 4. 管理者: フィルタされずに全リレーションが保持される
+            var adminItem = CreateTestItem();
+            await new[] { adminItem }.FilterVisibleTagRelationsAsync(db, adminId, isAdmin: true);
+            Assert.Equal(3, adminItem.TagRelations.Count);
+        }
+    }
+
     private sealed class DbContextFactoryStub(DbContextOptions<ApplicationDbContext> options)
         : IDbContextFactory<ApplicationDbContext>
     {

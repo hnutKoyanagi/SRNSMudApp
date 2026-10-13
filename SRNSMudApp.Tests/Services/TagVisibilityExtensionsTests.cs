@@ -135,4 +135,39 @@ public sealed class TagVisibilityExtensionsTests
         var goodTag = new Tag { Name = "good", OwnerId = "user1", IsPrivate = true };
         Assert.True(goodTag.IsTagVisibleInMemory(null, isAdmin: false, followedUserIds: null, memberGroupIds: null));
     }
+
+    [Fact]
+    public void IsTagVisibleInMemory_WhenOwnerIsBanned_AlwaysReturnsFalse()
+    {
+        var bannedOwner = new ApplicationUser { Id = "banned_u", IsBanned = true };
+        var publicTag = new Tag { Name = "PublicBanned", Owner = bannedOwner, OwnerId = "banned_u", IsPrivate = false };
+        var privateTag = new Tag { Name = "PrivateBanned", Owner = bannedOwner, OwnerId = "banned_u", IsPrivate = true };
+
+        // BAN されたユーザーのタグはパブリックでもプライベートでも、管理者やオーナー本人であっても false
+        Assert.False(publicTag.IsTagVisibleInMemory("banned_u", isAdmin: false));
+        Assert.False(publicTag.IsTagVisibleInMemory("admin_u", isAdmin: true));
+        Assert.False(privateTag.IsTagVisibleInMemory("banned_u", isAdmin: false));
+        Assert.False(privateTag.IsTagVisibleInMemory("admin_u", isAdmin: true));
+    }
+
+    [Theory]
+    [InlineData("good")]
+    [InlineData("bad")]
+    [InlineData("真実")]
+    [InlineData("善")]
+    [InlineData("美")]
+    [InlineData("全て∀")]
+    public void IsTagVisibleInMemory_WhenVoteOrReactionOrRootTag_AlwaysReturnsTrue(string tagName)
+    {
+        var tag = new Tag { Name = tagName, OwnerId = "user1", IsPrivate = true };
+        Assert.True(tag.IsTagVisibleInMemory(null, isAdmin: false));
+        Assert.True(tag.IsTagVisibleInMemory("anyone", isAdmin: false));
+    }
+
+    [Fact]
+    public void IsTagVisibleInMemory_NullTag_ThrowsArgumentNullException()
+    {
+        Tag nullTag = null!;
+        Assert.Throws<ArgumentNullException>(() => nullTag.IsTagVisibleInMemory(null));
+    }
 }
