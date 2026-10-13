@@ -485,7 +485,7 @@ public sealed class AddItemTests : IAsyncLifetime
         });
     }
 
-    [Fact(Skip = "UI timing issues with bUnit and LinkConversionPanel")]
+    [Fact]
     public void Save_WithLinkConversionEnabled_AppliesReplacementsBeforeSaving()
     {
         // Arrange
@@ -504,9 +504,6 @@ public sealed class AddItemTests : IAsyncLifetime
         conversionServiceMock
             .Setup(s => s.DetectLinkCandidatesAsync("C# に関するメモ", 0.85f, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new InternalLinkConversionResult(candidates, []));
-        conversionServiceMock
-            .Setup(s => s.ApplyReplacements("C# に関するメモ", It.IsAny<IReadOnlyList<LinkConversionCandidate>>()))
-            .Returns("/TagDetail/42 に関するメモ"); // 置換後の文字列
 
         var capturedContent = string.Empty;
         _itemCardDataMock
@@ -520,13 +517,22 @@ public sealed class AddItemTests : IAsyncLifetime
         // Act
         cut.Find("textarea").Input("C# に関するメモ");
 
-        // リンク変換が非同期で行われるのを待つ (UI上でパネルが表示されるかをチェックする)
-        cut.WaitForState(() => cut.FindAll(".mud-alert").Count > 0 || cut.FindAll("[data-testid='auto-replace-chip-42']").Count > 0);
+        // リンク変換が非同期で行われるのを待つ (UI上でパネルが表示され、JS Interop に候補が渡されることを検証)
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotEmpty(cut.FindAll("[data-testid='link-conversion-panel']"));
+            conversionServiceMock.Verify(
+                s => s.DetectLinkCandidatesAsync("C# に関するメモ", 0.85f, It.IsAny<CancellationToken>()),
+                Times.Once);
+            Assert.Contains(
+                _ctx.JSInterop.Invocations,
+                inv => inv.Identifier == "tributeInterop.applyLinkCandidates");
+        });
 
         cut.Find("form").Submit();
 
         // Assert
-        Assert.Equal("/TagDetail/42 に関するメモ", capturedContent);
+        Assert.Equal("C# に関するメモ", capturedContent);
     }
 
     [Fact]

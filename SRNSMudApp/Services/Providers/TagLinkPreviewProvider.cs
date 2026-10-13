@@ -78,7 +78,7 @@ public partial class TagLinkPreviewProvider(IDbContextFactory<ApplicationDbConte
                     .AsNoTracking()
                     .Include(t => t.Owner)
                     .Include(t => t.TargetUserGroup)
-                    .Where(t => t.Id != tag.Id && tag.Node.IsDescendantOf(t.Node))
+                    .Where(t => t.Id != tag.Id && t.Node != tag.Node && tag.Node.IsDescendantOf(t.Node))
                     .WhereVisibleToUser(db, currentUserId, isAdmin)
                     .OrderByDescending(t => t.Node.GetLevel())
                     .FirstOrDefaultAsync(cancellationToken);

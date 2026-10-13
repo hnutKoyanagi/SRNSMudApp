@@ -130,6 +130,94 @@ public sealed class PublicOfferBoardTests : IAsyncLifetime
         _contractServiceMock.Verify(s => s.AcceptContractAsync(999, CharlieUserId), Times.Once);
     }
 
+    [Fact]
+    public void Board_WhenNoOffers_ShowsEmptyAlert()
+    {
+        _ = _contractDataMock.Setup(d => d.GetActivePublicOffersAsync()).ReturnsAsync([]);
+
+        RenderFragment board = builder =>
+        {
+            builder.OpenComponent<PublicOfferBoard>(0);
+            builder.CloseComponent();
+        };
+        IRenderedComponent<AuthDialogHost> host =
+            _ctx.Render<AuthDialogHost>(parameters => parameters.Add(p => p.ChildContent, board));
+
+        host.WaitForState(() => host.Markup.Contains("現在、アクティブな公開オファーはありません。"));
+        Assert.Contains("現在、アクティブな公開オファーはありません。", host.Markup);
+    }
+
+    [Fact]
+    public void ClickCreateOfferButton_OpensCreateDialog_AndReloadsDataOnSuccess()
+    {
+        _ = _contractDataMock.Setup(d => d.GetActivePublicOffersAsync()).ReturnsAsync([]);
+
+        var dialogReferenceMock = new Mock<IDialogReference>();
+        _ = dialogReferenceMock.Setup(d => d.Result).ReturnsAsync(DialogResult.Ok(true));
+
+        _ = _dialogLauncherMock.Setup(l => l.ShowAsync(
+            typeof(CreatePublicOfferDialog),
+            "公開オファーの作成",
+            It.IsAny<DialogParameters?>(),
+            It.IsAny<DialogOptions?>()))
+            .ReturnsAsync(dialogReferenceMock.Object);
+
+        RenderFragment board = builder =>
+        {
+            builder.OpenComponent<PublicOfferBoard>(0);
+            builder.CloseComponent();
+        };
+        IRenderedComponent<AuthDialogHost> host =
+            _ctx.Render<AuthDialogHost>(parameters => parameters.Add(p => p.ChildContent, board));
+
+        host.WaitForState(() => host.Markup.Contains("オファーを作成する"));
+        host.FindAll("button").First(b => b.TextContent.Contains("オファーを作成する")).Click();
+
+        _dialogLauncherMock.Verify(l => l.ShowAsync(
+            typeof(CreatePublicOfferDialog),
+            "公開オファーの作成",
+            It.IsAny<DialogParameters?>(),
+            It.IsAny<DialogOptions?>()), Times.Once);
+        _contractDataMock.Verify(d => d.GetActivePublicOffersAsync(), Times.Exactly(2));
+    }
+
+    [Fact]
+    public void Board_WhenViewerIsOwner_ShowsDeactivateButton_AndCallsDeactivateOnClick()
+    {
+        var charlie = new ApplicationUser { Id = CharlieUserId, UserName = "Charlie" };
+        var charlieTag = new SRNSMudApp.Data.Tag { Id = 2, Name = "CharlieOfferTag", OwnerId = CharlieUserId, Owner = charlie };
+        var ownOffer = new PublicTradeOffer
+        {
+            Id = 20,
+            OwnerId = CharlieUserId,
+            Owner = charlie,
+            OfferedTagId = 2,
+            OfferedTag = charlieTag,
+            RequiredAssetAmount = 50,
+            IsActive = true
+        };
+
+        _ = _contractDataMock.Setup(d => d.GetActivePublicOffersAsync()).ReturnsAsync([ownOffer]);
+        _ = _contractDataMock.Setup(d => d.DeactivatePublicOfferAsync(20, CharlieUserId)).ReturnsAsync(true);
+
+        RenderFragment board = builder =>
+        {
+            builder.OpenComponent<PublicOfferBoard>(0);
+            builder.CloseComponent();
+        };
+        IRenderedComponent<AuthDialogHost> host =
+            _ctx.Render<AuthDialogHost>(parameters => parameters.Add(p => p.ChildContent, board));
+
+        host.WaitForState(() => host.Markup.Contains(charlieTag.Name));
+        Assert.Contains("要求アセット量: 50", host.Markup);
+        Assert.Contains("取り下げる", host.Markup);
+
+        host.FindAll("button").First(b => b.TextContent.Contains("取り下げる")).Click();
+
+        host.WaitForState(() => host.Markup.Contains("オファーを取り下げました。"), TimeSpan.FromSeconds(5));
+        _contractDataMock.Verify(d => d.DeactivatePublicOfferAsync(20, CharlieUserId), Times.Once);
+    }
+
     private static AuthenticationState CreateAuthState(string userId)
     {
         Claim[] claims = [new(ClaimTypes.NameIdentifier, userId), new(ClaimTypes.Name, userId)];

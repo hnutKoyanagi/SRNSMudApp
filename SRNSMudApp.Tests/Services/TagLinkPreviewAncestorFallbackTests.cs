@@ -21,6 +21,7 @@ namespace SRNSMudApp.Tests.Services;
 /// </summary>
 public class TagLinkPreviewAncestorFallbackTests : IAsyncLifetime
 {
+    private static int s_nextRootSegment = 500_000;
     private MsSqlTestDatabase _sharedDb = null!;
 
     public async Task InitializeAsync()
@@ -36,9 +37,11 @@ public class TagLinkPreviewAncestorFallbackTests : IAsyncLifetime
         LinkPreviewService service,
         string authorId,
         string followerId,
-        string strangerId)> CreateScopeAsync()
+        string strangerId,
+        int rootSegment)> CreateScopeAsync()
     {
         var tid = Guid.NewGuid().ToString("N")[..8];
+        var rootSegment = Interlocked.Increment(ref s_nextRootSegment);
         var services = new ServiceCollection();
         _ = services.AddMsSqlDbFactory(_sharedDb.ConnectionString);
         var sp = services.BuildServiceProvider();
@@ -64,13 +67,13 @@ public class TagLinkPreviewAncestorFallbackTests : IAsyncLifetime
         });
         await db.SaveChangesAsync();
 
-        return (db, provider, service, authorId, followerId, strangerId);
+        return (db, provider, service, authorId, followerId, strangerId, rootSegment);
     }
 
     [Fact]
     public async Task GetPreviewAsync_WhenTagIsPublic_ReturnsTargetTagInfo()
     {
-        var (db, provider, _, authorId, _, strangerId) = await CreateScopeAsync();
+        var (db, provider, _, authorId, _, strangerId, rootSeg) = await CreateScopeAsync();
         await using (db)
         {
             var tag = new Tag
@@ -79,7 +82,7 @@ public class TagLinkPreviewAncestorFallbackTests : IAsyncLifetime
                 Content = "Public tag description",
                 OwnerId = authorId,
                 IsPrivate = false,
-                Node = HierarchyId.Parse("/1/")
+                Node = HierarchyId.Parse($"/{rootSeg}/")
             };
             db.Tags.Add(tag);
             await db.SaveChangesAsync();
@@ -99,7 +102,7 @@ public class TagLinkPreviewAncestorFallbackTests : IAsyncLifetime
     [Fact]
     public async Task GetPreviewAsync_WhenTagIsPrivate_FallsBackToNearestVisibleParentTag()
     {
-        var (db, provider, _, authorId, _, strangerId) = await CreateScopeAsync();
+        var (db, provider, _, authorId, _, strangerId, rootSeg) = await CreateScopeAsync();
         await using (db)
         {
             // 可視な親タグ
@@ -109,7 +112,7 @@ public class TagLinkPreviewAncestorFallbackTests : IAsyncLifetime
                 Content = "Visible parent tag description",
                 OwnerId = authorId,
                 IsPrivate = false,
-                Node = HierarchyId.Parse("/10/")
+                Node = HierarchyId.Parse($"/{rootSeg}/")
             };
             db.Tags.Add(parentTag);
             await db.SaveChangesAsync();
@@ -123,7 +126,7 @@ public class TagLinkPreviewAncestorFallbackTests : IAsyncLifetime
                 ParentTagId = parentTag.Id,
                 IsPrivate = true,
                 TargetUserGroupId = null,
-                Node = HierarchyId.Parse("/10/1/")
+                Node = HierarchyId.Parse($"/{rootSeg}/1/")
             };
             db.Tags.Add(childTag);
             await db.SaveChangesAsync();
@@ -147,7 +150,7 @@ public class TagLinkPreviewAncestorFallbackTests : IAsyncLifetime
     [Fact]
     public async Task GetPreviewAsync_WhenParentIsAlsoPrivate_FallsBackToGrandparentTag()
     {
-        var (db, provider, _, authorId, _, strangerId) = await CreateScopeAsync();
+        var (db, provider, _, authorId, _, strangerId, rootSeg) = await CreateScopeAsync();
         await using (db)
         {
             // 可視な祖父タグ
@@ -157,7 +160,7 @@ public class TagLinkPreviewAncestorFallbackTests : IAsyncLifetime
                 Content = "Grandparent description",
                 OwnerId = authorId,
                 IsPrivate = false,
-                Node = HierarchyId.Parse("/20/")
+                Node = HierarchyId.Parse($"/{rootSeg}/")
             };
             db.Tags.Add(grandparentTag);
             await db.SaveChangesAsync();
@@ -170,7 +173,7 @@ public class TagLinkPreviewAncestorFallbackTests : IAsyncLifetime
                 OwnerId = authorId,
                 ParentTagId = grandparentTag.Id,
                 IsPrivate = true,
-                Node = HierarchyId.Parse("/20/1/")
+                Node = HierarchyId.Parse($"/{rootSeg}/1/")
             };
             db.Tags.Add(parentTag);
             await db.SaveChangesAsync();
@@ -183,7 +186,7 @@ public class TagLinkPreviewAncestorFallbackTests : IAsyncLifetime
                 OwnerId = authorId,
                 ParentTagId = parentTag.Id,
                 IsPrivate = true,
-                Node = HierarchyId.Parse("/20/1/1/")
+                Node = HierarchyId.Parse($"/{rootSeg}/1/1/")
             };
             db.Tags.Add(childTag);
             await db.SaveChangesAsync();
@@ -206,7 +209,7 @@ public class TagLinkPreviewAncestorFallbackTests : IAsyncLifetime
     [Fact]
     public async Task GetPreviewAsync_WhenUserHasAccessToPrivateTag_ReturnsTargetTagInfoDirectly()
     {
-        var (db, provider, _, authorId, followerId, _) = await CreateScopeAsync();
+        var (db, provider, _, authorId, followerId, _, rootSeg) = await CreateScopeAsync();
         await using (db)
         {
             var parentTag = new Tag
@@ -214,7 +217,7 @@ public class TagLinkPreviewAncestorFallbackTests : IAsyncLifetime
                 Name = $"Parent_{Guid.NewGuid():N}",
                 OwnerId = authorId,
                 IsPrivate = false,
-                Node = HierarchyId.Parse("/30/")
+                Node = HierarchyId.Parse($"/{rootSeg}/")
             };
             db.Tags.Add(parentTag);
             await db.SaveChangesAsync();
@@ -228,7 +231,7 @@ public class TagLinkPreviewAncestorFallbackTests : IAsyncLifetime
                 ParentTagId = parentTag.Id,
                 IsPrivate = true,
                 TargetUserGroupId = null,
-                Node = HierarchyId.Parse("/30/1/")
+                Node = HierarchyId.Parse($"/{rootSeg}/1/")
             };
             db.Tags.Add(childTag);
             await db.SaveChangesAsync();
@@ -249,7 +252,7 @@ public class TagLinkPreviewAncestorFallbackTests : IAsyncLifetime
     [Fact]
     public async Task GetPreviewAsync_WhenUserIsAdmin_ReturnsPrivateTagInfoDirectly()
     {
-        var (db, provider, _, authorId, _, _) = await CreateScopeAsync();
+        var (db, provider, _, authorId, _, _, rootSeg) = await CreateScopeAsync();
         await using (db)
         {
             var adminId = $"admin_{Guid.NewGuid():N}";
@@ -260,7 +263,7 @@ public class TagLinkPreviewAncestorFallbackTests : IAsyncLifetime
                 Name = $"Parent_{Guid.NewGuid():N}",
                 OwnerId = authorId,
                 IsPrivate = false,
-                Node = HierarchyId.Parse("/40/")
+                Node = HierarchyId.Parse($"/{rootSeg}/")
             };
             db.Tags.Add(parentTag);
             await db.SaveChangesAsync();
@@ -273,7 +276,7 @@ public class TagLinkPreviewAncestorFallbackTests : IAsyncLifetime
                 ParentTagId = parentTag.Id,
                 IsPrivate = true,
                 IsAdminHidden = true,
-                Node = HierarchyId.Parse("/40/1/")
+                Node = HierarchyId.Parse($"/{rootSeg}/1/")
             };
             db.Tags.Add(childTag);
             await db.SaveChangesAsync();
@@ -292,7 +295,7 @@ public class TagLinkPreviewAncestorFallbackTests : IAsyncLifetime
     [Fact]
     public async Task LinkPreviewService_SeparatesCacheByViewerContext()
     {
-        var (db, _, service, authorId, followerId, strangerId) = await CreateScopeAsync();
+        var (db, _, service, authorId, followerId, strangerId, rootSeg) = await CreateScopeAsync();
         await using (db)
         {
             var parentTag = new Tag
@@ -300,7 +303,7 @@ public class TagLinkPreviewAncestorFallbackTests : IAsyncLifetime
                 Name = $"PublicParent_{Guid.NewGuid():N}",
                 OwnerId = authorId,
                 IsPrivate = false,
-                Node = HierarchyId.Parse("/50/")
+                Node = HierarchyId.Parse($"/{rootSeg}/")
             };
             db.Tags.Add(parentTag);
             await db.SaveChangesAsync();
@@ -313,7 +316,7 @@ public class TagLinkPreviewAncestorFallbackTests : IAsyncLifetime
                 ParentTagId = parentTag.Id,
                 IsPrivate = true,
                 TargetUserGroupId = null,
-                Node = HierarchyId.Parse("/50/1/")
+                Node = HierarchyId.Parse($"/{rootSeg}/1/")
             };
             db.Tags.Add(childTag);
             await db.SaveChangesAsync();
@@ -336,7 +339,7 @@ public class TagLinkPreviewAncestorFallbackTests : IAsyncLifetime
     [Fact]
     public async Task GetPreviewAsync_WhenRedirectedToAncestor_PreviewDisplaysRedirectedTagNameAndNotSecretName()
     {
-        var (db, provider, _, authorId, _, strangerId) = await CreateScopeAsync();
+        var (db, provider, _, authorId, _, strangerId, rootSeg) = await CreateScopeAsync();
         await using (db)
         {
             var author = await db.Users.FindAsync(authorId);
@@ -348,7 +351,7 @@ public class TagLinkPreviewAncestorFallbackTests : IAsyncLifetime
                 Content = "Visible category description",
                 OwnerId = authorId,
                 IsPrivate = false,
-                Node = HierarchyId.Parse("/100/")
+                Node = HierarchyId.Parse($"/{rootSeg}/")
             };
             db.Tags.Add(visibleAncestorTag);
             await db.SaveChangesAsync();
@@ -361,7 +364,7 @@ public class TagLinkPreviewAncestorFallbackTests : IAsyncLifetime
                 ParentTagId = visibleAncestorTag.Id,
                 IsPrivate = true,
                 TargetUserGroupId = null,
-                Node = HierarchyId.Parse("/100/1/")
+                Node = HierarchyId.Parse($"/{rootSeg}/1/")
             };
             db.Tags.Add(secretChildTag);
             await db.SaveChangesAsync();

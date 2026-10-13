@@ -26,3 +26,24 @@ RUN curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh \
 # [Optional] Uncomment this line to install global node packages.
 RUN su vscode -c "source /usr/local/share/nvm/nvm.sh && nvm install --lts && nvm use --lts && npm install -g typescript" 2>&1
 # RUN su vscode -c "source /usr/local/share/nvm/nvm.sh && npm install -g <your-package-here>" 2>&1
+
+# Dev Container マウント時の Git 所有権エラー (dubious ownership) を恒久的に防止するためシステム設定およびラッパーを登録
+RUN mkdir -p /usr/local/etc \
+    && git config --file /etc/gitconfig --replace-all safe.directory /workspaces/SRNSWebApp \
+    && git config --file /etc/gitconfig --add safe.directory '*' \
+    && chmod 644 /etc/gitconfig \
+    && cp -f /etc/gitconfig /usr/local/etc/gitconfig \
+    && chmod 644 /usr/local/etc/gitconfig \
+    && if [ -x /usr/lib/git-core/git ]; then \
+        cp -p /usr/bin/git /usr/bin/git.real 2>/dev/null || true; \
+        rm -f /usr/bin/git; \
+        printf '#!/bin/sh\nunset GIT_CONFIG_NOSYSTEM\nexport GIT_CONFIG_SYSTEM=/etc/gitconfig\n[ "$GIT_CONFIG_GLOBAL" = "/dev/null" ] && export GIT_CONFIG_GLOBAL=/etc/gitconfig\nexec /usr/lib/git-core/git -c safe.directory='\''*'\'' -c safe.directory=/workspaces/SRNSWebApp "$@"\n' > /usr/bin/git; \
+        chmod 755 /usr/bin/git; \
+    fi \
+    && if [ -x /usr/local/libexec/git-core/git ]; then \
+        cp -p /usr/local/bin/git /usr/local/bin/git.real 2>/dev/null || true; \
+        rm -f /usr/local/bin/git; \
+        printf '#!/bin/sh\nunset GIT_CONFIG_NOSYSTEM\nexport GIT_CONFIG_SYSTEM=/etc/gitconfig\n[ "$GIT_CONFIG_GLOBAL" = "/dev/null" ] && export GIT_CONFIG_GLOBAL=/etc/gitconfig\nexec /usr/local/libexec/git-core/git -c safe.directory='\''*'\'' -c safe.directory=/workspaces/SRNSWebApp "$@"\n' > /usr/local/bin/git; \
+        chmod 755 /usr/local/bin/git; \
+    fi
+

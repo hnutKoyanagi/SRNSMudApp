@@ -10,9 +10,11 @@ public class MsSqlContainerFixture : IAsyncLifetime
 {
     private IDisposable? _containerSlot;
     private MsSqlContainer? _container;
+    private DockerSocketSqlProxy? _proxy;
+    private string? _connectionString;
 
     public string ConnectionString =>
-        _container?.GetConnectionString()
+        _connectionString
         ?? throw new InvalidOperationException("MsSqlContainer is not initialized.");
 
     public async Task InitializeAsync()
@@ -20,8 +22,14 @@ public class MsSqlContainerFixture : IAsyncLifetime
         _containerSlot = await ContainerLimiter.AcquireSlotAsync().ConfigureAwait(false);
         try
         {
-            _container = new MsSqlBuilder().Build();
+            _container = new MsSqlBuilder()
+                .WithCleanUp(false)
+                .WithAutoRemove(true)
+                .Build();
             await _container.StartAsync().ConfigureAwait(false);
+            (_connectionString, _proxy) = await DockerSocketSqlProxy
+                .EnsureReachableAsync(_container.Id, _container.GetConnectionString())
+                .ConfigureAwait(false);
         }
         catch
         {
@@ -35,6 +43,10 @@ public class MsSqlContainerFixture : IAsyncLifetime
     {
         try
         {
+            if (_proxy != null)
+            {
+                await _proxy.DisposeAsync().ConfigureAwait(false);
+            }
             if (_container != null)
             {
                 await _container.DisposeAsync().ConfigureAwait(false);

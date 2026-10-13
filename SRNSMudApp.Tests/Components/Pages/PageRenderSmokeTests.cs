@@ -51,7 +51,13 @@ public sealed class PageRenderSmokeTests : IAsyncLifetime
 
         Bunit.TestDoubles.BunitAuthorizationContext authorization = _ctx.AddAuthorization();
         authorization.SetAuthorized("smoke_user");
-        authorization.SetClaims(new Claim(ClaimTypes.NameIdentifier, UserId), new Claim(ClaimTypes.Name, "smoke_user"));
+        authorization.SetClaims(
+            new Claim(ClaimTypes.NameIdentifier, UserId),
+            new Claim(ClaimTypes.Name, "smoke_user"),
+            new Claim(ClaimTypes.Role, "Admin"));
+
+        _ctx.JSInterop.Setup<Blazor.Diagrams.Core.Geometry.Rectangle>(invocation => invocation.Identifier.Contains("getBoundingClientRect"))
+            .SetResult(new Blazor.Diagrams.Core.Geometry.Rectangle(0, 0, 800, 600));
 
         _ = _ctx.Render<MudPopoverProvider>();
     }
@@ -128,6 +134,150 @@ public sealed class PageRenderSmokeTests : IAsyncLifetime
     {
         IRenderedComponent<SRNSMudApp.Components.UserGroup.UserGroupList> cut =
             _ctx.Render<SRNSMudApp.Components.UserGroup.UserGroupList>();
+        Assert.NotNull(cut.Markup);
+    }
+
+    [Fact]
+    public void InvitationManager_Renders_WithoutException()
+    {
+        IRenderedComponent<SRNSMudApp.Components.Admin.InvitationManager> cut =
+            _ctx.Render<SRNSMudApp.Components.Admin.InvitationManager>();
+        Assert.NotNull(cut.Markup);
+    }
+
+    [Fact]
+    public void ReportManager_Renders_WithoutException()
+    {
+        IRenderedComponent<SRNSMudApp.Components.Admin.ReportManager> cut =
+            _ctx.Render<SRNSMudApp.Components.Admin.ReportManager>();
+        Assert.NotNull(cut.Markup);
+    }
+
+    [Fact]
+    public void TagManagement_Renders_WithoutException()
+    {
+        IRenderedComponent<SRNSMudApp.Components.Admin.TagManagement> cut =
+            _ctx.Render<SRNSMudApp.Components.Admin.TagManagement>();
+        Assert.NotNull(cut.Markup);
+    }
+
+    [Fact]
+    public void UserManagement_Renders_WithoutException()
+    {
+        IRenderedComponent<SRNSMudApp.Components.User.UserManagement> cut =
+            _ctx.Render<SRNSMudApp.Components.User.UserManagement>();
+        Assert.NotNull(cut.Markup);
+    }
+
+    [Fact]
+    public void MakeMeAdmin_Renders_WithoutException()
+    {
+        IRenderedComponent<SRNSMudApp.Components.User.MakeMeAdmin> cut =
+            _ctx.Render<SRNSMudApp.Components.User.MakeMeAdmin>();
+        Assert.NotNull(cut.Markup);
+    }
+
+    [Fact]
+    public void ContractManagement_Renders_WithoutException()
+    {
+        IRenderedComponent<SRNSMudApp.Components.Contract.ContractManagement> cut =
+            _ctx.Render<SRNSMudApp.Components.Contract.ContractManagement>();
+        Assert.NotNull(cut.Markup);
+    }
+
+    [Fact]
+    public void BountyBoard_Renders_WithoutException()
+    {
+        IRenderedComponent<SRNSMudApp.Components.Bounty.BountyBoard> cut =
+            _ctx.Render<SRNSMudApp.Components.Bounty.BountyBoard>();
+        Assert.NotNull(cut.Markup);
+    }
+
+    [Fact]
+    public void PublicOfferBoard_Renders_WithoutException()
+    {
+        IRenderedComponent<SRNSMudApp.Components.PublicOffer.PublicOfferBoard> cut =
+            _ctx.Render<SRNSMudApp.Components.PublicOffer.PublicOfferBoard>();
+        Assert.NotNull(cut.Markup);
+    }
+
+    [Fact]
+    public void RightAssetOverview_Renders_WithoutException()
+    {
+        IRenderedComponent<SRNSMudApp.Components.Pages.RightAssetOverview> cut =
+            _ctx.Render<SRNSMudApp.Components.Pages.RightAssetOverview>();
+        Assert.NotNull(cut.Markup);
+    }
+
+    [Fact]
+    public void ItemDetail_Renders_WithoutException()
+    {
+        IRenderedComponent<SRNSMudApp.Components.Item.ItemDetail> cut =
+            _ctx.Render<SRNSMudApp.Components.Item.ItemDetail>(parameters => parameters.Add(p => p.ItemId, 1));
+        Assert.NotNull(cut.Markup);
+    }
+
+    [Fact]
+    public void TagDetail_Renders_WithoutException()
+    {
+        IRenderedComponent<SRNSMudApp.Components.Tag.TagDetail> cut =
+            _ctx.Render<SRNSMudApp.Components.Tag.TagDetail>(parameters => parameters.Add(p => p.TagId, 1));
+        Assert.NotNull(cut.Markup);
+    }
+
+    [Fact]
+    public void AddTag_Renders_WithoutException()
+    {
+        IRenderedComponent<SRNSMudApp.Components.Tag.AddTag> cut =
+            _ctx.Render<SRNSMudApp.Components.Tag.AddTag>();
+        Assert.NotNull(cut.Markup);
+    }
+
+    [Fact]
+    public void ImportTag_Renders_WithoutException()
+    {
+        IRenderedComponent<SRNSMudApp.Components.Tag.ImportTag> cut =
+            _ctx.Render<SRNSMudApp.Components.Tag.ImportTag>();
+        Assert.NotNull(cut.Markup);
+    }
+
+    [Fact]
+    public void ImportTagging_Renders_WithoutException()
+    {
+        IRenderedComponent<SRNSMudApp.Components.Tag.ImportTagging> cut =
+            _ctx.Render<SRNSMudApp.Components.Tag.ImportTagging>();
+        Assert.NotNull(cut.Markup);
+    }
+
+    [Fact]
+    public void TagDiagramPage_Renders_WithoutException()
+    {
+        IRenderedComponent<SRNSMudApp.Components.Pages.TagDiagramPage> cut =
+            _ctx.Render<SRNSMudApp.Components.Pages.TagDiagramPage>();
+        Assert.NotNull(cut.Markup);
+    }
+
+    [Fact]
+    public void UserDetail_Renders_WithoutException()
+    {
+        IRenderedComponent<SRNSMudApp.Components.User.UserDetail> cut =
+            _ctx.Render<SRNSMudApp.Components.User.UserDetail>(parameters => parameters.Add(p => p.UserId, UserId));
+        Assert.NotNull(cut.Markup);
+    }
+
+    [Fact]
+    public void NotificationsPage_Renders_WithoutException()
+    {
+        IRenderedComponent<SRNSMudApp.Components.Pages.NotificationsPage> cut =
+            _ctx.Render<SRNSMudApp.Components.Pages.NotificationsPage>();
+        Assert.NotNull(cut.Markup);
+    }
+
+    [Fact]
+    public void AuthCallback_Renders_WithoutException()
+    {
+        IRenderedComponent<SRNSMudApp.Components.Pages.AuthCallback> cut =
+            _ctx.Render<SRNSMudApp.Components.Pages.AuthCallback>();
         Assert.NotNull(cut.Markup);
     }
 
